@@ -9,6 +9,8 @@ const FitAddon = window.FitAddon.FitAddon;
 let servers = [];
 let selectedIndex = -1; // server selezionato nella config
 let serverQuery = ''; // filtro lista server (pagina iniziale)
+const UNGROUPED = '__ungrouped__'; // chiave sezione "Senza gruppo"
+const serverLabel = (s) => s.nickname || s.name || s.host || '';
 
 /** @type {Map<string, Tab>} sessione SSH id -> tab */
 const tabs = new Map();
@@ -38,31 +40,203 @@ function renderServerList() {
   const ul = $('#server-list');
   ul.innerHTML = '';
   const q = serverQuery.trim().toLowerCase();
+  const matches = (s) =>
+    !q || `${s.nickname || ''} ${s.name || ''} ${s.host || ''} ${s.username || ''}`.toLowerCase().includes(q);
+  const byName = (a, b) =>
+    serverLabel(a.s).localeCompare(serverLabel(b.s), undefined, { sensitivity: 'base' });
+
+  const indexed = servers.map((s, i) => ({ s, i }));
+  const groupNames = [...new Set(indexed.map(({ s }) => (s.group || '').trim()).filter(Boolean))]
+    .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+
   let shown = 0;
-  servers.forEach((s, i) => {
-    if (q) {
-      const hay = `${s.nickname || ''} ${s.name || ''} ${s.host || ''} ${s.username || ''}`.toLowerCase();
-      if (!hay.includes(q)) return;
-    }
-    shown++;
-    const li = el('li');
-    if (i === selectedIndex) li.classList.add('selected');
-    const nick = el('div', 'li-nick');
-    nick.textContent = s.nickname || s.name || s.host;
-    const sub = el('div', 'li-sub');
-    sub.textContent = `${s.username}@${s.host}:${s.port || 22} · ${s.usePem ? 'PEM' : 'password'}`;
-    li.appendChild(nick);
-    li.appendChild(sub);
-    li.addEventListener('click', () => selectServer(i));
-    li.addEventListener('dblclick', () => { selectServer(i); openConnection(servers[i]); });
+  const addServer = (entry, grouped) => {
+    const li = makeServerLi(entry.s, entry.i);
+    if (grouped) li.classList.add('grouped');
     ul.appendChild(li);
-  });
+    shown++;
+  };
+
+  if (!groupNames.length) {
+    // nessun gruppo: lista piatta ordinata alfabeticamente
+    indexed.filter(({ s }) => matches(s)).sort(byName).forEach((e) => addServer(e, false));
+  } else {
+    groupNames.forEach((g) => {
+      const members = indexed.filter(({ s }) => (s.group || '').trim() === g);
+      const vis = members.filter(({ s }) => matches(s)).sort(byName);
+      if (q && !vis.length) return; // in ricerca nascondi i gruppi senza match
+      const collapsed = isGroupCollapsed(g) && !q;
+      ul.appendChild(makeGroupHeader(g, members.length, collapsed, false));
+      if (!collapsed) vis.forEach((e) => addServer(e, true));
+    });
+    // sezione "Senza gruppo" (anche drop target per togliere dal gruppo)
+    const ung = indexed.filter(({ s }) => !(s.group || '').trim());
+    const uvis = ung.filter(({ s }) => matches(s)).sort(byName);
+    if (!q || uvis.length) {
+      const collapsed = isGroupCollapsed(UNGROUPED) && !q;
+      ul.appendChild(makeGroupHeader(UNGROUPED, ung.length, collapsed, true));
+      if (!collapsed) uvis.forEach((e) => addServer(e, true));
+    }
+  }
+
   if (servers.length && !shown) {
     const empty = el('li', 'server-empty');
     empty.textContent = 'Nessuna macchina corrisponde alla ricerca.';
     ul.appendChild(empty);
   }
 }
+
+/** Crea la riga di un server (selezione, doppio click per connettere, drag&drop). */
+function makeServerLi(s, i) {
+  const li = el('li');
+  li.draggable = true;
+  if (i === selectedIndex) li.classList.add('selected');
+  const nick = el('div', 'li-nick');
+  nick.textContent = serverLabel(s);
+  const sub = el('div', 'li-sub');
+  sub.textContent = `${s.username}@${s.host}:${s.port || 22} · ${s.usePem ? 'PEM' : 'password'}`;
+  li.appendChild(nick);
+  li.appendChild(sub);
+  li.addEventListener('click', () => selectServer(i));
+  li.addEventListener('dblclick', () => { selectServer(i); openConnection(servers[i]); });
+
+  li.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('text/server', String(i));
+    e.dataTransfer.effectAllowed = 'move';
+  });
+  li.addEventListener('dragover', (e) => { e.preventDefault(); li.classList.add('drop-hint'); });
+  li.addEventListener('dragleave', () => li.classList.remove('drop-hint'));
+  li.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    li.classList.remove('drop-hint');
+    const from = parseInt(e.dataTransfer.getData('text/server'), 10);
+    if (Number.isNaN(from) || from === i) return;
+    onDropOnServer(from, i);
+  });
+  return li;
+}
+
+/** Crea l'intestazione (collassabile + drop target) di un gruppo. */
+function makeGroupHeader(name, count, collapsed, isUngrouped) {
+  const li = el('li', 'server-group' + (collapsed ? ' collapsed' : ''));
+  li.dataset.group = isUngrouped ? '' : name;
+  const caret = el('i', 'fa-solid caret ' + (collapsed ? 'fa-chevron-right' : 'fa-chevron-down'));
+  const title = el('span', 'sg-name');
+  title.textContent = isUngrouped ? 'Senza gruppo' : name;
+  const cnt = el('span', 'sg-count');
+  cnt.textContent = count;
+  li.appendChild(caret);
+  li.appendChild(title);
+  li.appendChild(cnt);
+
+  li.addEventListener('click', () => {
+    if (title.isContentEditable) return; // in fase di rinomina
+    toggleGroupCollapsed(isUngrouped ? UNGROUPED : name);
+    renderServerList();
+  });
+  if (!isUngrouped) {
+    li.addEventListener('dblclick', (e) => { e.stopPropagation(); renameGroup(name, title); });
+  }
+
+  li.addEventListener('dragover', (e) => { e.preventDefault(); li.classList.add('drop-hint'); });
+  li.addEventListener('dragleave', () => li.classList.remove('drop-hint'));
+  li.addEventListener('drop', (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    li.classList.remove('drop-hint');
+    const from = parseInt(e.dataTransfer.getData('text/server'), 10);
+    if (Number.isNaN(from)) return;
+    assignGroup(from, isUngrouped ? '' : name);
+  });
+  return li;
+}
+
+/** Drop di un server su un altro: stesso gruppo del target, o crea un nuovo gruppo. */
+async function onDropOnServer(from, to) {
+  const tgroup = (servers[to].group || '').trim();
+  if (tgroup) {
+    return assignGroup(from, tgroup);
+  }
+  // entrambi senza gruppo: crea un nuovo gruppo e avvia la rinomina inline
+  const name = uniqueGroupName('Nuovo gruppo');
+  servers[from].group = name;
+  servers[to].group = name;
+  await window.api.saveServers(servers);
+  renderServerList();
+  const title = document.querySelector(`.server-group[data-group="${cssEscape(name)}"] .sg-name`);
+  if (title) renameGroup(name, title);
+}
+
+/** Assegna (o rimuove, se vuoto) il gruppo a un server e salva. */
+async function assignGroup(index, groupName) {
+  const g = (groupName || '').trim();
+  if (g) servers[index].group = g;
+  else delete servers[index].group;
+  await window.api.saveServers(servers);
+  renderServerList();
+}
+
+function uniqueGroupName(base) {
+  const existing = new Set(servers.map((s) => (s.group || '').trim()).filter(Boolean));
+  if (!existing.has(base)) return base;
+  let n = 2;
+  while (existing.has(`${base} ${n}`)) n++;
+  return `${base} ${n}`;
+}
+
+/** Rinomina inline di un gruppo: aggiorna tutti i server che vi appartengono. */
+function renameGroup(oldName, titleEl) {
+  titleEl.contentEditable = 'true';
+  titleEl.classList.add('editing');
+  titleEl.focus();
+  const range = document.createRange();
+  range.selectNodeContents(titleEl);
+  const sel = window.getSelection();
+  sel.removeAllRanges();
+  sel.addRange(range);
+
+  let done = false;
+  const finish = async (commit) => {
+    if (done) return;
+    done = true;
+    titleEl.contentEditable = 'false';
+    titleEl.classList.remove('editing');
+    titleEl.removeEventListener('keydown', onKey);
+    titleEl.removeEventListener('blur', onBlur);
+    const val = titleEl.textContent.trim();
+    if (commit && val && val !== oldName) {
+      const newName = uniqueGroupName(val);
+      servers.forEach((s) => { if ((s.group || '').trim() === oldName) s.group = newName; });
+      if (isGroupCollapsed(oldName)) { setGroupCollapsed(oldName, false); setGroupCollapsed(newName, true); }
+      await window.api.saveServers(servers);
+    }
+    renderServerList();
+  };
+  const onKey = (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); finish(true); }
+    else if (e.key === 'Escape') { e.preventDefault(); finish(false); }
+  };
+  const onBlur = () => finish(true);
+  titleEl.addEventListener('keydown', onKey);
+  setTimeout(() => titleEl.addEventListener('blur', onBlur), 0);
+}
+
+// --- stato collassato dei gruppi (persistito in localStorage) ---
+function groupCollapseStore() {
+  try { return JSON.parse(localStorage.getItem('groupCollapsed') || '{}'); } catch (_) { return {}; }
+}
+function isGroupCollapsed(name) { return !!groupCollapseStore()[name]; }
+function setGroupCollapsed(name, val) {
+  const m = groupCollapseStore();
+  if (val) m[name] = true; else delete m[name];
+  localStorage.setItem('groupCollapsed', JSON.stringify(m));
+}
+function toggleGroupCollapsed(name) { setGroupCollapsed(name, !isGroupCollapsed(name)); }
+
+/** Escape minimale per un valore usato in un selettore [data-group="…"]. */
+function cssEscape(s) { return String(s).replace(/["\\]/g, '\\$&'); }
 
 function blankServer() {
   return {
@@ -132,8 +306,10 @@ async function saveServer(e) {
   e.preventDefault();
   const data = readForm();
   if (!data.host || !data.username) return toast('Host e username obbligatori', true);
-  if (selectedIndex >= 0) servers[selectedIndex] = data;
-  else { servers.push(data); selectedIndex = servers.length - 1; }
+  if (selectedIndex >= 0) {
+    if (servers[selectedIndex].group) data.group = servers[selectedIndex].group; // preserva il gruppo
+    servers[selectedIndex] = data;
+  } else { servers.push(data); selectedIndex = servers.length - 1; }
   await window.api.saveServers(servers);
   renderServerList();
   toast('Configurazione salvata');
@@ -700,7 +876,7 @@ async function showDocker(tab) {
   const old = tab.hostEl.querySelector('.ll-overlay');
   if (old) old.remove();
 
-  const overlay = el('div', 'll-overlay docker-overlay');
+  const overlay = el('div', 'll-overlay docker-overlay containers-overlay');
   const grip = el('div', 'll-resize');
   overlay.appendChild(grip);
   setupOverlayResize(grip, overlay, tab);
@@ -798,6 +974,7 @@ async function showDocker(tab) {
   }
 
   tab.hostEl.appendChild(overlay);
+  if (searchInput) setTimeout(() => searchInput.focus(), 0);
 }
 
 function makeDockerRow(tab, c) {
@@ -951,39 +1128,70 @@ async function showImages(tab) {
   head.appendChild(actions);
   overlay.appendChild(head);
 
-  // --- Sezione 1: immagini dichiarate nei compose ---
-  const g1 = el('div', 'docker-group');
-  g1.innerHTML = `<i class="fa-solid fa-layer-group"></i> Nei compose — ${composeImgs.length}`;
-  overlay.appendChild(g1);
-  buildImageSection(
-    overlay,
+  // --- Sezione 1: immagini dichiarate nei compose (collassata di default) ---
+  const g1 = makeCollapsibleHeader(`<i class="fa-solid fa-layer-group"></i> Nei compose — ${composeImgs.length}`);
+  overlay.appendChild(g1.header);
+  const s1 = buildImageSection(
     composeImgs.map((it) => ({ text: it.image, row: makeComposeImageRow(tab, it.image) })),
     'Nessuna immagine trovata nei compose.'
   );
+  overlay.appendChild(s1.section);
+  g1.attach(s1.section, true);
 
-  // --- Sezione 2: immagini presenti (docker images) ---
-  const g2 = el('div', 'docker-group');
-  g2.innerHTML = `<i class="fa-solid fa-hard-drive"></i> Presenti sul remoto — ${localImgs.length}`;
-  overlay.appendChild(g2);
-  buildImageSection(
-    overlay,
+  // --- Sezione 2: immagini presenti (docker images, espansa) ---
+  const g2 = makeCollapsibleHeader(`<i class="fa-solid fa-hard-drive"></i> Presenti sul remoto — ${localImgs.length}`);
+  overlay.appendChild(g2.header);
+  const s2 = buildImageSection(
     localImgs.map((img) => ({
       text: `${img.ref || `${img.repo}:${img.tag}`} ${img.id || ''}`,
       row: makeLocalImageRow(tab, img),
     })),
     'Nessuna immagine presente.'
   );
+  overlay.appendChild(s2.section);
+  g2.attach(s2.section, false);
 
   tab.hostEl.appendChild(overlay);
+  // focus sulla ricerca della seconda sezione (quella espansa)
+  if (s2.input) setTimeout(() => s2.input.focus(), 0);
 }
 
-/** Costruisce una sezione di immagini con barra di ricerca che filtra le righe. */
-function buildImageSection(overlay, items, emptyText) {
+/** Crea un'intestazione di sezione collassabile con freccia. */
+function makeCollapsibleHeader(html) {
+  const header = el('div', 'docker-group collapsible');
+  const caret = el('i', 'fa-solid fa-chevron-down caret');
+  const label = el('span');
+  label.innerHTML = html;
+  header.appendChild(caret);
+  header.appendChild(label);
+  return {
+    header,
+    attach(content, collapsed) {
+      const apply = () => {
+        const isCol = header.classList.contains('collapsed');
+        content.style.display = isCol ? 'none' : '';
+        caret.classList.toggle('fa-chevron-right', isCol);
+        caret.classList.toggle('fa-chevron-down', !isCol);
+      };
+      header.classList.toggle('collapsed', collapsed);
+      apply();
+      header.addEventListener('click', () => {
+        header.classList.toggle('collapsed');
+        apply();
+      });
+    },
+  };
+}
+
+/** Costruisce una sezione di immagini con barra di ricerca che filtra le righe.
+ *  Ritorna { section, input } (input è la barra di ricerca, o null se vuota). */
+function buildImageSection(items, emptyText) {
+  const section = el('div', 'img-section');
   if (!items.length) {
     const empty = el('div', 'docker-empty');
     empty.textContent = emptyText;
-    overlay.appendChild(empty);
-    return;
+    section.appendChild(empty);
+    return { section, input: null };
   }
 
   const bar = el('div', 'll-search');
@@ -994,16 +1202,16 @@ function buildImageSection(overlay, items, emptyText) {
   input.placeholder = 'Filtra immagini…';
   bar.appendChild(icon);
   bar.appendChild(input);
-  overlay.appendChild(bar);
+  section.appendChild(bar);
 
   const list = el('div', 'img-list');
   items.forEach((it) => list.appendChild(it.row));
-  overlay.appendChild(list);
+  section.appendChild(list);
 
   const noRes = el('div', 'docker-empty');
   noRes.textContent = 'Nessun risultato.';
   noRes.style.display = 'none';
-  overlay.appendChild(noRes);
+  section.appendChild(noRes);
 
   input.addEventListener('keydown', (e) => e.stopPropagation());
   input.addEventListener('input', () => {
@@ -1016,6 +1224,8 @@ function buildImageSection(overlay, items, emptyText) {
     });
     noRes.style.display = visible ? 'none' : '';
   });
+
+  return { section, input };
 }
 
 function makeComposeImageRow(tab, image) {
@@ -1248,7 +1458,9 @@ function openTermContextMenu(e, tab) {
       label: 'Incolla password',
       disabled: !tab.server.password,
       action: () => {
-        window.api.write(tab.id, tab.server.password);
+        // incolla la password e invia ENTER, poi torna sul terminale
+        window.api.write(tab.id, tab.server.password + '\r');
+        tab.term.focus();
         toast('Password inserita');
       },
     },
@@ -1428,4 +1640,7 @@ window.addEventListener('DOMContentLoaded', () => {
 
   document.addEventListener('click', hideContextMenu);
   window.addEventListener('resize', fitAll);
+
+  // focus iniziale sulla barra di ricerca dei server
+  $('#server-search').focus();
 });

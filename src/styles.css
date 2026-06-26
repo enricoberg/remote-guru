@@ -65,6 +65,25 @@ html, body {
 .server-list { list-style: none; margin: 0; padding: 0; }
 .server-list .server-empty { color: var(--muted); font-size: 13px; padding: 10px 4px; cursor: default; background: none; }
 .server-list .server-empty:hover { border-color: transparent; }
+
+/* gruppi di server (intestazione collassabile + drop target) */
+.server-list li.server-group {
+  display: flex; align-items: center; gap: 8px; font-weight: 600;
+  cursor: pointer; user-select: none;
+}
+.server-list li.server-group:hover { border-color: var(--border); filter: brightness(1.1); }
+.server-group .caret { width: 12px; color: var(--muted); flex: 0 0 auto; }
+.server-group .sg-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.server-group .sg-name.editing {
+  outline: 1px solid var(--accent); background: var(--bg); border-radius: 4px;
+  padding: 1px 5px; cursor: text;
+}
+.server-group .sg-count {
+  margin-left: auto; color: var(--muted); font-size: 12px; font-weight: 400;
+  background: var(--bg); border-radius: 10px; padding: 1px 8px; flex: 0 0 auto;
+}
+.server-list li.grouped { margin-left: 16px; }
+.server-list li.drop-hint { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 .server-list li {
   padding: 12px; border-radius: 8px; cursor: pointer; margin-bottom: 6px;
   border: 1px solid transparent; background: var(--bg2);
@@ -201,6 +220,8 @@ html, body {
   display: flex; align-items: center; gap: 12px; padding: 8px 4px;
   border-bottom: 1px solid var(--border);
 }
+/* righe container sfalsate a destra rispetto all'intestazione cartella */
+.containers-overlay .docker-row { padding-left: 16px; border-left: 2px solid var(--border); margin-left: 8px; }
 .docker-row.stopped .docker-name { color: var(--muted); }
 .docker-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--muted); flex: 0 0 auto; }
 .docker-dot.on { background: var(--green); }
@@ -240,6 +261,9 @@ html, body {
 }
 .docker-group i { margin-right: 6px; }
 .docker-group:first-child { margin-top: 0; }
+.docker-group.collapsible { cursor: pointer; user-select: none; }
+.docker-group.collapsible .caret { width: 12px; }
+.docker-group.collapsible:hover { filter: brightness(1.15); }
 .docker-btn.d-manual:hover { background: var(--accent); color: #11111b; }
 
 /* form Manual Pull inline */
