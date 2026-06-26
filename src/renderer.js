@@ -8,6 +8,7 @@ const FitAddon = window.FitAddon.FitAddon;
 // ----------------------------------------------------------------------------
 let servers = [];
 let selectedIndex = -1; // server selezionato nella config
+let serverQuery = ''; // filtro lista server (pagina iniziale)
 
 /** @type {Map<string, Tab>} sessione SSH id -> tab */
 const tabs = new Map();
@@ -36,7 +37,14 @@ async function loadServers() {
 function renderServerList() {
   const ul = $('#server-list');
   ul.innerHTML = '';
+  const q = serverQuery.trim().toLowerCase();
+  let shown = 0;
   servers.forEach((s, i) => {
+    if (q) {
+      const hay = `${s.nickname || ''} ${s.name || ''} ${s.host || ''} ${s.username || ''}`.toLowerCase();
+      if (!hay.includes(q)) return;
+    }
+    shown++;
     const li = el('li');
     if (i === selectedIndex) li.classList.add('selected');
     const nick = el('div', 'li-nick');
@@ -49,6 +57,11 @@ function renderServerList() {
     li.addEventListener('dblclick', () => { selectServer(i); openConnection(servers[i]); });
     ul.appendChild(li);
   });
+  if (servers.length && !shown) {
+    const empty = el('li', 'server-empty');
+    empty.textContent = 'Nessuna macchina corrisponde alla ricerca.';
+    ul.appendChild(empty);
+  }
 }
 
 function blankServer() {
@@ -755,8 +768,8 @@ function makeDockerRow(tab, c) {
   name.innerHTML = `<i class="fa-solid fa-cube"></i> ${escapeHtml(c.name)}`;
   name.title = c.name + (c.status ? ` — ${c.status}` : '');
   const img = el('span', 'docker-img');
-  img.textContent = c.image;
-  img.title = c.image;
+  img.textContent = c.status ? `${c.image} · ${c.status}` : c.image;
+  img.title = `${c.image}${c.status ? ` — ${c.status}` : ''}`;
   meta.appendChild(name);
   meta.appendChild(img);
 
@@ -959,7 +972,8 @@ function makeLocalImageRow(tab, img) {
   name.innerHTML = `<i class="fa-solid fa-box-archive"></i> ${escapeHtml(label)}`;
   name.title = `${label} — ${img.id}`;
   const sub = el('span', 'docker-img');
-  sub.textContent = `${img.size || ''} · ${img.id || ''}`;
+  const parts = [img.size, img.created, img.id].filter(Boolean);
+  sub.textContent = parts.join(' · ');
   meta.appendChild(name);
   meta.appendChild(sub);
 
@@ -1314,6 +1328,10 @@ window.addEventListener('DOMContentLoaded', () => {
   loadServers();
 
   $('#btn-new').addEventListener('click', newServer);
+  $('#server-search').addEventListener('input', (e) => {
+    serverQuery = e.target.value;
+    renderServerList();
+  });
   $('#server-form').addEventListener('submit', saveServer);
   $('#btn-delete').addEventListener('click', deleteServer);
   $('#btn-connect').addEventListener('click', connectFromForm);

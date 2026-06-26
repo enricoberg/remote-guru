@@ -451,16 +451,16 @@ class SshManager {
 
   /** Elenca le immagini presenti sul remoto (docker images). */
   async listImages(id) {
-    const fmt = '{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}';
+    const fmt = '{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}\t{{.CreatedAt}}';
     const out = await this.dockerExec(id, `docker images --format ${shellQuote(fmt)}`);
     return out
       .split('\n')
       .map((l) => l.replace(/\r$/, ''))
       .filter((l) => l.trim())
       .map((line) => {
-        const [repo, tag, imgId, size] = line.split('\t');
+        const [repo, tag, imgId, size, created] = line.split('\t');
         const tagged = repo && repo !== '<none>' && tag && tag !== '<none>';
-        return { repo, tag, id: imgId, size, ref: tagged ? `${repo}:${tag}` : null };
+        return { repo, tag, id: imgId, size, created: created || '', ref: tagged ? `${repo}:${tag}` : null };
       });
   }
 
