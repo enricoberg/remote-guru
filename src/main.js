@@ -147,6 +147,18 @@ ipcMain.handle('docker:action', (_e, { id, action, container }) =>
   ssh.dockerAction(id, action, container)
 );
 
+ipcMain.handle('docker:manualPull', (_e, { id, opId, image, targetImage }) =>
+  ssh.manualPull(id, image, targetImage, (p) => send('docker:pullProgress', { opId, ...p }))
+);
+
+ipcMain.handle('docker:composeImages', (_e, id) => ssh.composeImages(id));
+
+ipcMain.handle('docker:listImages', (_e, id) => ssh.listImages(id));
+
+ipcMain.handle('docker:imageAction', (_e, { id, action, image }) =>
+  ssh.imageAction(id, action, image)
+);
+
 function send(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(channel, payload);

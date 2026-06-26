@@ -252,9 +252,13 @@ function buildPane(tab) {
     tab.term.focus();
   });
   const dockerBtn = el('button', 'btn-ll');
-  dockerBtn.title = 'Container Docker attivi';
+  dockerBtn.title = 'Container Docker';
   dockerBtn.innerHTML = '<i class="fa-brands fa-docker"></i>';
   dockerBtn.addEventListener('click', () => showDocker(tab));
+  const imagesBtn = el('button', 'btn-ll');
+  imagesBtn.title = 'Immagini Docker';
+  imagesBtn.innerHTML = '<i class="fa-solid fa-hard-drive"></i>';
+  imagesBtn.addEventListener('click', () => showImages(tab));
   const srv = el('span', 'srv-name');
   srv.textContent = tab.server.nickname || tab.server.name;
   const cwd = el('span', 'cwd');
@@ -268,6 +272,7 @@ function buildPane(tab) {
   toolbar.appendChild(llBtn);
   toolbar.appendChild(clearBtn);
   toolbar.appendChild(dockerBtn);
+  toolbar.appendChild(imagesBtn);
   toolbar.appendChild(srv);
   toolbar.appendChild(cwd);
   toolbar.appendChild(splitBtn);
@@ -812,6 +817,301 @@ async function dockerAction(tab, action, c, btn) {
 }
 
 // ============================================================================
+// IMMAGINI DOCKER
+// ============================================================================
+
+async function showImages(tab) {
+  let composeImgs, localImgs;
+  try {
+    toast('Lettura immagini Docker…');
+    [composeImgs, localImgs] = await Promise.all([
+      window.api.composeImages(tab.id),
+      window.api.listImages(tab.id),
+    ]);
+  } catch (e) {
+    return toast('Errore immagini: ' + e.message, true);
+  }
+
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  if (old) old.remove();
+
+  const overlay = el('div', 'll-overlay docker-overlay');
+  const grip = el('div', 'll-resize');
+  overlay.appendChild(grip);
+  setupOverlayResize(grip, overlay, tab);
+  if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+
+  const head = el('div', 'll-head');
+  const info = el('span');
+  info.innerHTML = '<i class="fa-solid fa-hard-drive"></i> Immagini Docker';
+  const actions = el('span', 'll-head-actions');
+  const refreshBtn = el('button');
+  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
+  refreshBtn.title = 'Aggiorna';
+  refreshBtn.addEventListener('click', () => showImages(tab));
+  const closeBtn = el('button');
+  closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+  closeBtn.title = 'Chiudi';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  actions.appendChild(refreshBtn);
+  actions.appendChild(closeBtn);
+  head.appendChild(info);
+  head.appendChild(actions);
+  overlay.appendChild(head);
+
+  // --- Sezione 1: immagini dichiarate nei compose ---
+  const g1 = el('div', 'docker-group');
+  g1.innerHTML = `<i class="fa-solid fa-layer-group"></i> Nei compose — ${composeImgs.length}`;
+  overlay.appendChild(g1);
+  buildImageSection(
+    overlay,
+    composeImgs.map((it) => ({ text: it.image, row: makeComposeImageRow(tab, it.image) })),
+    'Nessuna immagine trovata nei compose.'
+  );
+
+  // --- Sezione 2: immagini presenti (docker images) ---
+  const g2 = el('div', 'docker-group');
+  g2.innerHTML = `<i class="fa-solid fa-hard-drive"></i> Presenti sul remoto — ${localImgs.length}`;
+  overlay.appendChild(g2);
+  buildImageSection(
+    overlay,
+    localImgs.map((img) => ({
+      text: `${img.ref || `${img.repo}:${img.tag}`} ${img.id || ''}`,
+      row: makeLocalImageRow(tab, img),
+    })),
+    'Nessuna immagine presente.'
+  );
+
+  tab.hostEl.appendChild(overlay);
+}
+
+/** Costruisce una sezione di immagini con barra di ricerca che filtra le righe. */
+function buildImageSection(overlay, items, emptyText) {
+  if (!items.length) {
+    const empty = el('div', 'docker-empty');
+    empty.textContent = emptyText;
+    overlay.appendChild(empty);
+    return;
+  }
+
+  const bar = el('div', 'll-search');
+  const icon = el('i', 'fa-solid fa-magnifying-glass');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'search-input';
+  input.placeholder = 'Filtra immagini…';
+  bar.appendChild(icon);
+  bar.appendChild(input);
+  overlay.appendChild(bar);
+
+  const list = el('div', 'img-list');
+  items.forEach((it) => list.appendChild(it.row));
+  overlay.appendChild(list);
+
+  const noRes = el('div', 'docker-empty');
+  noRes.textContent = 'Nessun risultato.';
+  noRes.style.display = 'none';
+  overlay.appendChild(noRes);
+
+  input.addEventListener('keydown', (e) => e.stopPropagation());
+  input.addEventListener('input', () => {
+    const q = input.value.trim().toLowerCase();
+    let visible = 0;
+    items.forEach((it) => {
+      const match = !q || it.text.toLowerCase().includes(q);
+      it.row.style.display = match ? '' : 'none';
+      if (match) visible++;
+    });
+    noRes.style.display = visible ? 'none' : '';
+  });
+}
+
+function makeComposeImageRow(tab, image) {
+  const row = el('div', 'docker-row');
+  const meta = el('div', 'docker-meta');
+  const name = el('span', 'docker-name');
+  name.innerHTML = `<i class="fa-solid fa-box"></i> ${escapeHtml(image)}`;
+  name.title = image;
+  meta.appendChild(name);
+
+  const btns = el('div', 'docker-actions');
+  const pullBtn = el('button', 'docker-btn d-pull');
+  pullBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Pull';
+  pullBtn.title = 'Pull ' + image;
+  pullBtn.addEventListener('click', () => imageAction(tab, 'pull', { ref: image }, pullBtn));
+  const manualBtn = el('button', 'docker-btn d-manual');
+  manualBtn.innerHTML = '<i class="fa-solid fa-download"></i> Manual Pull';
+  manualBtn.title = 'Manual Pull → ' + image;
+  manualBtn.addEventListener('click', () => openManualPull(tab, image, row));
+  btns.appendChild(pullBtn);
+  btns.appendChild(manualBtn);
+
+  row.appendChild(meta);
+  row.appendChild(btns);
+  return row;
+}
+
+function makeLocalImageRow(tab, img) {
+  const row = el('div', 'docker-row');
+  const meta = el('div', 'docker-meta');
+  const name = el('span', 'docker-name');
+  const label = img.ref || `${img.repo}:${img.tag}`;
+  name.innerHTML = `<i class="fa-solid fa-box-archive"></i> ${escapeHtml(label)}`;
+  name.title = `${label} — ${img.id}`;
+  const sub = el('span', 'docker-img');
+  sub.textContent = `${img.size || ''} · ${img.id || ''}`;
+  meta.appendChild(name);
+  meta.appendChild(sub);
+
+  const btns = el('div', 'docker-actions');
+  const pullBtn = el('button', 'docker-btn d-pull');
+  pullBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Pull';
+  if (img.ref) {
+    pullBtn.title = 'Pull ' + img.ref;
+    pullBtn.addEventListener('click', () => imageAction(tab, 'pull', img, pullBtn));
+  } else {
+    pullBtn.disabled = true;
+    pullBtn.title = 'Immagine senza tag: pull non disponibile';
+  }
+  const delBtn = el('button', 'docker-btn d-down');
+  delBtn.innerHTML = '<i class="fa-solid fa-trash"></i> Elimina';
+  delBtn.title = 'Elimina immagine';
+  delBtn.addEventListener('click', () => imageAction(tab, 'delete', img, delBtn));
+  btns.appendChild(pullBtn);
+  btns.appendChild(delBtn);
+
+  row.appendChild(meta);
+  row.appendChild(btns);
+  return row;
+}
+
+async function imageAction(tab, action, img, btn) {
+  const labels = { pull: 'Pull', delete: 'Elimina' };
+  const name = img.ref || img.id || '';
+  if (action === 'delete' && !confirm(`Eliminare l'immagine "${name}"?`)) return;
+
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+  try {
+    toast(`${labels[action]} ${name}…`);
+    await window.api.imageAction(tab.id, action, img);
+    toast(`${labels[action]} completato: ${name}`);
+    showImages(tab);
+  } catch (e) {
+    toast(`Errore ${labels[action]}: ` + e.message, true);
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+}
+
+// --- Manual Pull ------------------------------------------------------------
+
+let mpOpSeq = 0;
+const mpProgressHandlers = new Set();
+
+/** Ripulisce un riferimento immagine incollato (toglie "docker pull " e apici). */
+function cleanImageRef(raw) {
+  return String(raw || '')
+    .trim()
+    .replace(/^docker\s+pull\s+/i, '')
+    .replace(/^['"]|['"]$/g, '')
+    .trim();
+}
+
+/** Valida un riferimento immagine con digest: repo[:tag]@sha256:<64hex>. */
+function isValidImageRef(s) {
+  return /^[\w][\w./-]*(:[\w][\w.-]*)?@sha256:[a-f0-9]{64}$/i.test(s);
+}
+
+/** Apre (o richiude) il form inline di Manual Pull sotto la riga dell'immagine.
+ *  `targetImage` è l'immagine (dal compose) con cui ritaggare sul remoto. */
+function openManualPull(tab, targetImage, anchorRow) {
+  const next = anchorRow.nextElementSibling;
+  if (next && next.classList.contains('docker-mp')) { next.remove(); return; }
+
+  const box = el('div', 'docker-mp');
+  const top = el('div', 'docker-mp-top');
+  const icon = el('i', 'fa-solid fa-download');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'docker-mp-input';
+  input.placeholder = 'registry/repo:tag@sha256:… — Invio per avviare, Esc per annullare';
+  const go = el('button', 'docker-btn d-manual');
+  go.innerHTML = '<i class="fa-solid fa-play"></i> Avvia';
+  top.appendChild(icon);
+  top.appendChild(input);
+  top.appendChild(go);
+
+  const status = el('div', 'docker-mp-status');
+  status.textContent = `Destinazione retag: ${targetImage}`;
+  const bar = el('div', 'docker-mp-bar');
+  const fill = el('div', 'docker-mp-fill');
+  bar.appendChild(fill);
+
+  box.appendChild(top);
+  box.appendChild(status);
+  box.appendChild(bar);
+  anchorRow.parentNode.insertBefore(box, anchorRow.nextElementSibling);
+  input.focus();
+
+  const ui = { box, status, fill, go, input };
+  const start = () => startManualPull(tab, targetImage, input.value, ui);
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); start(); }
+    else if (e.key === 'Escape') { e.preventDefault(); if (!ui.running) box.remove(); }
+  });
+  go.addEventListener('click', start);
+}
+
+async function startManualPull(tab, targetImage, raw, ui) {
+  if (ui.running) return;
+  const image = cleanImageRef(raw);
+  if (!isValidImageRef(image)) {
+    ui.status.textContent = 'Riferimento non valido. Atteso: repo:tag@sha256:<digest>';
+    ui.status.classList.add('err');
+    return;
+  }
+  ui.status.classList.remove('err');
+  ui.input.value = image; // mostra il valore ripulito
+  ui.input.disabled = true;
+  ui.go.disabled = true;
+  ui.running = true;
+  ui.box.classList.add('running');
+
+  const opId = 'mp' + (++mpOpSeq);
+  const onProg = (p) => {
+    if (p.opId !== opId) return;
+    if (typeof p.pct === 'number') {
+      ui.box.classList.remove('indeterminate');
+      ui.fill.style.width = p.pct + '%';
+    } else {
+      ui.box.classList.add('indeterminate');
+    }
+    if (p.text) ui.status.textContent = p.text;
+  };
+  mpProgressHandlers.add(onProg);
+
+  try {
+    const res = await window.api.manualPull(tab.id, opId, image, targetImage);
+    ui.box.classList.remove('indeterminate');
+    ui.fill.style.width = '100%';
+    const tag = (res && res.targetImage) || targetImage;
+    ui.status.textContent = `Completato — immagine ritaggata come ${tag}`;
+    toast('Manual Pull completato: ' + tag);
+    showImages(tab); // ricarica lo stato (rimuove il form)
+  } catch (e) {
+    ui.box.classList.remove('indeterminate', 'running');
+    ui.status.textContent = 'Errore: ' + e.message;
+    ui.status.classList.add('err');
+    ui.input.disabled = false;
+    ui.go.disabled = false;
+    ui.running = false;
+  } finally {
+    mpProgressHandlers.delete(onProg);
+  }
+}
+
+// ============================================================================
 // MENU CONTESTUALI
 // ============================================================================
 
@@ -950,6 +1250,10 @@ window.api.onCwd(({ id, cwd }) => {
     tab.cwd = cwd;
     if (tab.cwdEl) tab.cwdEl.textContent = cwd;
   }
+});
+
+window.api.onPullProgress((p) => {
+  mpProgressHandlers.forEach((h) => h(p));
 });
 
 window.api.onClosed(({ id }) => {

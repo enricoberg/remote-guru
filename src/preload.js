@@ -27,6 +27,13 @@ contextBridge.exposeInMainWorld('api', {
   dockerPs: (id) => ipcRenderer.invoke('docker:ps', id),
   dockerAction: (id, action, container) =>
     ipcRenderer.invoke('docker:action', { id, action, container }),
+  manualPull: (id, opId, image, targetImage) =>
+    ipcRenderer.invoke('docker:manualPull', { id, opId, image, targetImage }),
+  onPullProgress: (cb) => ipcRenderer.on('docker:pullProgress', (_e, p) => cb(p)),
+  composeImages: (id) => ipcRenderer.invoke('docker:composeImages', id),
+  listImages: (id) => ipcRenderer.invoke('docker:listImages', id),
+  imageAction: (id, action, image) =>
+    ipcRenderer.invoke('docker:imageAction', { id, action, image }),
 
   // eventi dal main
   onData: (cb) => ipcRenderer.on('ssh:data', (_e, p) => cb(p)),

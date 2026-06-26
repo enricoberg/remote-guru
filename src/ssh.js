@@ -364,6 +364,240 @@ class SshManager {
     return this.dockerExec(id, cmd);
   }
 
+  /**
+   * "Manual Pull": scarica un'immagine sull'host (solo se mancante), la
+   * trasferisce in streaming sul remoto (docker save | docker load via SSH) e
+   * la ritagga sul remoto come `targetImage`. Riporta avanzamento via onProgress.
+   */
+  async manualPull(id, image, targetImage, onProgress) {
+    const session = this.get(id);
+
+    // 1. pull locale solo se l'immagine non è già presente sull'host
+    onProgress({ phase: 'check', pct: null, text: 'Verifica immagine sull\'host…' });
+    if (!(await this._localImageExists(image))) {
+      onProgress({ phase: 'pull', pct: null, text: 'docker pull sull\'host…' });
+      await this._localPull(image, onProgress);
+    }
+
+    // L'immagine pullata per digest è senza tag (RepoTags vuoto) e `docker save`
+    // per ID/@digest fallisce (specie col containerd image store). Quindi la
+    // taggiamo localmente con l'immagine di destinazione: così il tar contiene
+    // già il repo:tag giusto e il remoto la riceve pronta dopo il load.
+    const meta = JSON.parse(await this._localDocker(['image', 'inspect', image]))[0] || {};
+    const imageId = meta.Id; // sha256:…
+    const size = Number(meta.Size) || 0;
+
+    onProgress({ phase: 'tag', pct: null, text: `Tag locale → ${targetImage}` });
+    await this._localDocker(['tag', imageId, targetImage]);
+
+    // 2. streaming docker save (host) -> docker load (remoto): il remoto ottiene
+    //    direttamente l'immagine col tag di destinazione.
+    onProgress({ phase: 'transfer', pct: 0, text: 'Trasferimento immagine sul remoto…' });
+    await this._streamSaveLoad(id, targetImage, size, onProgress);
+
+    onProgress({ phase: 'done', pct: 100, text: `Completato — ritaggata come ${targetImage}` });
+    return { ok: true, image, targetImage };
+  }
+
+  // ---- Immagini --------------------------------------------------------------
+
+  /**
+   * Elenca le immagini definite in tutti i compose sulla macchina, unendo:
+   *  - i progetti compose tracciati da Docker (`docker compose ls -a`)
+   *  - i file compose trovati con una scansione del filesystem nelle posizioni
+   *    comuni (così includiamo anche i compose mai avviati).
+   */
+  async composeImages(id) {
+    const files = new Set();
+
+    // 1) progetti compose tracciati da Docker (hanno container creati)
+    try {
+      const out = await this.dockerExec(id, 'docker compose ls -a --format json');
+      const parsed = JSON.parse(out.slice(out.indexOf('[')));
+      if (Array.isArray(parsed)) {
+        for (const p of parsed) {
+          String(p.ConfigFiles || '')
+            .split(',')
+            .map((f) => f.trim())
+            .filter(Boolean)
+            .forEach((f) => files.add(f));
+        }
+      }
+    } catch (_) { /* ignora */ }
+
+    // 2) scansione filesystem dei file compose (anche progetti mai avviati)
+    try {
+      const roots = '/opt /srv /root /home';
+      const names =
+        '\\( -name docker-compose.yml -o -name docker-compose.yaml ' +
+        '-o -name compose.yml -o -name compose.yaml \\)';
+      const cmd =
+        `find ${roots} -maxdepth 4 -type f ${names} ` +
+        `-not -path '*/node_modules/*' 2>/dev/null || true`;
+      const out = await this.dockerExec(id, cmd);
+      out.split('\n').map((l) => l.trim()).filter(Boolean).forEach((f) => files.add(f));
+    } catch (_) { /* ignora */ }
+
+    // 3) per ogni compose, estrae le immagini risolte
+    const images = new Set();
+    for (const file of files) {
+      try {
+        const out = await this.dockerExec(id, `docker compose -f ${shellQuote(file)} config --images`);
+        out.split('\n').map((l) => l.trim()).filter(Boolean).forEach((im) => images.add(im));
+      } catch (_) { /* compose non leggibile: skip */ }
+    }
+    return [...images].sort().map((image) => ({ image, project: '' }));
+  }
+
+  /** Elenca le immagini presenti sul remoto (docker images). */
+  async listImages(id) {
+    const fmt = '{{.Repository}}\t{{.Tag}}\t{{.ID}}\t{{.Size}}';
+    const out = await this.dockerExec(id, `docker images --format ${shellQuote(fmt)}`);
+    return out
+      .split('\n')
+      .map((l) => l.replace(/\r$/, ''))
+      .filter((l) => l.trim())
+      .map((line) => {
+        const [repo, tag, imgId, size] = line.split('\t');
+        const tagged = repo && repo !== '<none>' && tag && tag !== '<none>';
+        return { repo, tag, id: imgId, size, ref: tagged ? `${repo}:${tag}` : null };
+      });
+  }
+
+  /** Azione su un'immagine: pull | delete. */
+  async imageAction(id, action, image) {
+    const { ref, id: imgId } = image || {};
+    switch (action) {
+      case 'pull':
+        if (!ref) throw new Error('Immagine senza tag: pull non disponibile');
+        return this.dockerExec(id, `docker pull ${shellQuote(ref)}`);
+      case 'delete':
+        return this.dockerExec(id, `docker rmi ${shellQuote(ref || imgId)}`);
+      default:
+        throw new Error('Azione immagine sconosciuta: ' + action);
+    }
+  }
+
+  /**
+   * Path del binario `docker` sull'host. Le app GUI (e a volte Electron) non
+   * ereditano il PATH completo della shell, quindi cerchiamo le posizioni note.
+   */
+  _dockerBin() {
+    if (this._dockerBinPath) return this._dockerBinPath;
+    const candidates = [
+      process.env.DOCKER_BIN,
+      '/usr/local/bin/docker',
+      '/opt/homebrew/bin/docker',
+      '/usr/bin/docker',
+      '/snap/bin/docker',
+    ].filter(Boolean);
+    for (const c of candidates) {
+      try { if (fs.existsSync(c)) { this._dockerBinPath = c; return c; } } catch (_) {}
+    }
+    this._dockerBinPath = 'docker'; // ultima risorsa: affidati al PATH
+    return this._dockerBinPath;
+  }
+
+  /** Esegue `docker <args>` sull'host e risolve lo stdout. */
+  _localDocker(args) {
+    const { execFile } = require('child_process');
+    return new Promise((resolve, reject) => {
+      execFile(this._dockerBin(), args, { maxBuffer: 8 * 1024 * 1024 }, (err, stdout, stderr) => {
+        if (err) return reject(new Error((stderr || err.message).trim()));
+        resolve(stdout);
+      });
+    });
+  }
+
+  async _localImageExists(image) {
+    try { await this._localDocker(['image', 'inspect', image]); return true; }
+    catch (_) { return false; }
+  }
+
+  async _localImageSize(image) {
+    try {
+      const out = await this._localDocker(['image', 'inspect', '--format', '{{.Size}}', image]);
+      const n = parseInt(out.trim(), 10);
+      return Number.isFinite(n) ? n : 0;
+    } catch (_) { return 0; }
+  }
+
+  /** docker pull sull'host con avanzamento (ultima riga di output). */
+  _localPull(image, onProgress) {
+    const { spawn } = require('child_process');
+    return new Promise((resolve, reject) => {
+      const p = spawn(this._dockerBin(), ['pull', image]);
+      let errOut = '';
+      p.stdout.on('data', (d) => {
+        const line = d.toString().split('\n').map((s) => s.trim()).filter(Boolean).pop();
+        if (line) onProgress({ phase: 'pull', pct: null, text: line });
+      });
+      p.stderr.on('data', (d) => { errOut += d.toString(); });
+      p.on('error', reject);
+      p.on('close', (code) =>
+        code === 0 ? resolve() : reject(new Error(errOut.trim() || `docker pull uscito con codice ${code}`))
+      );
+    });
+  }
+
+  /** True se docker sul remoto richiede sudo (probe leggero). */
+  async _remoteDockerNeedsSudo(id) {
+    try { await this.exec(id, 'docker version >/dev/null 2>&1'); return false; }
+    catch (_) { return true; }
+  }
+
+  /** Streamma `docker save <ref>` dall'host nello stdin di `docker load` sul remoto. */
+  async _streamSaveLoad(id, ref, size, onProgress) {
+    const { spawn } = require('child_process');
+    const session = this.get(id);
+    const needSudo = await this._remoteDockerNeedsSudo(id);
+    const password = session.server.password || '';
+    const loadCmd = needSudo ? `sudo -S -p '' docker load` : 'docker load';
+
+    return new Promise((resolve, reject) => {
+      session.client.exec(loadCmd, (err, stream) => {
+        if (err) return reject(err);
+
+        let remoteErr = '';
+        let settled = false;
+        const done = (fn, arg) => { if (!settled) { settled = true; fn(arg); } };
+
+        stream.on('data', () => {}); // output di docker load (ignorato)
+        stream.stderr.on('data', (d) => { remoteErr += d.toString(); });
+        stream.on('close', (code) => {
+          if (code === 0) return done(resolve);
+          const msg = remoteErr.replace(/\[sudo\][^\n]*\n?/g, '').trim();
+          done(reject, new Error(msg || `docker load remoto uscito con codice ${code}`));
+        });
+
+        // sudo -S legge la password (prima riga) da stdin, poi il resto va a docker load
+        if (needSudo && password) stream.write(password + '\n');
+
+        const saver = spawn(this._dockerBin(), ['save', ref]);
+        let sent = 0;
+        let saveErr = '';
+        saver.stdout.on('data', (chunk) => {
+          sent += chunk.length;
+          if (size > 0) {
+            const pct = Math.min(98, Math.round((sent / size) * 100));
+            onProgress({ phase: 'transfer', pct, text: `Trasferiti ${humanBytes(sent)} / ${humanBytes(size)}` });
+          } else {
+            onProgress({ phase: 'transfer', pct: null, text: `Trasferiti ${humanBytes(sent)}` });
+          }
+        });
+        saver.stderr.on('data', (d) => { saveErr += d.toString(); });
+        saver.on('error', (e) => { try { stream.end(); } catch (_) {} done(reject, e); });
+        saver.on('close', (code) => {
+          if (code !== 0) {
+            try { stream.end(); } catch (_) {}
+            done(reject, new Error(saveErr.trim() || `docker save uscito con codice ${code}`));
+          }
+        });
+        saver.stdout.pipe(stream); // chiude lo stdin remoto a fine save
+      });
+    });
+  }
+
   /** Scarica un file remoto in locale. */
   async download(id, remotePath, localPath) {
     const sftp = await this._sftp(id);
@@ -433,6 +667,13 @@ class Session {
 
 function shellQuote(s) {
   return `'${String(s).replace(/'/g, `'\\''`)}'`;
+}
+
+function humanBytes(bytes) {
+  const u = ['B', 'KB', 'MB', 'GB', 'TB'];
+  let i = 0, n = Number(bytes) || 0;
+  while (n >= 1024 && i < u.length - 1) { n /= 1024; i++; }
+  return (i === 0 ? n : n.toFixed(1)) + ' ' + u[i];
 }
 
 module.exports = new SshManager();
