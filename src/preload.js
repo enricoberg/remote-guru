@@ -23,6 +23,11 @@ contextBridge.exposeInMainWorld('api', {
   download: (id, remotePath, filename, isDir) =>
     ipcRenderer.invoke('ssh:download', { id, remotePath, filename, isDir }),
 
+  // docker
+  dockerPs: (id) => ipcRenderer.invoke('docker:ps', id),
+  dockerAction: (id, action, container) =>
+    ipcRenderer.invoke('docker:action', { id, action, container }),
+
   // eventi dal main
   onData: (cb) => ipcRenderer.on('ssh:data', (_e, p) => cb(p)),
   onCwd: (cb) => ipcRenderer.on('ssh:cwd', (_e, p) => cb(p)),

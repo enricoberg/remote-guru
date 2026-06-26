@@ -251,6 +251,10 @@ function buildPane(tab) {
     window.api.write(tab.id, 'clear\r');
     tab.term.focus();
   });
+  const dockerBtn = el('button', 'btn-ll');
+  dockerBtn.title = 'Container Docker attivi';
+  dockerBtn.innerHTML = '<i class="fa-brands fa-docker"></i>';
+  dockerBtn.addEventListener('click', () => showDocker(tab));
   const srv = el('span', 'srv-name');
   srv.textContent = tab.server.nickname || tab.server.name;
   const cwd = el('span', 'cwd');
@@ -263,6 +267,7 @@ function buildPane(tab) {
   splitBtn.addEventListener('click', () => toggleSplit(tab.id));
   toolbar.appendChild(llBtn);
   toolbar.appendChild(clearBtn);
+  toolbar.appendChild(dockerBtn);
   toolbar.appendChild(srv);
   toolbar.appendChild(cwd);
   toolbar.appendChild(splitBtn);
@@ -658,6 +663,152 @@ function makeEntry(tab, entry, cwd) {
   });
 
   return row;
+}
+
+// ============================================================================
+// DOCKER
+// ============================================================================
+
+async function showDocker(tab) {
+  let containers;
+  try {
+    toast('Lettura container Docker…');
+    containers = await window.api.dockerPs(tab.id);
+  } catch (e) {
+    return toast('Errore Docker: ' + e.message, true);
+  }
+
+  // riusa lo stesso overlay del file browser
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  if (old) old.remove();
+
+  const overlay = el('div', 'll-overlay docker-overlay');
+  const grip = el('div', 'll-resize');
+  overlay.appendChild(grip);
+  setupOverlayResize(grip, overlay, tab);
+  if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+
+  const head = el('div', 'll-head');
+  const info = el('span');
+  info.innerHTML = `<i class="fa-brands fa-docker"></i> Container attivi — ${containers.length}`;
+  const actions = el('span', 'll-head-actions');
+  const refreshBtn = el('button');
+  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
+  refreshBtn.title = 'Aggiorna';
+  refreshBtn.addEventListener('click', () => showDocker(tab));
+  const closeBtn = el('button');
+  closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+  closeBtn.title = 'Chiudi';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  actions.appendChild(refreshBtn);
+  actions.appendChild(closeBtn);
+  head.appendChild(info);
+  head.appendChild(actions);
+  overlay.appendChild(head);
+
+  if (!containers.length) {
+    const empty = el('div', 'docker-empty');
+    empty.textContent = 'Nessun container attivo.';
+    overlay.appendChild(empty);
+  }
+
+  // raggruppa i container per cartella (working dir del progetto compose)
+  const groups = new Map();
+  containers.forEach((c) => {
+    const key = c.workdir || '';
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(c);
+  });
+  // cartelle note prima (ordinate), i container senza cartella per ultimi
+  const keys = [...groups.keys()].sort((a, b) => {
+    if (!a) return 1;
+    if (!b) return -1;
+    return a.localeCompare(b);
+  });
+
+  keys.forEach((key) => {
+    const header = el('div', 'docker-group');
+    header.innerHTML = key
+      ? `<i class="fa-solid fa-folder"></i> ${escapeHtml(key)}`
+      : '<i class="fa-solid fa-layer-group"></i> Senza cartella';
+    overlay.appendChild(header);
+    groups.get(key).forEach((c) => overlay.appendChild(makeDockerRow(tab, c)));
+  });
+
+  tab.hostEl.appendChild(overlay);
+}
+
+function makeDockerRow(tab, c) {
+  const row = el('div', 'docker-row' + (c.running ? '' : ' stopped'));
+
+  const dot = el('span', 'docker-dot' + (c.running ? ' on' : ''));
+  dot.title = c.status || c.state || '';
+  row.appendChild(dot);
+
+  const meta = el('div', 'docker-meta');
+  const name = el('span', 'docker-name');
+  name.innerHTML = `<i class="fa-solid fa-cube"></i> ${escapeHtml(c.name)}`;
+  name.title = c.name + (c.status ? ` — ${c.status}` : '');
+  const img = el('span', 'docker-img');
+  img.textContent = c.image;
+  img.title = c.image;
+  meta.appendChild(name);
+  meta.appendChild(img);
+
+  const btns = el('div', 'docker-actions');
+  // container attivo: stop/restart; container fermo: up. down/pull sempre.
+  const defs = c.running
+    ? [
+        { action: 'logs',    icon: 'fa-file-lines',       label: 'Logs',    cls: 'd-logs' },
+        { action: 'stop',    icon: 'fa-stop',             label: 'Stop',    cls: 'd-stop' },
+        { action: 'restart', icon: 'fa-rotate-right',     label: 'Restart', cls: 'd-restart' },
+        { action: 'down',    icon: 'fa-arrow-down',       label: 'Down',    cls: 'd-down' },
+        { action: 'pull',    icon: 'fa-cloud-arrow-down', label: 'Pull',    cls: 'd-pull' },
+      ]
+    : [
+        { action: 'up',      icon: 'fa-play',             label: 'Up',      cls: 'd-up' },
+        { action: 'logs',    icon: 'fa-file-lines',       label: 'Logs',    cls: 'd-logs' },
+        { action: 'down',    icon: 'fa-arrow-down',       label: 'Down',    cls: 'd-down' },
+        { action: 'pull',    icon: 'fa-cloud-arrow-down', label: 'Pull',    cls: 'd-pull' },
+      ];
+  defs.forEach((d) => {
+    const b = el('button', 'docker-btn ' + d.cls);
+    b.innerHTML = `<i class="fa-solid ${d.icon}"></i> ${d.label}`;
+    b.title = `${d.label} ${c.name}`;
+    b.addEventListener('click', () => dockerAction(tab, d.action, c, b));
+    btns.appendChild(b);
+  });
+
+  row.appendChild(meta);
+  row.appendChild(btns);
+  return row;
+}
+
+async function dockerAction(tab, action, c, btn) {
+  // i log vanno mostrati live nel terminale (come cat/grep)
+  if (action === 'logs') {
+    const ov = tab.hostEl.querySelector('.ll-overlay');
+    if (ov) ov.remove();
+    tab.term.focus();
+    const follow = c.running ? '-f ' : '';
+    window.api.write(tab.id, `docker logs --tail 200 ${follow}${shQuote(c.id)}\r`);
+    return;
+  }
+
+  const labels = { up: 'Up', stop: 'Stop', restart: 'Restart', down: 'Down', pull: 'Pull' };
+  if (action === 'down' && !confirm(`Eseguire "down" su "${c.name}"?`)) return;
+
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+  try {
+    toast(`${labels[action]} ${c.name}…`);
+    await window.api.dockerAction(tab.id, action, c);
+    toast(`${labels[action]} completato: ${c.name}`);
+    showDocker(tab); // ricarica lo stato
+  } catch (e) {
+    toast(`Errore ${labels[action]}: ` + e.message, true);
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
 }
 
 // ============================================================================

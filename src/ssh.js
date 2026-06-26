@@ -290,6 +290,80 @@ class SshManager {
     });
   }
 
+  // ---- Docker ----------------------------------------------------------------
+
+  /**
+   * Esegue un comando docker. Prima senza sudo (utenti nel gruppo `docker`),
+   * poi con sudo come fallback (host dove docker richiede privilegi).
+   */
+  async dockerExec(id, cmd) {
+    try {
+      return await this.exec(id, cmd);
+    } catch (_) {
+      return this.sudoExec(id, cmd);
+    }
+  }
+
+  /** Elenca tutti i container docker, anche quelli fermi (docker ps -a). */
+  async dockerPs(id) {
+    const fmt =
+      '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t' +
+      '{{.Label "com.docker.compose.project.working_dir"}}';
+    const out = await this.dockerExec(id, `docker ps -a --no-trunc --format ${shellQuote(fmt)}`);
+    return out
+      .split('\n')
+      .map((l) => l.replace(/\r$/, ''))
+      .filter((l) => l.trim())
+      .map((line) => {
+        const [cid, name, image, state, status, workdir] = line.split('\t');
+        return {
+          id: cid,
+          name,
+          image,
+          state, // running | exited | created | paused | ...
+          status,
+          running: state === 'running',
+          workdir: workdir || '',
+        };
+      });
+  }
+
+  /**
+   * Azione su un container: stop | restart | down | pull.
+   * Per i container gestiti da compose (workdir noto) "down" e "pull" agiscono
+   * sul progetto compose; altrimenti sul singolo container/immagine.
+   */
+  async dockerAction(id, action, container) {
+    const { id: cid, image, workdir } = container || {};
+    let cmd;
+    switch (action) {
+      case 'up':
+        cmd = workdir
+          ? `docker compose --project-directory ${shellQuote(workdir)} up -d`
+          : `docker start ${shellQuote(cid)}`;
+        break;
+      case 'stop':
+        cmd = `docker stop ${shellQuote(cid)}`;
+        break;
+      case 'restart':
+        cmd = `docker restart ${shellQuote(cid)}`;
+        break;
+      case 'down':
+        cmd = workdir
+          ? `docker compose --project-directory ${shellQuote(workdir)} down`
+          : `docker rm -f ${shellQuote(cid)}`;
+        break;
+      case 'pull':
+        cmd = workdir
+          ? `docker compose --project-directory ${shellQuote(workdir)} pull`
+          : `docker pull ${shellQuote(image)}`;
+        break;
+      default:
+        throw new Error('Azione docker sconosciuta: ' + action);
+    }
+    return this.dockerExec(id, cmd);
+  }
+
   /** Scarica un file remoto in locale. */
   async download(id, remotePath, localPath) {
     const sftp = await this._sftp(id);

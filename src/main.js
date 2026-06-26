@@ -139,6 +139,14 @@ ipcMain.handle('ssh:download', async (_e, { id, remotePath, filename, isDir }) =
   return res.filePath;
 });
 
+// --- Docker -----------------------------------------------------------------
+
+ipcMain.handle('docker:ps', (_e, id) => ssh.dockerPs(id));
+
+ipcMain.handle('docker:action', (_e, { id, action, container }) =>
+  ssh.dockerAction(id, action, container)
+);
+
 function send(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send(channel, payload);
