@@ -1,0 +1,20 @@
+{
+  "name": "remote-guru",
+  "version": "1.0.0",
+  "description": "Browser SSH per navigare server remoti con schede, split view e funzioni avanzate",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^28.3.3"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^6.7.2",
+    "ssh2": "^1.15.0",
+    "xterm": "^5.3.0",
+    "xterm-addon-fit": "^0.8.0"
+  }
+}

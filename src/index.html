@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self';" />
+  <title>Remote Guru</title>
+  <link rel="stylesheet" href="../node_modules/@fortawesome/fontawesome-free/css/all.min.css" />
+  <link rel="stylesheet" href="../node_modules/xterm/css/xterm.css" />
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- ============ VISTA CONFIGURAZIONE ============ -->
+  <div id="config-view" class="view active">
+    <div class="config-wrap">
+      <header class="config-header">
+        <h1><i class="fa-solid fa-desktop"></i> Remote Guru</h1>
+        <p>Gestisci le tue connessioni SSH. Seleziona un server per connetterti.</p>
+        <button id="btn-back" class="btn btn-primary hidden"><i class="fa-solid fa-arrow-left"></i> Torna alle sessioni attive</button>
+      </header>
+
+      <div class="config-body">
+        <div class="server-list-panel">
+          <div class="panel-title">
+            <span>Server salvati</span>
+            <button id="btn-new" class="btn btn-primary btn-sm">+ Nuovo</button>
+          </div>
+          <ul id="server-list" class="server-list"></ul>
+        </div>
+
+        <div class="server-form-panel">
+          <div id="form-empty" class="form-empty">
+            Seleziona un server o creane uno nuovo.
+          </div>
+          <form id="server-form" class="server-form hidden">
+            <label>Nickname
+              <input type="text" name="nickname" placeholder="Macchina TEST [203.0.113.10]" required />
+            </label>
+            <div class="row">
+              <label>Host
+                <input type="text" name="host" placeholder="203.0.113.10" required />
+              </label>
+              <label class="port">Porta
+                <input type="number" name="port" value="22" min="1" max="65535" />
+              </label>
+            </div>
+            <label>Username
+              <input type="text" name="username" placeholder="user" required />
+            </label>
+
+            <div class="auth-toggle">
+              <label class="radio">
+                <input type="radio" name="authMode" value="password" /> Password
+              </label>
+              <label class="radio">
+                <input type="radio" name="authMode" value="pem" checked /> File PEM
+              </label>
+            </div>
+
+            <!-- Password sempre visibile: usata per login (modalità password) e
+                 sempre disponibile per "Incolla password" anche in modalità PEM -->
+            <label>Password
+              <input type="password" name="password" placeholder="••••••••" />
+              <small class="hint">Usata per il login (modalità Password) e per "Incolla password".</small>
+            </label>
+
+            <div id="field-pem">
+              <label>File PEM
+                <div class="pem-row">
+                  <input type="text" name="pemPath" placeholder="/percorso/chiave.pem" />
+                  <button type="button" id="btn-pem" class="btn btn-sm">Sfoglia…</button>
+                </div>
+              </label>
+              <label>Passphrase chiave PEM (opzionale)
+                <input type="password" name="passphrase" placeholder="(solo se la chiave è protetta)" />
+              </label>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary"><i class="fa-solid fa-floppy-disk"></i> Salva</button>
+              <button type="button" id="btn-connect" class="btn btn-success"><i class="fa-solid fa-plug"></i> Connetti</button>
+              <button type="button" id="btn-delete" class="btn btn-danger"><i class="fa-solid fa-trash"></i> Elimina</button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ VISTA TERMINALE ============ -->
+  <div id="terminal-view" class="view">
+    <div class="tabbar">
+      <button id="btn-home" class="btn-home" title="Torna alla configurazione"><i class="fa-solid fa-bars"></i></button>
+      <div id="tabs" class="tabs"></div>
+    </div>
+    <div id="panes" class="panes"></div>
+  </div>
+
+  <!-- menu contestuale -->
+  <div id="ctx-menu" class="ctx-menu hidden"></div>
+
+  <script src="../node_modules/xterm/lib/xterm.js"></script>
+  <script src="../node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
+  <script src="renderer.js"></script>
+</body>
+</html>

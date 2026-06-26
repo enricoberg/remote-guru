@@ -1,0 +1,9 @@
+node_modules/
+package-lock.json
+
+# contiene credenziali / password in chiaro: non versionare
+servers.json
+
+# log / sistema
+*.log
+.DS_Store

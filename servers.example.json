@@ -1,0 +1,22 @@
+[
+  {
+    "nickname": "Macchina TEST [203.0.113.10]",
+    "name": "user@203.0.113.10",
+    "host": "203.0.113.10",
+    "port": 22,
+    "username": "user",
+    "usePem": true,
+    "pemPath": "/path/to/key.pem",
+    "password": ""
+  },
+  {
+    "nickname": "Server con password",
+    "name": "root@example.com",
+    "host": "example.com",
+    "port": 22,
+    "username": "root",
+    "usePem": false,
+    "pemPath": "",
+    "password": "la-tua-password"
+  }
+]
