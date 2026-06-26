@@ -118,7 +118,18 @@ ipcMain.handle('ssh:import', async (_e, { id, destDir }) => {
   return names;
 });
 
-ipcMain.handle('ssh:download', async (_e, { id, remotePath, filename }) => {
+ipcMain.handle('ssh:download', async (_e, { id, remotePath, filename, isDir }) => {
+  if (isDir) {
+    // per le cartelle si sceglie una directory locale di destinazione
+    const res = await dialog.showOpenDialog(mainWindow, {
+      title: 'Scarica cartella in…',
+      properties: ['openDirectory', 'createDirectory'],
+    });
+    if (res.canceled || !res.filePaths.length) return null;
+    const dest = path.join(res.filePaths[0], filename);
+    await ssh.downloadDir(id, remotePath, dest);
+    return dest;
+  }
   const res = await dialog.showSaveDialog(mainWindow, {
     title: 'Scarica file',
     defaultPath: filename,

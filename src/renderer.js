@@ -477,6 +477,13 @@ async function showListing(tab, dir) {
   if (old) old.remove();
 
   const overlay = el('div', 'll-overlay');
+  // maniglia di ridimensionamento verticale in cima al pannello
+  const grip = el('div', 'll-resize');
+  overlay.appendChild(grip);
+  setupOverlayResize(grip, overlay, tab);
+  // ripristina l'altezza scelta in precedenza (per questa scheda)
+  if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+
   const head = el('div', 'll-head');
   const info = el('span');
   info.innerHTML = `<i class="fa-solid fa-folder-open"></i> ${escapeHtml(res.cwd)} — ${res.entries.length} elementi`;
@@ -505,6 +512,30 @@ async function showListing(tab, dir) {
   });
 
   tab.hostEl.appendChild(overlay);
+}
+
+/** Permette di ridimensionare verticalmente il pannello file browser trascinando la maniglia in alto. */
+function setupOverlayResize(grip, overlay, tab) {
+  grip.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const startY = e.clientY;
+    const startH = overlay.getBoundingClientRect().height;
+    const hostH = tab.hostEl.getBoundingClientRect().height;
+    overlay.style.maxHeight = 'none';
+    const onMove = (ev) => {
+      // trascinando verso l'alto il pannello si espande
+      let h = startH + (startY - ev.clientY);
+      h = Math.max(80, Math.min(hostH - 30, h));
+      overlay.style.height = h + 'px';
+      tab.llHeight = h;
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
 }
 
 /** Mostra/nasconde una barra di ricerca che lancia un grep nella cartella `cwd`. */
@@ -660,8 +691,9 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
         window.api.write(tab.id, `sudo nano ${shQuote(fullPath)}\r`);
       },
     });
-    items.push({ icon: 'fa-solid fa-download', label: 'Scarica', action: () => downloadEntry(tab, entry, fullPath) });
   }
+  // Scarica: disponibile sia per file che per cartelle
+  items.push({ icon: 'fa-solid fa-download', label: 'Scarica', action: () => downloadEntry(tab, entry, fullPath) });
   openContextMenu(e.clientX, e.clientY, items);
 }
 
@@ -699,9 +731,14 @@ function openContextMenu(x, y, items) {
     }
     menu.appendChild(d);
   });
-  menu.style.left = Math.min(x, window.innerWidth - 200) + 'px';
-  menu.style.top = Math.min(y, window.innerHeight - 200) + 'px';
+  // rendi visibile per misurarne le dimensioni reali, poi posiziona dentro la finestra
   menu.classList.remove('hidden');
+  const rect = menu.getBoundingClientRect();
+  let left = x, top = y;
+  if (left + rect.width > window.innerWidth - 8) left = window.innerWidth - rect.width - 8;
+  if (top + rect.height > window.innerHeight - 8) top = window.innerHeight - rect.height - 8;
+  menu.style.left = Math.max(8, left) + 'px';
+  menu.style.top = Math.max(8, top) + 'px';
 }
 
 function hideContextMenu() {
@@ -731,7 +768,8 @@ async function pasteEntry(tab, destDir) {
 
 async function downloadEntry(tab, entry, fullPath) {
   try {
-    const saved = await window.api.download(tab.id, fullPath, entry.name);
+    if (entry.isDir) toast('Download cartella in corso…');
+    const saved = await window.api.download(tab.id, fullPath, entry.name, entry.isDir);
     if (saved) toast('Scaricato in: ' + saved);
   } catch (e) { toast('Errore download: ' + e.message, true); }
 }

@@ -298,6 +298,29 @@ class SshManager {
     });
   }
 
+  /** Scarica ricorsivamente una cartella remota in locale (`localPath`). */
+  async downloadDir(id, remotePath, localPath) {
+    const sftp = await this._sftp(id);
+    fs.mkdirSync(localPath, { recursive: true });
+    const entries = await new Promise((resolve, reject) => {
+      sftp.readdir(remotePath, (err, l) => (err ? reject(err) : resolve(l)));
+    });
+    for (const e of entries) {
+      const rem = remotePath.replace(/\/+$/, '') + '/' + e.filename;
+      const loc = path.join(localPath, e.filename);
+      const isDir = (e.attrs.mode & 0o170000) === 0o040000;
+      const isLink = (e.attrs.mode & 0o170000) === 0o120000;
+      if (isLink) continue; // salta i symlink per evitare loop
+      if (isDir) await this.downloadDir(id, rem, loc);
+      else {
+        await new Promise((resolve, reject) => {
+          sftp.fastGet(rem, loc, (err) => (err ? reject(err) : resolve()));
+        });
+      }
+    }
+    return localPath;
+  }
+
 }
 
 class Session {
