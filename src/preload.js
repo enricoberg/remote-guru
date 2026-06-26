@@ -34,6 +34,7 @@ contextBridge.exposeInMainWorld('api', {
   listImages: (id) => ipcRenderer.invoke('docker:listImages', id),
   imageAction: (id, action, image) =>
     ipcRenderer.invoke('docker:imageAction', { id, action, image }),
+  openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 
   // eventi dal main
   onData: (cb) => ipcRenderer.on('ssh:data', (_e, p) => cb(p)),

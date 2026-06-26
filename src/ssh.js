@@ -307,7 +307,7 @@ class SshManager {
   /** Elenca tutti i container docker, anche quelli fermi (docker ps -a). */
   async dockerPs(id) {
     const fmt =
-      '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t' +
+      '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.Ports}}\t' +
       '{{.Label "com.docker.compose.project.working_dir"}}';
     const out = await this.dockerExec(id, `docker ps -a --no-trunc --format ${shellQuote(fmt)}`);
     return out
@@ -315,13 +315,14 @@ class SshManager {
       .map((l) => l.replace(/\r$/, ''))
       .filter((l) => l.trim())
       .map((line) => {
-        const [cid, name, image, state, status, workdir] = line.split('\t');
+        const [cid, name, image, state, status, ports, workdir] = line.split('\t');
         return {
           id: cid,
           name,
           image,
           state, // running | exited | created | paused | ...
           status,
+          ports: parsePublishedPorts(ports), // porte host pubblicate
           running: state === 'running',
           workdir: workdir || '',
         };
@@ -667,6 +668,19 @@ class Session {
 
 function shellQuote(s) {
   return `'${String(s).replace(/'/g, `'\\''`)}'`;
+}
+
+/**
+ * Estrae le porte host pubblicate dal campo `.Ports` di docker ps.
+ * Es: "0.0.0.0:5000->5000/tcp, :::5000->5000/tcp, 8080/tcp" -> [5000]
+ */
+function parsePublishedPorts(str) {
+  const ports = new Set();
+  String(str || '').split(',').forEach((seg) => {
+    const m = seg.trim().match(/:(\d+)->/);
+    if (m) ports.add(parseInt(m[1], 10));
+  });
+  return [...ports].sort((a, b) => a - b);
 }
 
 function humanBytes(bytes) {

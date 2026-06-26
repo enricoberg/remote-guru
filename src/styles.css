@@ -215,8 +215,18 @@ html, body {
 }
 .docker-btn i { margin-right: 4px; }
 .docker-btn:hover { filter: brightness(1.2); }
+/* tasti container: solo icona, etichetta che si espande in hover */
+.docker-btn .lbl {
+  display: inline-block; max-width: 0; overflow: hidden; white-space: nowrap;
+  vertical-align: middle; opacity: 0;
+  transition: max-width .2s ease, opacity .2s ease, margin-left .2s ease;
+}
+.docker-btn i:has(+ .lbl) { margin-right: 0; }
+.docker-btn:hover .lbl { max-width: 120px; opacity: 1; margin-left: 5px; }
 .docker-btn:disabled { opacity: .6; cursor: default; }
 .docker-btn.d-logs:hover { background: var(--text); color: #11111b; }
+.docker-btn.d-shell:hover { background: var(--text); color: #11111b; }
+.docker-btn.d-browser:hover { background: var(--accent); color: #11111b; }
 .docker-btn.d-up:hover { background: var(--green); color: #11111b; }
 .docker-btn.d-stop:hover { background: var(--yellow); color: #11111b; }
 .docker-btn.d-restart:hover { background: var(--accent); color: #11111b; }

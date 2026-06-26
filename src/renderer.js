@@ -744,14 +744,58 @@ async function showDocker(tab) {
     return a.localeCompare(b);
   });
 
+  // barra di ricerca (filtra per nome/immagine/stato)
+  let searchInput = null;
+  if (containers.length) {
+    const bar = el('div', 'll-search');
+    const icon = el('i', 'fa-solid fa-magnifying-glass');
+    searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'search-input';
+    searchInput.placeholder = 'Filtra container…';
+    bar.appendChild(icon);
+    bar.appendChild(searchInput);
+    overlay.appendChild(bar);
+  }
+
+  const blocks = [];
   keys.forEach((key) => {
     const header = el('div', 'docker-group');
     header.innerHTML = key
       ? `<i class="fa-solid fa-folder"></i> ${escapeHtml(key)}`
       : '<i class="fa-solid fa-layer-group"></i> Senza cartella';
     overlay.appendChild(header);
-    groups.get(key).forEach((c) => overlay.appendChild(makeDockerRow(tab, c)));
+    const items = groups.get(key).map((c) => {
+      const row = makeDockerRow(tab, c);
+      overlay.appendChild(row);
+      return { text: `${c.name} ${c.image} ${c.status || ''}`.toLowerCase(), row };
+    });
+    blocks.push({ header, items });
   });
+
+  const noRes = el('div', 'docker-empty');
+  noRes.textContent = 'Nessun risultato.';
+  noRes.style.display = 'none';
+  overlay.appendChild(noRes);
+
+  if (searchInput) {
+    searchInput.addEventListener('keydown', (e) => e.stopPropagation());
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      let total = 0;
+      blocks.forEach((b) => {
+        let vis = 0;
+        b.items.forEach((it) => {
+          const match = !q || it.text.includes(q);
+          it.row.style.display = match ? '' : 'none';
+          if (match) vis++;
+        });
+        b.header.style.display = vis ? '' : 'none'; // nascondi i gruppi vuoti
+        total += vis;
+      });
+      noRes.style.display = total ? 'none' : '';
+    });
+  }
 
   tab.hostEl.appendChild(overlay);
 }
@@ -778,6 +822,8 @@ function makeDockerRow(tab, c) {
   const defs = c.running
     ? [
         { action: 'logs',    icon: 'fa-file-lines',       label: 'Logs',    cls: 'd-logs' },
+        { action: 'shell',   icon: 'fa-terminal',         label: 'Shell',   cls: 'd-shell' },
+        { action: 'browser', icon: 'fa-globe',            label: 'Browser', cls: 'd-browser' },
         { action: 'stop',    icon: 'fa-stop',             label: 'Stop',    cls: 'd-stop' },
         { action: 'restart', icon: 'fa-rotate-right',     label: 'Restart', cls: 'd-restart' },
         { action: 'down',    icon: 'fa-arrow-down',       label: 'Down',    cls: 'd-down' },
@@ -791,7 +837,7 @@ function makeDockerRow(tab, c) {
       ];
   defs.forEach((d) => {
     const b = el('button', 'docker-btn ' + d.cls);
-    b.innerHTML = `<i class="fa-solid ${d.icon}"></i> ${d.label}`;
+    b.innerHTML = `<i class="fa-solid ${d.icon}"></i><span class="lbl">${d.label}</span>`;
     b.title = `${d.label} ${c.name}`;
     b.addEventListener('click', () => dockerAction(tab, d.action, c, b));
     btns.appendChild(b);
@@ -813,6 +859,23 @@ async function dockerAction(tab, action, c, btn) {
     return;
   }
 
+  // Shell: entra nel container nel terminale (docker exec -it ... bash/sh)
+  if (action === 'shell') {
+    const ov = tab.hostEl.querySelector('.ll-overlay');
+    if (ov) ov.remove();
+    tab.term.clear(); // pulisce lo scrollback prima di entrare
+    tab.term.focus();
+    const inner = 'if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi';
+    window.api.write(tab.id, `clear && docker exec -it ${shQuote(c.name)} sh -c ${shQuote(inner)}\r`);
+    return;
+  }
+
+  // Browser: apre la porta esposta dal container nel browser di sistema
+  if (action === 'browser') {
+    openContainerBrowser(tab, c, btn);
+    return;
+  }
+
   const labels = { up: 'Up', stop: 'Stop', restart: 'Restart', down: 'Down', pull: 'Pull' };
   if (action === 'down' && !confirm(`Eseguire "down" su "${c.name}"?`)) return;
 
@@ -827,6 +890,22 @@ async function dockerAction(tab, action, c, btn) {
     toast(`Errore ${labels[action]}: ` + e.message, true);
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
   }
+}
+
+/** Apre nel browser di sistema la porta esposta dal container (http://host:porta). */
+function openContainerBrowser(tab, c, btn) {
+  const ports = c.ports || [];
+  if (!ports.length) return toast('Il container non espone porte', true);
+  const host = tab.server.host;
+  const open = (p) => window.api.openExternal(`http://${host}:${p}`);
+  if (ports.length === 1) return open(ports[0]);
+  // più porte: menu di scelta accanto al pulsante
+  const rect = btn ? btn.getBoundingClientRect() : { left: 100, bottom: 100 };
+  openContextMenu(rect.left, rect.bottom, ports.map((p) => ({
+    icon: 'fa-solid fa-globe',
+    label: `Porta ${p}`,
+    action: () => open(p),
+  })));
 }
 
 // ============================================================================

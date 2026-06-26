@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const ssh = require('./ssh');
@@ -158,6 +158,8 @@ ipcMain.handle('docker:listImages', (_e, id) => ssh.listImages(id));
 ipcMain.handle('docker:imageAction', (_e, { id, action, image }) =>
   ssh.imageAction(id, action, image)
 );
+
+ipcMain.handle('shell:openExternal', (_e, url) => shell.openExternal(url));
 
 function send(channel, payload) {
   if (mainWindow && !mainWindow.isDestroyed()) {
