@@ -106,6 +106,8 @@ class SshManager {
       `__RG() { printf '\\033]1337;CWD=%s\\007' "$PWD"; }; ` +
       `PROMPT_COMMAND="__RG;$PROMPT_COMMAND"; ` +
       `if [ -n "$ZSH_VERSION" ]; then precmd() { __RG; }; fi; ` +
+      // cartella di partenza: /opt se esiste, altrimenti la root
+      `cd /opt 2>/dev/null || cd /; ` +
       `__RG; clear\n`;
     // piccolo ritardo per far stabilizzare il prompt iniziale
     setTimeout(() => {

@@ -635,7 +635,7 @@ function makeEntry(tab, entry, cwd) {
 
 function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
   const items = [
-    { icon: 'fa-solid fa-file-circle-plus', label: 'Nuovo file vuoto', action: () => newFilePrompt(tab, cwd) },
+    { icon: 'fa-solid fa-file-circle-plus', label: 'Nuovo file', action: () => newFilePrompt(tab, cwd) },
     { icon: 'fa-solid fa-trash', label: 'Elimina', action: () => deleteEntry(tab, entry, fullPath) },
     { icon: 'fa-solid fa-copy', label: 'Copia', action: () => {
         remoteClipboard = { sessionId: tab.id, path: fullPath, isDir: entry.isDir, name: entry.name };
@@ -651,7 +651,7 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
   if (!entry.isDir) {
     items.push({
       icon: 'fa-solid fa-pen-to-square',
-      label: 'Modifica (sudo nano)',
+      label: 'Modifica',
       action: () => {
         const ov = tab.hostEl.querySelector('.ll-overlay');
         if (ov) ov.remove();
@@ -659,7 +659,7 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
         window.api.write(tab.id, `sudo nano ${shQuote(fullPath)}\r`);
       },
     });
-    items.push({ icon: 'fa-solid fa-download', label: 'Scarica in locale', action: () => downloadEntry(tab, entry, fullPath) });
+    items.push({ icon: 'fa-solid fa-download', label: 'Scarica', action: () => downloadEntry(tab, entry, fullPath) });
   }
   openContextMenu(e.clientX, e.clientY, items);
 }
