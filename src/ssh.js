@@ -200,6 +200,46 @@ class SshManager {
     return this.sudoExec(id, `cp ${flag} ${shellQuote(src)} ${shellQuote(destDir)}/`);
   }
 
+  /**
+   * Importa un file o cartella locale nel server, dentro `destDir`.
+   * Carica prima in /tmp via SFTP (scrivibile dall'utente), poi copia nella
+   * destinazione con sudo per gestire eventuali permessi (es. /opt).
+   */
+  async importPath(id, localPath, destDir) {
+    const sftp = await this._sftp(id);
+    const base = path.basename(localPath);
+    const tmpRoot = `/tmp/rg-import-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    await this._sftpMkdir(sftp, tmpRoot);
+    try {
+      await this._sftpPut(sftp, localPath, `${tmpRoot}/${base}`);
+      await this.sudoExec(id, `cp -r ${shellQuote(tmpRoot + '/' + base)} ${shellQuote(destDir)}/`);
+    } finally {
+      // pulizia del temporaneo (best-effort)
+      await this.exec(id, `rm -rf ${shellQuote(tmpRoot)}`).catch(() => {});
+    }
+    return base;
+  }
+
+  _sftpMkdir(sftp, dir) {
+    return new Promise((resolve, reject) => {
+      sftp.mkdir(dir, (err) => (err ? reject(err) : resolve()));
+    });
+  }
+
+  async _sftpPut(sftp, local, remote) {
+    const st = fs.statSync(local);
+    if (st.isDirectory()) {
+      await this._sftpMkdir(sftp, remote);
+      for (const name of fs.readdirSync(local)) {
+        await this._sftpPut(sftp, path.join(local, name), remote + '/' + name);
+      }
+    } else {
+      await new Promise((resolve, reject) => {
+        sftp.fastPut(local, remote, (err) => (err ? reject(err) : resolve()));
+      });
+    }
+  }
+
   /** Crea un file vuoto (touch) nel percorso indicato, con privilegi sudo. */
   async createFile(id, remotePath) {
     return this.sudoExec(id, `touch ${shellQuote(remotePath)}`);

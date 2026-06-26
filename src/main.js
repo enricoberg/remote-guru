@@ -107,6 +107,17 @@ ipcMain.handle('ssh:copy', (_e, { id, src, destDir, isDir }) =>
 
 ipcMain.handle('ssh:createFile', (_e, { id, path: p }) => ssh.createFile(id, p));
 
+ipcMain.handle('ssh:import', async (_e, { id, destDir }) => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Importa',
+    properties: ['openFile', 'openDirectory', 'multiSelections'],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  const names = [];
+  for (const p of res.filePaths) names.push(await ssh.importPath(id, p, destDir));
+  return names;
+});
+
 ipcMain.handle('ssh:download', async (_e, { id, remotePath, filename }) => {
   const res = await dialog.showSaveDialog(mainWindow, {
     title: 'Scarica file',

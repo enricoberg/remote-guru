@@ -636,6 +636,7 @@ function makeEntry(tab, entry, cwd) {
 function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
   const items = [
     { icon: 'fa-solid fa-file-circle-plus', label: 'Nuovo file', action: () => newFilePrompt(tab, cwd) },
+    { icon: 'fa-solid fa-file-import', label: 'Importa', action: () => importLocal(tab, cwd) },
     { icon: 'fa-solid fa-trash', label: 'Elimina', action: () => deleteEntry(tab, entry, fullPath) },
     { icon: 'fa-solid fa-copy', label: 'Copia', action: () => {
         remoteClipboard = { sessionId: tab.id, path: fullPath, isDir: entry.isDir, name: entry.name };
@@ -733,6 +734,16 @@ async function downloadEntry(tab, entry, fullPath) {
     const saved = await window.api.download(tab.id, fullPath, entry.name);
     if (saved) toast('Scaricato in: ' + saved);
   } catch (e) { toast('Errore download: ' + e.message, true); }
+}
+
+async function importLocal(tab, destDir) {
+  try {
+    toast('Importazione in corso…');
+    const names = await window.api.importLocal(tab.id, destDir);
+    if (!names) return; // annullato
+    toast(`Importato: ${names.join(', ')}`);
+    showListing(tab, destDir);
+  } catch (e) { toast('Errore import: ' + e.message, true); }
 }
 
 // ============================================================================
