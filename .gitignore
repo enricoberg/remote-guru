@@ -1,6 +1,9 @@
 node_modules/
 package-lock.json
 
+# build / artefatti di packaging
+dist/
+
 # contiene credenziali / password in chiaro: non versionare
 servers.json
 
