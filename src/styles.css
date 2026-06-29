@@ -94,6 +94,17 @@ html, body {
 .server-list .li-nick { font-weight: 600; }
 .server-list .li-sub { font-size: 12px; color: var(--muted); margin-top: 2px; }
 
+
+/* ---------- Campo password con occhio ---------- */
+.pwd-row { display: flex; gap: 8px; align-items: stretch; }
+.pwd-row input { flex: 1; }
+.btn-eye {
+  flex: 0 0 auto; margin-top: 4px; padding: 0 12px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg2); color: var(--muted);
+  cursor: pointer; font-size: 14px;
+}
+.btn-eye:hover { color: var(--text); border-color: var(--accent); }
+
 .form-empty { color: var(--muted); text-align: center; margin-top: 120px; }
 
 .server-form label { display: block; margin-bottom: 14px; font-size: 13px; color: var(--muted); }

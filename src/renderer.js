@@ -302,6 +302,11 @@ function fillForm(s) {
   const mode = s.usePem ? 'pem' : 'password';
   form.querySelector(`input[name=authMode][value=${mode}]`).checked = true;
   applyAuthMode();
+  // ripristina i campi password come nascosti
+  form.querySelectorAll('.btn-eye').forEach((btn) => {
+    form[btn.dataset.target].type = 'password';
+    btn.querySelector('i').className = 'fa-solid fa-eye';
+  });
 }
 
 function applyAuthMode() {
@@ -1890,6 +1895,16 @@ window.addEventListener('DOMContentLoaded', () => {
   $('#btn-new').addEventListener('click', newServer);
   $('#btn-export').addEventListener('click', exportServers);
   $('#btn-import').addEventListener('click', importServers);
+
+  // occhio mostra/nascondi sui campi password
+  $('#server-form').querySelectorAll('.btn-eye').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const input = $(`#server-form input[name=${btn.dataset.target}]`);
+      const show = input.type === 'password';
+      input.type = show ? 'text' : 'password';
+      btn.querySelector('i').className = show ? 'fa-solid fa-eye-slash' : 'fa-solid fa-eye';
+    });
+  });
   $('#server-search').addEventListener('input', (e) => {
     serverQuery = e.target.value;
     renderServerList();

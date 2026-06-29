@@ -68,7 +68,10 @@
             <!-- Password sempre visibile: usata per login (modalità password) e
                  sempre disponibile per "Incolla password" anche in modalità PEM -->
             <label>Password
-              <input type="password" name="password" placeholder="••••••••" />
+              <div class="pwd-row">
+                <input type="password" name="password" placeholder="••••••••" />
+                <button type="button" class="btn-eye" data-target="password" title="Mostra/nascondi password"><i class="fa-solid fa-eye"></i></button>
+              </div>
               <small class="hint">Usata per il login (modalità Password) e per "Incolla password".</small>
             </label>
 
@@ -80,7 +83,10 @@
                 </div>
               </label>
               <label>Passphrase chiave PEM (opzionale)
-                <input type="password" name="passphrase" placeholder="(solo se la chiave è protetta)" />
+                <div class="pwd-row">
+                  <input type="password" name="passphrase" placeholder="(solo se la chiave è protetta)" />
+                  <button type="button" class="btn-eye" data-target="passphrase" title="Mostra/nascondi passphrase"><i class="fa-solid fa-eye"></i></button>
+                </div>
               </label>
             </div>
 
