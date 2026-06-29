@@ -106,8 +106,9 @@ ipcMain.handle('dialog:pickPem', async () => {
 ipcMain.handle('ssh:connect', async (_e, server) => {
   const onData = (id, data) => send('ssh:data', { id, data });
   const onCwd = (id, cwd) => send('ssh:cwd', { id, cwd });
+  const onSty = (id, sty) => send('ssh:sty', { id, sty });
   const onClose = (id) => send('ssh:closed', { id });
-  const { id, cwd } = await ssh.connect(server, onData, onCwd, onClose);
+  const { id, cwd } = await ssh.connect(server, onData, onCwd, onSty, onClose);
   return { id, cwd };
 });
 
@@ -187,6 +188,18 @@ ipcMain.handle('docker:listImages', (_e, id) => ssh.listImages(id));
 ipcMain.handle('docker:imageAction', (_e, { id, action, image }) =>
   ssh.imageAction(id, action, image)
 );
+
+// --- Screen -----------------------------------------------------------------
+
+ipcMain.handle('screen:list', (_e, id) => ssh.screenList(id));
+
+ipcMain.handle('screen:create', (_e, { id, name }) => ssh.screenCreate(id, name));
+
+ipcMain.handle('screen:kill', (_e, { id, target }) => ssh.screenKill(id, target));
+
+ipcMain.handle('screen:detach', (_e, { id, target }) => ssh.screenDetach(id, target));
+
+ipcMain.handle('screen:clearStatus', (_e, { id, target }) => ssh.screenClearStatus(id, target));
 
 ipcMain.handle('shell:openExternal', (_e, url) => shell.openExternal(url));
 

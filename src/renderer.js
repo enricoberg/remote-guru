@@ -476,6 +476,10 @@ function buildPane(tab) {
   imagesBtn.title = 'Immagini Docker';
   imagesBtn.innerHTML = '<i class="fa-solid fa-hard-drive"></i>';
   imagesBtn.addEventListener('click', () => showImages(tab));
+  const screensBtn = el('button', 'btn-ll');
+  screensBtn.title = 'Sessioni screen';
+  screensBtn.innerHTML = '<i class="fa-brands fa-buffer"></i>';
+  screensBtn.addEventListener('click', () => showScreens(tab));
   const srv = el('span', 'srv-name');
   srv.textContent = tab.server.nickname || tab.server.name;
   const cwd = el('span', 'cwd');
@@ -490,9 +494,24 @@ function buildPane(tab) {
   toolbar.appendChild(clearBtn);
   toolbar.appendChild(dockerBtn);
   toolbar.appendChild(imagesBtn);
+  toolbar.appendChild(screensBtn);
   toolbar.appendChild(srv);
   toolbar.appendChild(cwd);
   toolbar.appendChild(splitBtn);
+
+  // intestazione visibile solo quando si è dentro uno screen
+  const screenBar = el('div', 'screen-bar hidden');
+  const sbIcon = el('i', 'fa-brands fa-buffer');
+  const sbName = el('span', 'screen-bar-name');
+  const sbDetach = el('button', 'screen-bar-detach');
+  sbDetach.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i> Detach';
+  sbDetach.title = 'Stacca dallo screen (Ctrl-A D)';
+  sbDetach.addEventListener('click', () => detachScreen(tab));
+  screenBar.appendChild(sbIcon);
+  screenBar.appendChild(sbName);
+  screenBar.appendChild(sbDetach);
+  tab.screenBarEl = screenBar;
+  tab.screenBarNameEl = sbName;
 
   const host = el('div', 'term-host');
   tab.hostEl = host;
@@ -511,6 +530,7 @@ function buildPane(tab) {
   });
 
   pane.appendChild(toolbar);
+  pane.appendChild(screenBar);
   pane.appendChild(host);
   $('#panes').appendChild(pane);
   tab.paneEl = pane;
@@ -1334,6 +1354,215 @@ async function imageAction(tab, action, img, btn) {
   }
 }
 
+// ============================================================================
+// SCREEN (GNU screen)
+// ============================================================================
+
+async function showScreens(tab) {
+  let screens;
+  try {
+    toast('Lettura sessioni screen…');
+    screens = await window.api.screenList(tab.id);
+  } catch (e) {
+    return toast('Errore screen: ' + e.message, true);
+  }
+
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  if (old) old.remove();
+
+  const overlay = el('div', 'll-overlay docker-overlay');
+  const grip = el('div', 'll-resize');
+  overlay.appendChild(grip);
+  setupOverlayResize(grip, overlay, tab);
+  if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+
+  const head = el('div', 'll-head');
+  const info = el('span');
+  info.innerHTML = `<i class="fa-brands fa-buffer"></i> Sessioni screen — ${screens.length}`;
+  const actions = el('span', 'll-head-actions');
+  const detachBtn = el('button');
+  detachBtn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i>';
+  detachBtn.title = 'Detach dalla sessione attuale (Ctrl-A D)';
+  detachBtn.addEventListener('click', () => {
+    overlay.remove();
+    tab.term.focus();
+    window.api.write(tab.id, '\x01d'); // Ctrl-A, poi d
+    setTimeout(() => showScreens(tab), 400);
+  });
+  const refreshBtn = el('button');
+  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
+  refreshBtn.title = 'Aggiorna';
+  refreshBtn.addEventListener('click', () => showScreens(tab));
+  const closeBtn = el('button');
+  closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+  closeBtn.title = 'Chiudi';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  actions.appendChild(detachBtn);
+  actions.appendChild(refreshBtn);
+  actions.appendChild(closeBtn);
+  head.appendChild(info);
+  head.appendChild(actions);
+  overlay.appendChild(head);
+
+  // --- barra di creazione di un nuovo screen (non vi si entra) ---
+  const newBar = el('div', 'docker-mp');
+  const newTop = el('div', 'docker-mp-top');
+  const newIcon = el('i', 'fa-solid fa-plus');
+  const newInput = document.createElement('input');
+  newInput.type = 'text';
+  newInput.className = 'docker-mp-input';
+  newInput.placeholder = 'Nome nuovo screen — Invio per crearlo (senza entrarci)';
+  const createBtn = el('button', 'docker-btn d-up');
+  createBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Crea';
+  const doCreate = () => createScreen(tab, newInput.value, newInput);
+  createBtn.addEventListener('click', doCreate);
+  newInput.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); doCreate(); }
+  });
+  newTop.appendChild(newIcon);
+  newTop.appendChild(newInput);
+  newTop.appendChild(createBtn);
+  newBar.appendChild(newTop);
+  overlay.appendChild(newBar);
+
+  if (!screens.length) {
+    const empty = el('div', 'docker-empty');
+    empty.textContent = 'Nessuna sessione screen attiva.';
+    overlay.appendChild(empty);
+  } else {
+    screens.forEach((s) => overlay.appendChild(makeScreenRow(tab, s)));
+  }
+
+  tab.hostEl.appendChild(overlay);
+  setTimeout(() => newInput.focus(), 0);
+}
+
+function makeScreenRow(tab, s) {
+  const attached = /attached/i.test(s.status);
+  const row = el('div', 'docker-row' + (attached ? '' : ' stopped'));
+
+  const dot = el('span', 'docker-dot' + (attached ? ' on' : ''));
+  dot.title = s.status;
+  row.appendChild(dot);
+
+  const meta = el('div', 'docker-meta');
+  const name = el('span', 'docker-name');
+  name.innerHTML = `<i class="fa-brands fa-buffer"></i> ${escapeHtml(s.name)}`;
+  name.title = s.full;
+  const sub = el('span', 'docker-img');
+  sub.textContent = `${s.full} · ${s.status}`;
+  meta.appendChild(name);
+  meta.appendChild(sub);
+
+  const btns = el('div', 'docker-actions');
+  const enterBtn = el('button', 'docker-btn d-shell');
+  enterBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Entra';
+  enterBtn.title = 'Entra nello screen ' + s.name;
+  enterBtn.addEventListener('click', () => enterScreen(tab, s));
+  const delBtn = el('button', 'docker-btn d-down');
+  delBtn.innerHTML = '<i class="fa-solid fa-trash"></i> Elimina';
+  delBtn.title = 'Elimina lo screen ' + s.name;
+  delBtn.addEventListener('click', () => killScreen(tab, s, delBtn));
+  btns.appendChild(enterBtn);
+  // il detach ha senso solo se lo screen è attualmente attaccato
+  if (attached) {
+    const detBtn = el('button', 'docker-btn d-stop');
+    detBtn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i> Detach';
+    detBtn.title = 'Stacca lo screen ' + s.name;
+    detBtn.addEventListener('click', () => detachScreenRow(tab, s, detBtn));
+    btns.appendChild(detBtn);
+  }
+  btns.appendChild(delBtn);
+
+  row.appendChild(meta);
+  row.appendChild(btns);
+  return row;
+}
+
+async function createScreen(tab, name, input) {
+  const n = String(name || '').trim();
+  if (!n) return toast('Inserisci un nome per lo screen', true);
+  if (/\s/.test(n)) return toast('Il nome non può contenere spazi', true);
+  try {
+    toast('Creazione screen…');
+    await window.api.screenCreate(tab.id, n);
+    if (input) input.value = '';
+    toast('Screen creato: ' + n);
+    showScreens(tab); // ricarica la lista (senza entrarci)
+  } catch (e) {
+    toast('Errore creazione screen: ' + e.message, true);
+  }
+}
+
+/** Entra nello screen nel terminale. `-d -r` lo stacca da eventuali altre
+ *  sessioni e lo riattacca qui, evitando l'errore "Attached elsewhere". */
+function enterScreen(tab, s) {
+  const ov = tab.hostEl.querySelector('.ll-overlay');
+  if (ov) ov.remove();
+  tab.term.clear();
+  tab.term.focus();
+  window.api.write(tab.id, `clear && screen -d -r ${shQuote(s.full)}\r`);
+  showScreenBar(tab, s.name);
+  // rimuove l'eventuale barra in basso lasciata da versioni precedenti
+  setTimeout(() => { window.api.screenClearStatus(tab.id, s.full).catch(() => {}); }, 600);
+}
+
+/** Mostra l'intestazione "sei dentro lo screen". */
+function showScreenBar(tab, name) {
+  if (!tab.screenBarEl) return;
+  tab.screenBarNameEl.textContent = name;
+  tab.screenBarEl.classList.remove('hidden');
+  // ignora i marker STY in arrivo subito dopo l'attach (residui della shell esterna)
+  tab.screenBarShownAt = Date.now();
+  if (tab.fit) setTimeout(() => { tab.fit.fit(); }, 0);
+}
+
+/** Nasconde l'intestazione dello screen (siamo tornati alla shell esterna). */
+function hideScreenBar(tab) {
+  if (!tab.screenBarEl || tab.screenBarEl.classList.contains('hidden')) return;
+  tab.screenBarEl.classList.add('hidden');
+  if (tab.fit) setTimeout(() => { tab.fit.fit(); }, 0);
+}
+
+/** Stacca dallo screen inviando Ctrl-A D al terminale. */
+function detachScreen(tab) {
+  tab.term.focus();
+  window.api.write(tab.id, '\x01d'); // Ctrl-A, poi d
+  hideScreenBar(tab);
+}
+
+/** Stacca uno screen attaccato (dalla lista). Se era attaccato in questo
+ *  terminale, il terminale torna alla shell esterna. */
+async function detachScreenRow(tab, s, btn) {
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+  try {
+    await window.api.screenDetach(tab.id, s.full);
+    toast('Detach effettuato: ' + s.name);
+    hideScreenBar(tab); // se era attaccato qui
+    showScreens(tab);
+  } catch (e) {
+    toast('Errore detach: ' + e.message, true);
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+}
+
+async function killScreen(tab, s, btn) {
+  if (!confirm(`Eliminare lo screen "${s.name}"?`)) return;
+  const orig = btn ? btn.innerHTML : '';
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
+  try {
+    toast('Eliminazione screen…');
+    await window.api.screenKill(tab.id, s.full);
+    toast('Screen eliminato: ' + s.name);
+    showScreens(tab);
+  } catch (e) {
+    toast('Errore eliminazione: ' + e.message, true);
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+}
+
 // --- Manual Pull ------------------------------------------------------------
 
 let mpOpSeq = 0;
@@ -1582,6 +1811,18 @@ window.api.onCwd(({ id, cwd }) => {
   if (tab) {
     tab.cwd = cwd;
     if (tab.cwdEl) tab.cwdEl.textContent = cwd;
+  }
+});
+
+// $STY emesso dalla shell esterna ad ogni prompt: vuoto = fuori dallo screen.
+// Quando lo riceviamo vuoto, vuol dire che siamo tornati alla shell → via la barra.
+window.api.onSty(({ id, sty }) => {
+  const tab = tabs.get(id);
+  if (!tab) return;
+  if (!sty) {
+    // piccola finestra di tolleranza per ignorare i marker residui post-attach
+    if (tab.screenBarShownAt && Date.now() - tab.screenBarShownAt < 700) return;
+    hideScreenBar(tab);
   }
 });
 

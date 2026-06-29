@@ -26,7 +26,7 @@ class SshManager {
    * @param {(id:string)=>void} onClose
    * @returns {Promise<{id:string, cwd:string}>}
    */
-  connect(server, onData, onCwd, onClose) {
+  connect(server, onData, onCwd, onSty, onClose) {
     return new Promise((resolve, reject) => {
       const id = 's' + ++this._seq + '_' + Date.now();
       const client = new Client();
@@ -66,11 +66,13 @@ class SshManager {
 
           // Stream della shell: estraiamo il marker CWD e inoltriamo il resto al renderer.
           stream.on('data', (chunk) => {
-            const { clean, cwd } = session.extractCwd(chunk.toString('utf8'));
+            const { clean, cwd, sty, styFound } = session.extractMarkers(chunk.toString('utf8'));
             if (cwd && cwd !== session.cwd) {
               session.cwd = cwd;
               onCwd(id, cwd);
             }
+            // emesso ad ogni prompt: STY vuoto = shell esterna, valorizzato = dentro screen
+            if (styFound) onSty(id, sty);
             if (clean.length) onData(id, clean);
           });
           stream.stderr.on('data', (chunk) => onData(id, chunk.toString('utf8')));
@@ -103,9 +105,12 @@ class SshManager {
    */
   _initCwd(session) {
     const marker =
-      `__RG() { printf '\\033]1337;CWD=%s\\007' "$PWD"; }; ` +
+      `__RG() { printf '\\033]1337;CWD=%s\\007' "$PWD"; printf '\\033]1337;STY=%s\\007' "$STY"; }; ` +
       `PROMPT_COMMAND="__RG;$PROMPT_COMMAND"; ` +
-      `if [ -n "$ZSH_VERSION" ]; then precmd() { __RG; }; fi; ` +
+      `if [ -n "$ZSH_VERSION" ]; then precmd() { __RG; }; setopt ignoreeof 2>/dev/null; ` +
+      `else export IGNOREEOF=1; fi; ` +
+      // ^ evita che un Ctrl-D accidentale (es. durante il detach da screen)
+      //   chiuda la shell e quindi la connessione SSH.
       // cartella di partenza: /opt se esiste, altrimenti la root
       `cd /opt 2>/dev/null || cd /; ` +
       `__RG; clear\n`;
@@ -599,6 +604,61 @@ class SshManager {
     });
   }
 
+  // ---- Screen (GNU screen) ---------------------------------------------------
+
+  /**
+   * Elenca le sessioni screen dell'utente (screen -ls).
+   * `screen -ls` esce con codice != 0 anche in condizioni normali, quindi
+   * forziamo l'uscita a 0 (`|| true`) e analizziamo lo stdout.
+   */
+  async screenList(id) {
+    let out;
+    try { out = await this.exec(id, 'screen -ls || true'); }
+    catch (_) { out = ''; }
+    const screens = [];
+    out.split('\n').forEach((line) => {
+      // righe tipo: "\t12345.nome\t(data)\t(Detached)"
+      const m = line.match(/^\s*(\d+)\.(\S+)/);
+      if (!m) return;
+      const st = line.match(/\((Attached|Detached|Dead[^)]*|Multi[^)]*)\)/i);
+      screens.push({
+        pid: m[1],
+        name: m[2],
+        full: `${m[1]}.${m[2]}`,
+        status: st ? st[1] : 'Detached',
+      });
+    });
+    return screens;
+  }
+
+  /** Crea una nuova sessione screen staccata (senza entrarci). */
+  async screenCreate(id, name) {
+    const n = String(name || '').trim();
+    if (!n || /\s/.test(n)) throw new Error('Nome screen non valido');
+    return this.exec(id, `screen -dmS ${shellQuote(n)}`);
+  }
+
+  /** Termina (elimina) una sessione screen. */
+  async screenKill(id, target) {
+    return this.exec(id, `screen -S ${shellQuote(target)} -X quit`);
+  }
+
+  /** Stacca una sessione screen attualmente attaccata. */
+  async screenDetach(id, target) {
+    return this.exec(id, `screen -S ${shellQuote(target)} -X detach`);
+  }
+
+  /**
+   * Rimuove l'eventuale barra di stato in fondo (hardstatus) impostata da
+   * versioni precedenti dell'app, liberando l'ultima riga del display.
+   * Va invocata DOPO l'attach: `screen -X` agisce sul display attivo.
+   */
+  async screenClearStatus(id, target) {
+    try { await this.exec(id, `screen -S ${shellQuote(target)} -X hardstatus ignore`); }
+    catch (_) { /* niente da pulire: ignora */ }
+    return true;
+  }
+
   /** Scarica un file remoto in locale. */
   async download(id, remotePath, localPath) {
     const sftp = await this._sftp(id);
@@ -644,25 +704,31 @@ class Session {
   }
 
   /**
-   * Estrae il marker CWD (OSC 1337;CWD=...) dal flusso e ritorna il testo "pulito".
-   * Gestisce il marker spezzato su più chunk.
+   * Estrae i marker OSC 1337 (CWD=... e STY=...) dal flusso e ritorna il testo
+   * "pulito". Gestisce marker spezzati su più chunk.
+   *  - `cwd`: ultima cwd vista (o null)
+   *  - `sty`: ultimo valore di $STY visto ('' = shell esterna, valorizzato = screen)
+   *  - `styFound`: true se è stato visto almeno un marker STY in questo chunk
    */
-  extractCwd(text) {
+  extractMarkers(text) {
     let data = this._cwdBuf + text;
     this._cwdBuf = '';
     let cwd = null;
-    const re = /\x1b\]1337;CWD=([^\x07]*)\x07/g;
-    let clean = data.replace(re, (_, p) => {
-      cwd = p;
+    let sty = '';
+    let styFound = false;
+    const re = /\x1b\]1337;(CWD|STY)=([^\x07]*)\x07/g;
+    let clean = data.replace(re, (_, key, val) => {
+      if (key === 'CWD') cwd = val;
+      else { sty = val; styFound = true; }
       return '';
     });
     // se è rimasto un marker parziale a fine buffer, mettilo da parte
-    const partial = clean.lastIndexOf('\x1b]1337;CWD=');
+    const partial = clean.lastIndexOf('\x1b]1337;');
     if (partial !== -1 && clean.indexOf('\x07', partial) === -1) {
       this._cwdBuf = clean.slice(partial);
       clean = clean.slice(0, partial);
     }
-    return { clean, cwd };
+    return { clean, cwd, sty, styFound };
   }
 }
 

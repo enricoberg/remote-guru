@@ -38,8 +38,16 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('docker:imageAction', { id, action, image }),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 
+  // screen
+  screenList: (id) => ipcRenderer.invoke('screen:list', id),
+  screenCreate: (id, name) => ipcRenderer.invoke('screen:create', { id, name }),
+  screenKill: (id, target) => ipcRenderer.invoke('screen:kill', { id, target }),
+  screenDetach: (id, target) => ipcRenderer.invoke('screen:detach', { id, target }),
+  screenClearStatus: (id, target) => ipcRenderer.invoke('screen:clearStatus', { id, target }),
+
   // eventi dal main
   onData: (cb) => ipcRenderer.on('ssh:data', (_e, p) => cb(p)),
   onCwd: (cb) => ipcRenderer.on('ssh:cwd', (_e, p) => cb(p)),
+  onSty: (cb) => ipcRenderer.on('ssh:sty', (_e, p) => cb(p)),
   onClosed: (cb) => ipcRenderer.on('ssh:closed', (_e, p) => cb(p)),
 });
