@@ -36,6 +36,34 @@ async function loadServers() {
   renderServerList();
 }
 
+/** Esporta l'elenco server su un file JSON scelto dall'utente. */
+async function exportServers() {
+  try {
+    const dest = await window.api.exportServers();
+    if (dest) toast(`Configurazione esportata in ${dest}`);
+  } catch (e) {
+    toast(`Errore nell'esportazione: ${e.message || e}`, true);
+  }
+}
+
+/** Importa un file servers.json, sostituendo la configurazione attuale. */
+async function importServers() {
+  try {
+    const imported = await window.api.importServers();
+    if (!imported) return; // annullato
+    if (!confirm(`Sostituire la configurazione attuale con ${imported.length} server importati?`)) return;
+    servers = imported;
+    await window.api.saveServers(servers);
+    selectedIndex = -1;
+    renderServerList();
+    $('#server-form').classList.add('hidden');
+    $('#form-empty').classList.remove('hidden');
+    toast(`Importati ${imported.length} server`);
+  } catch (e) {
+    toast(`Errore nell'importazione: ${e.message || e}`, true);
+  }
+}
+
 function renderServerList() {
   const ul = $('#server-list');
   ul.innerHTML = '';
@@ -1619,6 +1647,8 @@ window.addEventListener('DOMContentLoaded', () => {
   loadServers();
 
   $('#btn-new').addEventListener('click', newServer);
+  $('#btn-export').addEventListener('click', exportServers);
+  $('#btn-import').addEventListener('click', importServers);
   $('#server-search').addEventListener('input', (e) => {
     serverQuery = e.target.value;
     renderServerList();

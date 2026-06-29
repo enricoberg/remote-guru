@@ -5,7 +5,12 @@ const fs = require('fs');
 const path = require('path');
 const ssh = require('./ssh');
 
-const SERVERS_FILE = path.join(app.getAppPath(), 'servers.json');
+// In sviluppo si usa il servers.json del repo; nell'app pacchettizzata
+// app.getAppPath() punta dentro app.asar (sola lettura), quindi si salva
+// nella cartella dati utente, scrivibile.
+const SERVERS_FILE = app.isPackaged
+  ? path.join(app.getPath('userData'), 'servers.json')
+  : path.join(app.getAppPath(), 'servers.json');
 
 let mainWindow = null;
 
@@ -61,6 +66,29 @@ ipcMain.handle('servers:list', () => readServers());
 ipcMain.handle('servers:save', (_e, list) => {
   writeServers(list);
   return true;
+});
+
+ipcMain.handle('servers:export', async () => {
+  const res = await dialog.showSaveDialog(mainWindow, {
+    title: 'Esporta configurazione (servers.json)',
+    defaultPath: 'servers.json',
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+  if (res.canceled || !res.filePath) return null;
+  fs.writeFileSync(res.filePath, JSON.stringify(readServers(), null, 2), 'utf8');
+  return res.filePath;
+});
+
+ipcMain.handle('servers:import', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Importa configurazione (servers.json)',
+    properties: ['openFile'],
+    filters: [{ name: 'JSON', extensions: ['json'] }],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  const data = JSON.parse(fs.readFileSync(res.filePaths[0], 'utf8'));
+  if (!Array.isArray(data)) throw new Error('Il file non contiene un elenco di server valido.');
+  return data;
 });
 
 ipcMain.handle('dialog:pickPem', async () => {

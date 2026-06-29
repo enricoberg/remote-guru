@@ -6,6 +6,8 @@ contextBridge.exposeInMainWorld('api', {
   // servers.json
   listServers: () => ipcRenderer.invoke('servers:list'),
   saveServers: (list) => ipcRenderer.invoke('servers:save', list),
+  exportServers: () => ipcRenderer.invoke('servers:export'),
+  importServers: () => ipcRenderer.invoke('servers:import'),
   pickPem: () => ipcRenderer.invoke('dialog:pickPem'),
 
   // ssh
