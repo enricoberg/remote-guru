@@ -10,3 +10,6 @@ servers.json
 # log / sistema
 *.log
 .DS_Store
+
+# IDE JetBrains
+.idea/

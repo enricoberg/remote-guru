@@ -121,7 +121,8 @@ html, body {
 /* ---------- Config view ---------- */
 #config-view { width: 100%; justify-content: center; align-items: flex-start; overflow: auto; }
 .config-wrap { width: 100%; max-width: 1000px; padding: 32px; }
-.config-header h1 { margin: 0 0 4px; }
+.config-header h1 { margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+.config-header h1 .app-logo { height: 1.2em; width: auto; vertical-align: middle; border-radius: 6px; }
 .config-header p { color: var(--muted); margin: 0 0 24px; }
 
 .config-body { display: flex; gap: 24px; align-items: flex-start; }

@@ -10,6 +10,12 @@ npm install
 npm run start
 ```
 
+## Build
+
+```bash
+npm run build:mac
+```
+
 ## Funzionalità
 
 - **Pagina di configurazione** all'avvio: aggiungi / modifica / elimina connessioni

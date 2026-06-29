@@ -14,7 +14,7 @@
   <div id="config-view" class="view active">
     <div class="config-wrap">
       <header class="config-header">
-        <h1><i class="fa-solid fa-desktop"></i> Remote Guru</h1>
+        <h1><img src="logo.png" class="app-logo" alt="" /> Remote Guru</h1>
         <p>Gestisci le tue connessioni SSH. Seleziona un server per connetterti.</p>
         <button id="btn-back" class="btn btn-primary hidden"><i class="fa-solid fa-arrow-left"></i> Torna alle sessioni attive</button>
       </header>
@@ -127,6 +127,20 @@
 
       <div class="settings-card">
         <div class="settings-row">
+          <label for="language-select">Lingua</label>
+          <select id="language-select">
+            <option value="it">Italiano</option>
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="de">Deutsch</option>
+            <option value="pt">Português</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-row">
           <label>Configurazione server</label>
           <div class="settings-actions">
             <button id="btn-import" class="btn"><i class="fa-solid fa-upload"></i> Importa configurazione</button>
@@ -151,6 +165,7 @@
 
   <script src="../node_modules/xterm/lib/xterm.js"></script>
   <script src="../node_modules/xterm-addon-fit/lib/xterm-addon-fit.js"></script>
+  <script src="i18n.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

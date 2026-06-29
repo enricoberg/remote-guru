@@ -40,9 +40,9 @@ async function loadServers() {
 async function exportServers() {
   try {
     const dest = await window.api.exportServers();
-    if (dest) toast(`Configurazione esportata in ${dest}`);
+    if (dest) toast(i18n.t('export_done', { path: dest }));
   } catch (e) {
-    toast(`Errore nell'esportazione: ${e.message || e}`, true);
+    toast(i18n.t('export_error', { error: e.message || e }), true);
   }
 }
 
@@ -51,16 +51,16 @@ async function importServers() {
   try {
     const imported = await window.api.importServers();
     if (!imported) return; // annullato
-    if (!confirm(`Sostituire la configurazione attuale con ${imported.length} server importati?`)) return;
+    if (!confirm(i18n.t('import_confirm', { count: imported.length }))) return;
     servers = imported;
     await window.api.saveServers(servers);
     selectedIndex = -1;
     renderServerList();
     $('#server-form').classList.add('hidden');
     $('#form-empty').classList.remove('hidden');
-    toast(`Importati ${imported.length} server`);
+    toast(i18n.t('import_done', { count: imported.length }));
   } catch (e) {
-    toast(`Errore nell'importazione: ${e.message || e}`, true);
+    toast(i18n.t('import_error', { error: e.message || e }), true);
   }
 }
 
@@ -109,7 +109,7 @@ function renderServerList() {
 
   if (servers.length && !shown) {
     const empty = el('li', 'server-empty');
-    empty.textContent = 'Nessuna macchina corrisponde alla ricerca.';
+    empty.textContent = i18n.t('search_no_results');
     ul.appendChild(empty);
   }
   updateToggleGroupsBtn();
@@ -152,7 +152,7 @@ function makeGroupHeader(name, count, collapsed, isUngrouped) {
   li.dataset.group = isUngrouped ? '' : name;
   const caret = el('i', 'fa-solid caret ' + (collapsed ? 'fa-chevron-right' : 'fa-chevron-down'));
   const title = el('span', 'sg-name');
-  title.textContent = isUngrouped ? 'Senza gruppo' : name;
+  title.textContent = isUngrouped ? i18n.t('group_without_name') : name;
   const cnt = el('span', 'sg-count');
   cnt.textContent = count;
   li.appendChild(caret);
@@ -368,33 +368,33 @@ function readForm() {
 async function saveServer(e) {
   e.preventDefault();
   const data = readForm();
-  if (!data.host || !data.username) return toast('Host e username obbligatori', true);
+  if (!data.host || !data.username) return toast(i18n.t('host_and_username_required'), true);
   if (selectedIndex >= 0) {
     if (servers[selectedIndex].group) data.group = servers[selectedIndex].group; // preserva il gruppo
     servers[selectedIndex] = data;
   } else { servers.push(data); selectedIndex = servers.length - 1; }
   await window.api.saveServers(servers);
   renderServerList();
-  toast('Configurazione salvata');
+  toast(i18n.t('config_saved'));
 }
 
 async function deleteServer() {
   if (selectedIndex < 0) return;
   const s = servers[selectedIndex];
-  if (!confirm(`Eliminare "${s.nickname}"?`)) return;
+  if (!confirm(i18n.t('confirm_delete_server', { nickname: s.nickname }))) return;
   servers.splice(selectedIndex, 1);
   selectedIndex = -1;
   await window.api.saveServers(servers);
   renderServerList();
   $('#server-form').classList.add('hidden');
   $('#form-empty').classList.remove('hidden');
-  toast('Server eliminato');
+  toast(i18n.t('server_deleted'));
 }
 
 async function connectFromForm() {
   // salva implicitamente i campi correnti prima di connettere
   const data = readForm();
-  if (!data.host || !data.username) return toast('Host e username obbligatori', true);
+  if (!data.host || !data.username) return toast(i18n.t('host_and_username_required'), true);
   await openConnection(data);
 }
 
@@ -422,12 +422,12 @@ function applyTheme(name) {
 }
 
 async function openConnection(server) {
-  toast(`Connessione a ${server.host}…`);
+  toast(i18n.t('connecting', { host: server.host }));
   let res;
   try {
     res = await window.api.connect(server);
   } catch (e) {
-    return toast('Errore connessione: ' + e.message, true);
+    return toast(i18n.t('connection_error', { error: e.message }), true);
   }
   const id = res.id;
 
@@ -486,10 +486,10 @@ function buildTabButton(tab) {
   t.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     openContextMenu(e.clientX, e.clientY, [
-      { icon: 'fa-solid fa-clone', label: 'Duplica sessione', action: () => openConnection(tab.server) },
-      { icon: 'fa-solid fa-pen', label: 'Rinomina', action: () => renameTab(tab.id) },
+      { icon: 'fa-solid fa-clone', label: i18n.t('duplicate_session'), action: () => openConnection(tab.server) },
+      { icon: 'fa-solid fa-pen', label: i18n.t('rename_session'), action: () => renameTab(tab.id) },
       { sep: true },
-      { icon: 'fa-solid fa-xmark', label: 'Chiudi', action: () => closeTab(tab.id) },
+      { icon: 'fa-solid fa-xmark', label: i18n.t('close_session'), action: () => closeTab(tab.id) },
     ]);
   });
 
@@ -503,11 +503,11 @@ function buildPane(tab) {
 
   const toolbar = el('div', 'pane-toolbar');
   const llBtn = el('button', 'btn-ll');
-  llBtn.title = 'Elenca contenuto cartella (ll)';
+  llBtn.title = i18n.t('ll_button_title');
   llBtn.innerHTML = '<i class="fa-solid fa-list"></i>';
   llBtn.addEventListener('click', () => showListing(tab));
   const clearBtn = el('button', 'btn-ll');
-  clearBtn.title = 'Pulisci terminale (clear)';
+  clearBtn.title = i18n.t('clear_button_title');
   clearBtn.innerHTML = '<i class="fa-solid fa-display"></i>';
   clearBtn.addEventListener('click', () => {
     tab.term.clear();
@@ -515,15 +515,15 @@ function buildPane(tab) {
     tab.term.focus();
   });
   const dockerBtn = el('button', 'btn-ll');
-  dockerBtn.title = 'Container Docker';
+  dockerBtn.title = i18n.t('docker_containers_button_title');
   dockerBtn.innerHTML = '<i class="fa-brands fa-docker"></i>';
   dockerBtn.addEventListener('click', () => showDocker(tab));
   const imagesBtn = el('button', 'btn-ll');
-  imagesBtn.title = 'Immagini Docker';
+  imagesBtn.title = i18n.t('docker_images_button_title');
   imagesBtn.innerHTML = '<i class="fa-solid fa-hard-drive"></i>';
   imagesBtn.addEventListener('click', () => showImages(tab));
   const screensBtn = el('button', 'btn-ll');
-  screensBtn.title = 'Sessioni screen';
+  screensBtn.title = i18n.t('screen_sessions_button_title');
   screensBtn.innerHTML = '<i class="fa-brands fa-buffer"></i>';
   screensBtn.addEventListener('click', () => showScreens(tab));
   const srv = el('span', 'srv-name');
@@ -532,7 +532,7 @@ function buildPane(tab) {
   cwd.textContent = tab.cwd;
   tab.cwdEl = cwd;
   const splitBtn = el('button', 'btn-ll');
-  splitBtn.title = 'Affianca un\'altra scheda (split view)';
+  splitBtn.title = i18n.t('split_view_button_title');
   splitBtn.innerHTML = '<i class="fa-solid fa-table-columns"></i>';
   splitBtn.style.marginLeft = 'auto';
   splitBtn.addEventListener('click', () => toggleSplit(tab.id));
@@ -550,8 +550,8 @@ function buildPane(tab) {
   const sbIcon = el('i', 'fa-brands fa-buffer');
   const sbName = el('span', 'screen-bar-name');
   const sbDetach = el('button', 'screen-bar-detach');
-  sbDetach.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i> Detach';
-  sbDetach.title = 'Stacca dallo screen (Ctrl-A D)';
+  sbDetach.innerHTML = `<i class="fa-solid fa-right-from-bracket"></i> ${i18n.t('screen_detach_button')}`;
+  sbDetach.title = i18n.t('screen_detach_button_title');
   sbDetach.addEventListener('click', () => detachScreen(tab));
   screenBar.appendChild(sbIcon);
   screenBar.appendChild(sbName);
@@ -685,7 +685,7 @@ function enableSplit(secondId) {
   if (secondId === activeTabId) return;
   splitTabId = secondId;
   layout();
-  toast('Split view attiva — trascina il divisore centrale per ridimensionare');
+  toast(i18n.t('split_view_active'));
 }
 
 /** Attiva/disattiva lo split dal pulsante ⫿: se attivo lo chiude, altrimenti
@@ -694,12 +694,12 @@ function toggleSplit(tabId) {
   if (splitTabId) {
     splitTabId = null;
     layout();
-    toast('Split view chiusa');
+    toast(i18n.t('split_view_closed'));
     return;
   }
   if (tabId !== activeTabId) setActive(tabId);
   const other = [...tabs.keys()].find((k) => k !== activeTabId);
-  if (!other) return toast('Apri almeno 2 schede per usare lo split', true);
+  if (!other) return toast(i18n.t('split_min_2_tabs'), true);
   enableSplit(other);
 }
 
@@ -760,7 +760,7 @@ async function showListing(tab, dir) {
   try {
     res = await window.api.listDir(tab.id, dir || tab.cwd);
   } catch (e) {
-    return toast('Errore elenco: ' + e.message, true);
+    return toast(i18n.t('listing_error', { error: e.message }), true);
   }
   tab.cwd = res.cwd;
   if (tab.cwdEl) tab.cwdEl.textContent = res.cwd;
@@ -779,11 +779,11 @@ async function showListing(tab, dir) {
 
   const head = el('div', 'll-head');
   const info = el('span');
-  info.innerHTML = `<i class="fa-solid fa-folder-open"></i> ${escapeHtml(res.cwd)} — ${res.entries.length} elementi`;
+  info.innerHTML = i18n.t('listing_folder_info', { path: escapeHtml(res.cwd), count: res.entries.length });
   const actions = el('span', 'll-head-actions');
   const searchBtn = el('button');
   searchBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i>';
-  searchBtn.title = 'Cerca nella cartella (grep)';
+  searchBtn.title = i18n.t('search_folder');
   searchBtn.addEventListener('click', () => toggleSearch(tab, res.cwd, overlay));
   const closeBtn = el('button');
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
@@ -841,7 +841,7 @@ function toggleSearch(tab, cwd, overlay) {
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'search-input';
-  input.placeholder = 'Testo da cercare con grep — Invio per cercare, Esc per chiudere';
+  input.placeholder = i18n.t('search_placeholder');
   bar.appendChild(icon);
   bar.appendChild(input);
 
@@ -879,7 +879,7 @@ function newFilePrompt(tab, cwd) {
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'newfile-input';
-  input.placeholder = 'nome-file.txt — Invio per creare, Esc per annullare';
+  input.placeholder = i18n.t('newfile_placeholder');
   row.appendChild(ico);
   row.appendChild(input);
 
@@ -899,10 +899,10 @@ function newFilePrompt(tab, cwd) {
       const target = joinPath(cwd, name);
       try {
         await window.api.createFile(tab.id, target);
-        toast('File creato: ' + name);
+        toast(i18n.t('newfile_created', { name: name }));
         cleanup();
         showListing(tab, cwd);
-      } catch (err) { toast('Errore: ' + err.message, true); }
+      } catch (err) { toast(i18n.t('generic_error', { error: err.message }), true); }
     }
   });
   input.addEventListener('blur', cleanup);
@@ -960,10 +960,10 @@ function makeEntry(tab, entry, cwd) {
 async function showDocker(tab) {
   let containers;
   try {
-    toast('Lettura container Docker…');
+    toast(i18n.t('listing_loading'));
     containers = await window.api.dockerPs(tab.id);
   } catch (e) {
-    return toast('Errore Docker: ' + e.message, true);
+    return toast(i18n.t('docker_action_error', { action: 'Docker', error: e.message }), true);
   }
 
   // riusa lo stesso overlay del file browser
@@ -978,11 +978,11 @@ async function showDocker(tab) {
 
   const head = el('div', 'll-head');
   const info = el('span');
-  info.innerHTML = `<i class="fa-brands fa-docker"></i> Container attivi — ${containers.length}`;
+  info.innerHTML = i18n.t('docker_containers_title', { count: containers.length });
   const actions = el('span', 'll-head-actions');
   const refreshBtn = el('button');
   refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
-  refreshBtn.title = 'Aggiorna';
+  refreshBtn.title = i18n.t('refresh');
   refreshBtn.addEventListener('click', () => showDocker(tab));
   const closeBtn = el('button');
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
@@ -996,7 +996,7 @@ async function showDocker(tab) {
 
   if (!containers.length) {
     const empty = el('div', 'docker-empty');
-    empty.textContent = 'Nessun container attivo.';
+    empty.textContent = i18n.t('docker_no_containers');
     overlay.appendChild(empty);
   }
 
@@ -1022,7 +1022,7 @@ async function showDocker(tab) {
     searchInput = document.createElement('input');
     searchInput.type = 'text';
     searchInput.className = 'search-input';
-    searchInput.placeholder = 'Filtra container…';
+    searchInput.placeholder = i18n.t('docker_filter_containers');
     bar.appendChild(icon);
     bar.appendChild(searchInput);
     overlay.appendChild(bar);
@@ -1033,7 +1033,7 @@ async function showDocker(tab) {
     const header = el('div', 'docker-group');
     header.innerHTML = key
       ? `<i class="fa-solid fa-folder"></i> ${escapeHtml(key)}`
-      : '<i class="fa-solid fa-layer-group"></i> Senza cartella';
+      : `<i class="fa-solid fa-layer-group"></i> ${i18n.t('group_without_name')}`;
     overlay.appendChild(header);
     const items = groups.get(key).map((c) => {
       const row = makeDockerRow(tab, c);
@@ -1044,7 +1044,7 @@ async function showDocker(tab) {
   });
 
   const noRes = el('div', 'docker-empty');
-  noRes.textContent = 'Nessun risultato.';
+  noRes.textContent = i18n.t('docker_no_results');
   noRes.style.display = 'none';
   overlay.appendChild(noRes);
 
@@ -1092,19 +1092,19 @@ function makeDockerRow(tab, c) {
   // container attivo: stop/restart; container fermo: up. down/pull sempre.
   const defs = c.running
     ? [
-        { action: 'logs',    icon: 'fa-file-lines',       label: 'Logs',    cls: 'd-logs' },
-        { action: 'shell',   icon: 'fa-terminal',         label: 'Shell',   cls: 'd-shell' },
-        { action: 'browser', icon: 'fa-globe',            label: 'Browser', cls: 'd-browser' },
-        { action: 'stop',    icon: 'fa-stop',             label: 'Stop',    cls: 'd-stop' },
-        { action: 'restart', icon: 'fa-rotate-right',     label: 'Restart', cls: 'd-restart' },
-        { action: 'down',    icon: 'fa-arrow-down',       label: 'Down',    cls: 'd-down' },
-        { action: 'pull',    icon: 'fa-cloud-arrow-down', label: 'Pull',    cls: 'd-pull' },
+        { action: 'logs',    icon: 'fa-file-lines',       label: i18n.t('docker_logs'),    cls: 'd-logs' },
+        { action: 'shell',   icon: 'fa-terminal',         label: i18n.t('docker_shell'),   cls: 'd-shell' },
+        { action: 'browser', icon: 'fa-globe',            label: i18n.t('docker_browser'), cls: 'd-browser' },
+        { action: 'stop',    icon: 'fa-stop',             label: i18n.t('docker_stop'),    cls: 'd-stop' },
+        { action: 'restart', icon: 'fa-rotate-right',     label: i18n.t('docker_restart'), cls: 'd-restart' },
+        { action: 'down',    icon: 'fa-arrow-down',       label: i18n.t('docker_down'),    cls: 'd-down' },
+        { action: 'pull',    icon: 'fa-cloud-arrow-down', label: i18n.t('docker_pull'),    cls: 'd-pull' },
       ]
     : [
-        { action: 'up',      icon: 'fa-play',             label: 'Up',      cls: 'd-up' },
-        { action: 'logs',    icon: 'fa-file-lines',       label: 'Logs',    cls: 'd-logs' },
-        { action: 'down',    icon: 'fa-arrow-down',       label: 'Down',    cls: 'd-down' },
-        { action: 'pull',    icon: 'fa-cloud-arrow-down', label: 'Pull',    cls: 'd-pull' },
+        { action: 'up',      icon: 'fa-play',             label: i18n.t('docker_up'),      cls: 'd-up' },
+        { action: 'logs',    icon: 'fa-file-lines',       label: i18n.t('docker_logs'),    cls: 'd-logs' },
+        { action: 'down',    icon: 'fa-arrow-down',       label: i18n.t('docker_down'),    cls: 'd-down' },
+        { action: 'pull',    icon: 'fa-cloud-arrow-down', label: i18n.t('docker_pull'),    cls: 'd-pull' },
       ];
   defs.forEach((d) => {
     const b = el('button', 'docker-btn ' + d.cls);
@@ -1147,18 +1147,24 @@ async function dockerAction(tab, action, c, btn) {
     return;
   }
 
-  const labels = { up: 'Up', stop: 'Stop', restart: 'Restart', down: 'Down', pull: 'Pull' };
-  if (action === 'down' && !confirm(`Eseguire "down" su "${c.name}"?`)) return;
+  const labels = {
+    up: i18n.t('docker_up'),
+    stop: i18n.t('docker_stop'),
+    restart: i18n.t('docker_restart'),
+    down: i18n.t('docker_down'),
+    pull: i18n.t('docker_pull'),
+  };
+  if (action === 'down' && !confirm(i18n.t('confirm_docker_down', { name: c.name }))) return;
 
   const orig = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
   try {
-    toast(`${labels[action]} ${c.name}…`);
+    toast(i18n.t('docker_action_loading', { action: labels[action], name: c.name }));
     await window.api.dockerAction(tab.id, action, c);
-    toast(`${labels[action]} completato: ${c.name}`);
+    toast(i18n.t('docker_action_done', { action: labels[action], name: c.name }));
     showDocker(tab); // ricarica lo stato
   } catch (e) {
-    toast(`Errore ${labels[action]}: ` + e.message, true);
+    toast(i18n.t('docker_action_error', { action: labels[action], error: e.message }), true);
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
   }
 }
@@ -1166,7 +1172,7 @@ async function dockerAction(tab, action, c, btn) {
 /** Apre nel browser di sistema la porta esposta dal container (http://host:porta). */
 function openContainerBrowser(tab, c, btn) {
   const ports = c.ports || [];
-  if (!ports.length) return toast('Il container non espone porte', true);
+  if (!ports.length) return toast(i18n.t('docker_no_ports'), true);
   const host = tab.server.host;
   const open = (p) => window.api.openExternal(`http://${host}:${p}`);
   if (ports.length === 1) return open(ports[0]);
@@ -1174,7 +1180,7 @@ function openContainerBrowser(tab, c, btn) {
   const rect = btn ? btn.getBoundingClientRect() : { left: 100, bottom: 100 };
   openContextMenu(rect.left, rect.bottom, ports.map((p) => ({
     icon: 'fa-solid fa-globe',
-    label: `Porta ${p}`,
+    label: i18n.t('docker_port_label', { port: p }),
     action: () => open(p),
   })));
 }
@@ -1186,13 +1192,13 @@ function openContainerBrowser(tab, c, btn) {
 async function showImages(tab) {
   let composeImgs, localImgs;
   try {
-    toast('Lettura immagini Docker…');
+    toast(i18n.t('listing_loading'));
     [composeImgs, localImgs] = await Promise.all([
       window.api.composeImages(tab.id),
       window.api.listImages(tab.id),
     ]);
   } catch (e) {
-    return toast('Errore immagini: ' + e.message, true);
+    return toast(i18n.t('docker_action_error', { action: 'Immagini', error: e.message }), true);
   }
 
   const old = tab.hostEl.querySelector('.ll-overlay');
@@ -1206,11 +1212,11 @@ async function showImages(tab) {
 
   const head = el('div', 'll-head');
   const info = el('span');
-  info.innerHTML = '<i class="fa-solid fa-hard-drive"></i> Immagini Docker';
+  info.innerHTML = i18n.t('docker_images_title');
   const actions = el('span', 'll-head-actions');
   const refreshBtn = el('button');
   refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
-  refreshBtn.title = 'Aggiorna';
+  refreshBtn.title = i18n.t('refresh');
   refreshBtn.addEventListener('click', () => showImages(tab));
   const closeBtn = el('button');
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
@@ -1223,24 +1229,24 @@ async function showImages(tab) {
   overlay.appendChild(head);
 
   // --- Sezione 1: immagini dichiarate nei compose (collassata di default) ---
-  const g1 = makeCollapsibleHeader(`<i class="fa-solid fa-layer-group"></i> Nei compose — ${composeImgs.length}`);
+  const g1 = makeCollapsibleHeader(i18n.t('docker_images_in_compose', { count: composeImgs.length }));
   overlay.appendChild(g1.header);
   const s1 = buildImageSection(
     composeImgs.map((it) => ({ text: it.image, row: makeComposeImageRow(tab, it.image) })),
-    'Nessuna immagine trovata nei compose.'
+    i18n.t('docker_no_images')
   );
   overlay.appendChild(s1.section);
   g1.attach(s1.section, true);
 
   // --- Sezione 2: immagini presenti (docker images, espansa) ---
-  const g2 = makeCollapsibleHeader(`<i class="fa-solid fa-hard-drive"></i> Presenti sul remoto — ${localImgs.length}`);
+  const g2 = makeCollapsibleHeader(i18n.t('docker_images_available', { count: localImgs.length }));
   overlay.appendChild(g2.header);
   const s2 = buildImageSection(
     localImgs.map((img) => ({
       text: `${img.ref || `${img.repo}:${img.tag}`} ${img.id || ''}`,
       row: makeLocalImageRow(tab, img),
     })),
-    'Nessuna immagine presente.'
+    i18n.t('docker_images_none_available')
   );
   overlay.appendChild(s2.section);
   g2.attach(s2.section, false);
@@ -1293,7 +1299,7 @@ function buildImageSection(items, emptyText) {
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'search-input';
-  input.placeholder = 'Filtra immagini…';
+  input.placeholder = i18n.t('docker_filter_images');
   bar.appendChild(icon);
   bar.appendChild(input);
   section.appendChild(bar);
@@ -1303,7 +1309,7 @@ function buildImageSection(items, emptyText) {
   section.appendChild(list);
 
   const noRes = el('div', 'docker-empty');
-  noRes.textContent = 'Nessun risultato.';
+  noRes.textContent = i18n.t('docker_no_results');
   noRes.style.display = 'none';
   section.appendChild(noRes);
 
@@ -1332,12 +1338,12 @@ function makeComposeImageRow(tab, image) {
 
   const btns = el('div', 'docker-actions');
   const pullBtn = el('button', 'docker-btn d-pull');
-  pullBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Pull';
-  pullBtn.title = 'Pull ' + image;
+  pullBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> ${i18n.t('docker_pull')}`;
+  pullBtn.title = i18n.t('docker_pull') + ' ' + image;
   pullBtn.addEventListener('click', () => imageAction(tab, 'pull', { ref: image }, pullBtn));
   const manualBtn = el('button', 'docker-btn d-manual');
-  manualBtn.innerHTML = '<i class="fa-solid fa-download"></i> Manual Pull';
-  manualBtn.title = 'Manual Pull → ' + image;
+  manualBtn.innerHTML = `<i class="fa-solid fa-download"></i> ${i18n.t('docker_manual_pull')}`;
+  manualBtn.title = i18n.t('docker_manual_pull_title', { image: image });
   manualBtn.addEventListener('click', () => openManualPull(tab, image, row));
   btns.appendChild(pullBtn);
   btns.appendChild(manualBtn);
@@ -1362,17 +1368,17 @@ function makeLocalImageRow(tab, img) {
 
   const btns = el('div', 'docker-actions');
   const pullBtn = el('button', 'docker-btn d-pull');
-  pullBtn.innerHTML = '<i class="fa-solid fa-cloud-arrow-down"></i> Pull';
+  pullBtn.innerHTML = `<i class="fa-solid fa-cloud-arrow-down"></i> ${i18n.t('docker_pull')}`;
   if (img.ref) {
-    pullBtn.title = 'Pull ' + img.ref;
+    pullBtn.title = i18n.t('docker_pull') + ' ' + img.ref;
     pullBtn.addEventListener('click', () => imageAction(tab, 'pull', img, pullBtn));
   } else {
     pullBtn.disabled = true;
-    pullBtn.title = 'Immagine senza tag: pull non disponibile';
+    pullBtn.title = i18n.t('docker_pull_not_available');
   }
   const delBtn = el('button', 'docker-btn d-down');
-  delBtn.innerHTML = '<i class="fa-solid fa-trash"></i> Elimina';
-  delBtn.title = 'Elimina immagine';
+  delBtn.innerHTML = `<i class="fa-solid fa-trash"></i> ${i18n.t('docker_delete_image')}`;
+  delBtn.title = i18n.t('docker_delete_image');
   delBtn.addEventListener('click', () => imageAction(tab, 'delete', img, delBtn));
   btns.appendChild(pullBtn);
   btns.appendChild(delBtn);
@@ -1383,19 +1389,22 @@ function makeLocalImageRow(tab, img) {
 }
 
 async function imageAction(tab, action, img, btn) {
-  const labels = { pull: 'Pull', delete: 'Elimina' };
+  const labels = {
+    pull: i18n.t('docker_pull'),
+    delete: i18n.t('docker_delete_image'),
+  };
   const name = img.ref || img.id || '';
-  if (action === 'delete' && !confirm(`Eliminare l'immagine "${name}"?`)) return;
+  if (action === 'delete' && !confirm(i18n.t('confirm_delete_image', { name: name }))) return;
 
   const orig = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
   try {
-    toast(`${labels[action]} ${name}…`);
+    toast(i18n.t('docker_action_loading', { action: labels[action], name: name }));
     await window.api.imageAction(tab.id, action, img);
-    toast(`${labels[action]} completato: ${name}`);
+    toast(i18n.t('docker_action_done', { action: labels[action], name: name }));
     showImages(tab);
   } catch (e) {
-    toast(`Errore ${labels[action]}: ` + e.message, true);
+    toast(i18n.t('docker_action_error', { action: labels[action], error: e.message }), true);
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
   }
 }
@@ -1407,10 +1416,10 @@ async function imageAction(tab, action, img, btn) {
 async function showScreens(tab) {
   let screens;
   try {
-    toast('Lettura sessioni screen…');
+    toast(i18n.t('listing_loading'));
     screens = await window.api.screenList(tab.id);
   } catch (e) {
-    return toast('Errore screen: ' + e.message, true);
+    return toast(i18n.t('docker_action_error', { action: 'Screen', error: e.message }), true);
   }
 
   const old = tab.hostEl.querySelector('.ll-overlay');
@@ -1424,11 +1433,11 @@ async function showScreens(tab) {
 
   const head = el('div', 'll-head');
   const info = el('span');
-  info.innerHTML = `<i class="fa-brands fa-buffer"></i> Sessioni screen — ${screens.length}`;
+  info.innerHTML = i18n.t('screen_sessions_title', { count: screens.length });
   const actions = el('span', 'll-head-actions');
   const detachBtn = el('button');
   detachBtn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i>';
-  detachBtn.title = 'Detach dalla sessione attuale (Ctrl-A D)';
+  detachBtn.title = i18n.t('screen_detach_all');
   detachBtn.addEventListener('click', () => {
     overlay.remove();
     tab.term.focus();
@@ -1437,7 +1446,7 @@ async function showScreens(tab) {
   });
   const refreshBtn = el('button');
   refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
-  refreshBtn.title = 'Aggiorna';
+  refreshBtn.title = i18n.t('refresh');
   refreshBtn.addEventListener('click', () => showScreens(tab));
   const closeBtn = el('button');
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
@@ -1457,9 +1466,9 @@ async function showScreens(tab) {
   const newInput = document.createElement('input');
   newInput.type = 'text';
   newInput.className = 'docker-mp-input';
-  newInput.placeholder = 'Nome nuovo screen — Invio per crearlo (senza entrarci)';
+  newInput.placeholder = i18n.t('screen_create_placeholder');
   const createBtn = el('button', 'docker-btn d-up');
-  createBtn.innerHTML = '<i class="fa-solid fa-plus"></i> Crea';
+  createBtn.innerHTML = `<i class="fa-solid fa-plus"></i> ${i18n.t('screen_create_button')}`;
   const doCreate = () => createScreen(tab, newInput.value, newInput);
   createBtn.addEventListener('click', doCreate);
   newInput.addEventListener('keydown', (e) => {
@@ -1474,7 +1483,7 @@ async function showScreens(tab) {
 
   if (!screens.length) {
     const empty = el('div', 'docker-empty');
-    empty.textContent = 'Nessuna sessione screen attiva.';
+    empty.textContent = i18n.t('screen_no_sessions');
     overlay.appendChild(empty);
   } else {
     screens.forEach((s) => overlay.appendChild(makeScreenRow(tab, s)));
@@ -1503,19 +1512,19 @@ function makeScreenRow(tab, s) {
 
   const btns = el('div', 'docker-actions');
   const enterBtn = el('button', 'docker-btn d-shell');
-  enterBtn.innerHTML = '<i class="fa-solid fa-right-to-bracket"></i> Entra';
-  enterBtn.title = 'Entra nello screen ' + s.name;
+  enterBtn.innerHTML = `<i class="fa-solid fa-right-to-bracket"></i> ${i18n.t('screen_enter')}`;
+  enterBtn.title = i18n.t('screen_enter') + ' ' + s.name;
   enterBtn.addEventListener('click', () => enterScreen(tab, s));
   const delBtn = el('button', 'docker-btn d-down');
-  delBtn.innerHTML = '<i class="fa-solid fa-trash"></i> Elimina';
-  delBtn.title = 'Elimina lo screen ' + s.name;
+  delBtn.innerHTML = `<i class="fa-solid fa-trash"></i> ${i18n.t('screen_kill')}`;
+  delBtn.title = i18n.t('screen_kill') + ' ' + s.name;
   delBtn.addEventListener('click', () => killScreen(tab, s, delBtn));
   btns.appendChild(enterBtn);
   // il detach ha senso solo se lo screen è attualmente attaccato
   if (attached) {
     const detBtn = el('button', 'docker-btn d-stop');
-    detBtn.innerHTML = '<i class="fa-solid fa-right-from-bracket"></i> Detach';
-    detBtn.title = 'Stacca lo screen ' + s.name;
+    detBtn.innerHTML = `<i class="fa-solid fa-right-from-bracket"></i> ${i18n.t('screen_detach')}`;
+    detBtn.title = i18n.t('screen_detach') + ' ' + s.name;
     detBtn.addEventListener('click', () => detachScreenRow(tab, s, detBtn));
     btns.appendChild(detBtn);
   }
@@ -1528,16 +1537,16 @@ function makeScreenRow(tab, s) {
 
 async function createScreen(tab, name, input) {
   const n = String(name || '').trim();
-  if (!n) return toast('Inserisci un nome per lo screen', true);
-  if (/\s/.test(n)) return toast('Il nome non può contenere spazi', true);
+  if (!n) return toast(i18n.t('generic_error', { error: 'nome' }), true);
+  if (/\s/.test(n)) return toast(i18n.t('screen_invalid_name'), true);
   try {
-    toast('Creazione screen…');
+    toast(i18n.t('screen_creating'));
     await window.api.screenCreate(tab.id, n);
     if (input) input.value = '';
-    toast('Screen creato: ' + n);
+    toast(i18n.t('screen_created', { name: n }));
     showScreens(tab); // ricarica la lista (senza entrarci)
   } catch (e) {
-    toast('Errore creazione screen: ' + e.message, true);
+    toast(i18n.t('screen_create_error', { error: e.message }), true);
   }
 }
 
@@ -1585,26 +1594,26 @@ async function detachScreenRow(tab, s, btn) {
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
   try {
     await window.api.screenDetach(tab.id, s.full);
-    toast('Detach effettuato: ' + s.name);
+    toast(i18n.t('screen_detach_done', { name: s.name }));
     hideScreenBar(tab); // se era attaccato qui
     showScreens(tab);
   } catch (e) {
-    toast('Errore detach: ' + e.message, true);
+    toast(i18n.t('screen_detach_error', { error: e.message }), true);
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
   }
 }
 
 async function killScreen(tab, s, btn) {
-  if (!confirm(`Eliminare lo screen "${s.name}"?`)) return;
+  if (!confirm(i18n.t('confirm_delete_screen', { name: s.name }))) return;
   const orig = btn ? btn.innerHTML : '';
   if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>'; }
   try {
-    toast('Eliminazione screen…');
+    toast(i18n.t('listing_loading'));
     await window.api.screenKill(tab.id, s.full);
-    toast('Screen eliminato: ' + s.name);
+    toast(i18n.t('screen_deleted', { name: s.name }));
     showScreens(tab);
   } catch (e) {
-    toast('Errore eliminazione: ' + e.message, true);
+    toast(i18n.t('screen_delete_error', { error: e.message }), true);
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
   }
 }
@@ -1640,15 +1649,15 @@ function openManualPull(tab, targetImage, anchorRow) {
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'docker-mp-input';
-  input.placeholder = 'registry/repo:tag@sha256:… — Invio per avviare, Esc per annullare';
+  input.placeholder = i18n.t('docker_manual_pull_placeholder');
   const go = el('button', 'docker-btn d-manual');
-  go.innerHTML = '<i class="fa-solid fa-play"></i> Avvia';
+  go.innerHTML = `<i class="fa-solid fa-play"></i> ${i18n.t('docker_manual_pull')}`;
   top.appendChild(icon);
   top.appendChild(input);
   top.appendChild(go);
 
   const status = el('div', 'docker-mp-status');
-  status.textContent = `Destinazione retag: ${targetImage}`;
+  status.textContent = i18n.t('docker_manual_pull_destination', { image: targetImage });
   const bar = el('div', 'docker-mp-bar');
   const fill = el('div', 'docker-mp-fill');
   bar.appendChild(fill);
@@ -1673,7 +1682,7 @@ async function startManualPull(tab, targetImage, raw, ui) {
   if (ui.running) return;
   const image = cleanImageRef(raw);
   if (!isValidImageRef(image)) {
-    ui.status.textContent = 'Riferimento non valido. Atteso: repo:tag@sha256:<digest>';
+    ui.status.textContent = i18n.t('docker_manual_pull_invalid');
     ui.status.classList.add('err');
     return;
   }
@@ -1702,12 +1711,12 @@ async function startManualPull(tab, targetImage, raw, ui) {
     ui.box.classList.remove('indeterminate');
     ui.fill.style.width = '100%';
     const tag = (res && res.targetImage) || targetImage;
-    ui.status.textContent = `Completato — immagine ritaggata come ${tag}`;
-    toast('Manual Pull completato: ' + tag);
+    ui.status.textContent = i18n.t('docker_manual_pull_done', { image: tag });
+    toast(i18n.t('docker_manual_pull_done', { image: tag }));
     showImages(tab); // ricarica lo stato (rimuove il form)
   } catch (e) {
     ui.box.classList.remove('indeterminate', 'running');
-    ui.status.textContent = 'Errore: ' + e.message;
+    ui.status.textContent = i18n.t('docker_manual_pull_error', { error: e.message });
     ui.status.classList.add('err');
     ui.input.disabled = false;
     ui.go.disabled = false;
@@ -1723,16 +1732,16 @@ async function startManualPull(tab, targetImage, raw, ui) {
 
 function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
   const items = [
-    { icon: 'fa-solid fa-file-circle-plus', label: 'Nuovo file', action: () => newFilePrompt(tab, cwd) },
-    { icon: 'fa-solid fa-file-import', label: 'Importa', action: () => importLocal(tab, cwd) },
-    { icon: 'fa-solid fa-trash', label: 'Elimina', action: () => deleteEntry(tab, entry, fullPath) },
-    { icon: 'fa-solid fa-copy', label: 'Copia', action: () => {
+    { icon: 'fa-solid fa-file-circle-plus', label: i18n.t('new_file'), action: () => newFilePrompt(tab, cwd) },
+    { icon: 'fa-solid fa-file-import', label: i18n.t('import_file'), action: () => importLocal(tab, cwd) },
+    { icon: 'fa-solid fa-trash', label: i18n.t('delete'), action: () => deleteEntry(tab, entry, fullPath) },
+    { icon: 'fa-solid fa-copy', label: i18n.t('copy'), action: () => {
         remoteClipboard = { sessionId: tab.id, path: fullPath, isDir: entry.isDir, name: entry.name };
-        toast(`Copiato: ${entry.name}`);
+        toast(i18n.t('copied', { name: entry.name }));
       } },
     {
       icon: 'fa-solid fa-paste',
-      label: 'Incolla' + (remoteClipboard ? ` (${remoteClipboard.name})` : ''),
+      label: i18n.t('paste') + (remoteClipboard ? ` (${remoteClipboard.name})` : ''),
       disabled: !remoteClipboard,
       action: () => pasteEntry(tab, cwd),
     },
@@ -1740,7 +1749,7 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
   if (!entry.isDir) {
     items.push({
       icon: 'fa-solid fa-pen-to-square',
-      label: 'Modifica',
+      label: i18n.t('edit'),
       action: () => {
         const ov = tab.hostEl.querySelector('.ll-overlay');
         if (ov) ov.remove();
@@ -1750,7 +1759,7 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
     });
   }
   // Scarica: disponibile sia per file che per cartelle
-  items.push({ icon: 'fa-solid fa-download', label: 'Scarica', action: () => downloadEntry(tab, entry, fullPath) });
+  items.push({ icon: 'fa-solid fa-download', label: i18n.t('download'), action: () => downloadEntry(tab, entry, fullPath) });
   openContextMenu(e.clientX, e.clientY, items);
 }
 
@@ -1758,13 +1767,13 @@ function openTermContextMenu(e, tab) {
   const items = [
     {
       icon: 'fa-solid fa-key',
-      label: 'Incolla password',
+      label: i18n.t('paste_password'),
       disabled: !tab.server.password,
       action: () => {
         // incolla la password e invia ENTER, poi torna sul terminale
         window.api.write(tab.id, tab.server.password + '\r');
         tab.term.focus();
-        toast('Password inserita');
+        toast(i18n.t('password_pasted'));
       },
     },
   ];
@@ -1805,42 +1814,43 @@ function hideContextMenu() {
 }
 
 async function deleteEntry(tab, entry, fullPath) {
-  if (!confirm(`Eliminare "${entry.name}"${entry.isDir ? ' e tutto il contenuto' : ''}?`)) return;
+  const suffix = entry.isDir ? i18n.t('confirm_delete_entry_dir') : '';
+  if (!confirm(i18n.t('confirm_delete_entry', { name: entry.name, suffix: suffix }))) return;
   try {
     await window.api.deleteEntry(tab.id, fullPath, entry.isDir);
-    toast('Eliminato: ' + entry.name);
+    toast(i18n.t('entry_deleted', { name: entry.name }));
     showListing(tab, tab.cwd);
-  } catch (e) { toast('Errore: ' + e.message, true); }
+  } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
 }
 
 async function pasteEntry(tab, destDir) {
   if (!remoteClipboard) return;
   if (remoteClipboard.sessionId !== tab.id) {
-    return toast('Incolla supportato solo nella stessa connessione', true);
+    return toast(i18n.t('paste_only_same_connection'), true);
   }
   try {
     await window.api.copyEntry(tab.id, remoteClipboard.path, destDir, remoteClipboard.isDir);
-    toast('Incollato: ' + remoteClipboard.name);
+    toast(i18n.t('pasted', { name: remoteClipboard.name }));
     showListing(tab, tab.cwd);
-  } catch (e) { toast('Errore: ' + e.message, true); }
+  } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
 }
 
 async function downloadEntry(tab, entry, fullPath) {
   try {
-    if (entry.isDir) toast('Download cartella in corso…');
+    if (entry.isDir) toast(i18n.t('download_folder_loading'));
     const saved = await window.api.download(tab.id, fullPath, entry.name, entry.isDir);
-    if (saved) toast('Scaricato in: ' + saved);
-  } catch (e) { toast('Errore download: ' + e.message, true); }
+    if (saved) toast(i18n.t('download_saved', { path: saved }));
+  } catch (e) { toast(i18n.t('download_error', { error: e.message }), true); }
 }
 
 async function importLocal(tab, destDir) {
   try {
-    toast('Importazione in corso…');
+    toast(i18n.t('importing'));
     const names = await window.api.importLocal(tab.id, destDir);
     if (!names) return; // annullato
     toast(`Importato: ${names.join(', ')}`);
     showListing(tab, destDir);
-  } catch (e) { toast('Errore import: ' + e.message, true); }
+  } catch (e) { toast(i18n.t('import_error', { error: e.message }), true); }
 }
 
 // ============================================================================
@@ -1880,7 +1890,7 @@ window.api.onClosed(({ id }) => {
   const tab = tabs.get(id);
   if (tab) {
     tab.dead = true;
-    tab.term.write('\r\n\x1b[31m[connessione chiusa]\x1b[0m\r\n');
+    tab.term.write(`\r\n\x1b[31m[${i18n.t('connection_closed')}]\x1b[0m\r\n`);
     layout();
   }
 });
@@ -1927,10 +1937,166 @@ function toast(msg, isErr) {
 }
 
 // ============================================================================
+// APPLICAZIONE TESTI UI
+// ============================================================================
+
+function applyUITexts() {
+  // Header configurazione
+  const configTitle = document.querySelector('.config-header h1');
+  const configSubtitle = document.querySelector('.config-header p');
+  if (configTitle) configTitle.innerHTML = i18n.t('config_header_title');
+  if (configSubtitle) configSubtitle.textContent = i18n.t('config_header_subtitle');
+
+  // Titolo pannello server
+  const panelTitle = document.querySelector('.panel-title span');
+  if (panelTitle) panelTitle.textContent = i18n.t('server_list_title');
+
+  // Button group espandi/comprimi
+  const toggleBtn = $('#btn-toggle-groups');
+  if (toggleBtn) {
+    const keys = allGroupKeys();
+    const anyExpanded = keys.some((k) => !isGroupCollapsed(k));
+    toggleBtn.title = anyExpanded ? i18n.t('btn_toggle_groups_collapse') : i18n.t('btn_toggle_groups_expand');
+  }
+
+  // Bottone settings
+  const settingsBtn = $('#btn-settings');
+  if (settingsBtn) settingsBtn.title = i18n.t('settings_title');
+
+  // Bottone nuovo server
+  const newBtn = $('#btn-new');
+  if (newBtn) newBtn.textContent = i18n.t('btn_new_server');
+
+  // Form empty
+  const formEmpty = $('#form-empty');
+  if (formEmpty) formEmpty.textContent = i18n.t('select_or_create_server');
+
+  // Form labels e placeholder
+  const form = $('#server-form');
+  if (form) {
+    const updateLabel = (selector, text) => {
+      const el = form.querySelector(selector);
+      if (el) el.textContent = text;
+    };
+    const updatePlaceholder = (selector, text) => {
+      const el = form.querySelector(selector);
+      if (el) el.placeholder = text;
+    };
+    const updateLabelFor = (selector, newText) => {
+      const labels = form.querySelectorAll('label');
+      labels.forEach(l => {
+        if (l.textContent.includes(selector)) {
+          l.textContent = newText;
+        }
+      });
+    };
+
+    // Update nickname
+    updatePlaceholder('input[name="nickname"]', i18n.t('form_placeholder_nickname'));
+    updatePlaceholder('input[name="host"]', i18n.t('form_placeholder_host'));
+    updatePlaceholder('input[name="username"]', i18n.t('form_placeholder_username'));
+    updatePlaceholder('input[name="password"]', i18n.t('form_placeholder_password'));
+    updatePlaceholder('input[name="pemPath"]', i18n.t('form_placeholder_pempath'));
+    updatePlaceholder('input[name="passphrase"]', i18n.t('form_placeholder_passphrase'));
+
+    // Update auth mode labels: sostituisci solo il testo, preservando l'<input> radio.
+    // (impostare textContent sul <label> cancellerebbe il radio name="authMode" e
+    //  romperebbe sia connetti che il doppio clic, che leggono form.authMode)
+    const setRadioLabel = (value, text) => {
+      const input = form.querySelector(`input[name="authMode"][value="${value}"]`);
+      if (!input) return;
+      const label = input.parentElement;
+      label.childNodes.forEach((n) => { if (n.nodeType === Node.TEXT_NODE) n.remove(); });
+      label.appendChild(document.createTextNode(' ' + text));
+    };
+    setRadioLabel('password', i18n.t('form_auth_password'));
+    setRadioLabel('pem', i18n.t('form_auth_pem'));
+
+    // Update button labels
+    form.querySelector('button[type="submit"]').innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${i18n.t('form_btn_save')}`;
+    form.querySelector('#btn-connect').innerHTML = `<i class="fa-solid fa-plug"></i> ${i18n.t('form_btn_connect')}`;
+    form.querySelector('#btn-delete').innerHTML = `<i class="fa-solid fa-trash"></i> ${i18n.t('form_btn_delete')}`;
+
+    // Update password hint
+    const hint = form.querySelector('small.hint');
+    if (hint) hint.textContent = i18n.t('form_password_hint');
+  }
+
+  // Settings view
+  const settingsTitle = document.querySelector('.settings-header h1');
+  const settingsSubtitle = document.querySelector('.settings-header p');
+  if (settingsTitle) settingsTitle.innerHTML = i18n.t('settings_title');
+  if (settingsSubtitle) settingsSubtitle.textContent = i18n.t('settings_subtitle');
+
+  const themeLabel = document.querySelector('label[for="theme-select"]');
+  if (themeLabel) themeLabel.textContent = i18n.t('settings_theme_label');
+
+  const langLabel = document.querySelector('label[for="language-select"]');
+  if (langLabel) langLabel.textContent = i18n.t('settings_language_label');
+
+  // Update theme options
+  const themeSelect = $('#theme-select');
+  if (themeSelect) {
+    const options = {
+      mocha: i18n.t('settings_theme_mocha'),
+      miami: i18n.t('settings_theme_miami'),
+      dracula: i18n.t('settings_theme_dracula'),
+      nord: i18n.t('settings_theme_nord'),
+      'tokyo-night': i18n.t('settings_theme_tokyo'),
+      gruvbox: i18n.t('settings_theme_gruvbox'),
+      matrix: i18n.t('settings_theme_matrix'),
+    };
+    themeSelect.querySelectorAll('option').forEach(opt => {
+      if (options[opt.value]) opt.textContent = options[opt.value];
+    });
+  }
+
+  // Update language options
+  const langSelect = $('#language-select');
+  if (langSelect) {
+    const options = {
+      it: i18n.t('settings_language_italian'),
+      en: i18n.t('settings_language_english'),
+      es: i18n.t('settings_language_spanish'),
+      fr: i18n.t('settings_language_french'),
+      de: i18n.t('settings_language_german'),
+      pt: i18n.t('settings_language_portuguese'),
+    };
+    langSelect.querySelectorAll('option').forEach(opt => {
+      if (options[opt.value]) opt.textContent = options[opt.value];
+    });
+  }
+
+  const configLabel = document.querySelector('.settings-card:last-child .settings-row label');
+  if (configLabel) configLabel.textContent = i18n.t('settings_config_label');
+
+  const importBtn = $('#btn-import');
+  if (importBtn) importBtn.innerHTML = `<i class="fa-solid fa-upload"></i> ${i18n.t('settings_btn_import')}`;
+
+  const exportBtn = $('#btn-export');
+  if (exportBtn) exportBtn.innerHTML = `<i class="fa-solid fa-download"></i> ${i18n.t('settings_btn_export')}`;
+
+  const backBtn = $('#btn-settings-back');
+  if (backBtn) backBtn.innerHTML = `<i class="fa-solid fa-arrow-left"></i> ${i18n.t('settings_title')}`;
+
+  const homeBackBtn = $('#btn-back');
+  if (homeBackBtn) homeBackBtn.innerHTML = `<i class="fa-solid fa-arrow-left"></i> ${i18n.t('back_to_active_sessions')}`;
+
+  // Search placeholder
+  const searchInput = $('#server-search');
+  if (searchInput) searchInput.placeholder = i18n.t('search_placeholder');
+}
+
+// ============================================================================
 // BOOTSTRAP
 // ============================================================================
 
-window.addEventListener('DOMContentLoaded', () => {
+window.addEventListener('DOMContentLoaded', async () => {
+  // carica le traduzioni e applica la lingua salvata
+  await i18n.load();
+  i18n.setLanguage(i18n.getLanguage());
+  applyUITexts();
+
   loadServers();
 
   // tema: applica quello salvato e collega la dropdown
@@ -1938,6 +2104,16 @@ window.addEventListener('DOMContentLoaded', () => {
   applyTheme(getSavedTheme());
   themeSelect.value = getSavedTheme();
   themeSelect.addEventListener('change', (e) => applyTheme(e.target.value));
+
+  // lingua: applica quella salvata e collega la dropdown
+  const langSelect = $('#language-select');
+  langSelect.value = i18n.getLanguage();
+  langSelect.addEventListener('change', (e) => {
+    i18n.setLanguage(e.target.value);
+    applyUITexts();
+    renderServerList();
+  });
+
   $('#btn-settings').addEventListener('click', () => showView('settings'));
   $('#btn-settings-back').addEventListener('click', () => showView('config'));
   $('#btn-toggle-groups').addEventListener('click', toggleAllGroups);

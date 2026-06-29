@@ -1,0 +1,1258 @@
+{
+  "search_no_results": {
+    "it": "Nessuna macchina corrisponde alla ricerca.",
+    "en": "No machines match the search.",
+    "es": "Ninguna máquina coincide con la búsqueda.",
+    "fr": "Aucune machine ne correspond à la recherche.",
+    "de": "Keine Maschine entspricht der Suche.",
+    "pt": "Nenhuma máquina corresponde à pesquisa."
+  },
+  "btn_toggle_groups_collapse": {
+    "it": "Comprimi tutti i gruppi",
+    "en": "Collapse all groups",
+    "es": "Contraer todos los grupos",
+    "fr": "Réduire tous les groupes",
+    "de": "Alle Gruppen einklappen",
+    "pt": "Recolher todos os grupos"
+  },
+  "btn_toggle_groups_expand": {
+    "it": "Espandi tutti i gruppi",
+    "en": "Expand all groups",
+    "es": "Expandir todos los grupos",
+    "fr": "Développer tous les groupes",
+    "de": "Alle Gruppen ausklappen",
+    "pt": "Expandir todos os grupos"
+  },
+  "group_without_name": {
+    "it": "Senza gruppo",
+    "en": "No group",
+    "es": "Sin grupo",
+    "fr": "Sans groupe",
+    "de": "Ohne Gruppe",
+    "pt": "Sem grupo"
+  },
+  "host_and_username_required": {
+    "it": "Host e username obbligatori",
+    "en": "Host and username required",
+    "es": "Host y nombre de usuario requeridos",
+    "fr": "Hôte et nom d'utilisateur obligatoires",
+    "de": "Host und Benutzername erforderlich",
+    "pt": "Host e nome de usuário obrigatórios"
+  },
+  "config_saved": {
+    "it": "Configurazione salvata",
+    "en": "Configuration saved",
+    "es": "Configuración guardada",
+    "fr": "Configuration enregistrée",
+    "de": "Konfiguration gespeichert",
+    "pt": "Configuração salva"
+  },
+  "confirm_delete_server": {
+    "it": "Eliminare \"{nickname}\"?",
+    "en": "Delete \"{nickname}\"?",
+    "es": "¿Eliminar \"{nickname}\"?",
+    "fr": "Supprimer \"{nickname}\" ?",
+    "de": "Löschen \"{nickname}\"?",
+    "pt": "Deletar \"{nickname}\"?"
+  },
+  "server_deleted": {
+    "it": "Server eliminato",
+    "en": "Server deleted",
+    "es": "Servidor eliminado",
+    "fr": "Serveur supprimé",
+    "de": "Server gelöscht",
+    "pt": "Servidor deletado"
+  },
+  "connecting": {
+    "it": "Connessione a {host}…",
+    "en": "Connecting to {host}…",
+    "es": "Conectando a {host}…",
+    "fr": "Connexion à {host}…",
+    "de": "Verbindung zu {host}…",
+    "pt": "Conectando a {host}…"
+  },
+  "connection_error": {
+    "it": "Errore connessione: {error}",
+    "en": "Connection error: {error}",
+    "es": "Error de conexión: {error}",
+    "fr": "Erreur de connexion : {error}",
+    "de": "Verbindungsfehler: {error}",
+    "pt": "Erro de conexão: {error}"
+  },
+  "back_to_active_sessions": {
+    "it": "Torna alle sessioni attive",
+    "en": "Back to active sessions",
+    "es": "Volver a sesiones activas",
+    "fr": "Retour aux sessions actives",
+    "de": "Zurück zu aktiven Sitzungen",
+    "pt": "Voltar para sessões ativas"
+  },
+  "ll_button_title": {
+    "it": "Elenca contenuto cartella (ll)",
+    "en": "List folder contents (ll)",
+    "es": "Listar contenido de la carpeta (ll)",
+    "fr": "Lister le contenu du dossier (ll)",
+    "de": "Ordnerinhalt auflisten (ll)",
+    "pt": "Listar conteúdo da pasta (ll)"
+  },
+  "clear_button_title": {
+    "it": "Pulisci terminale (clear)",
+    "en": "Clear terminal (clear)",
+    "es": "Limpiar terminal (clear)",
+    "fr": "Effacer le terminal (clear)",
+    "de": "Terminal löschen (clear)",
+    "pt": "Limpar terminal (clear)"
+  },
+  "docker_containers_button_title": {
+    "it": "Container Docker",
+    "en": "Docker containers",
+    "es": "Contenedores Docker",
+    "fr": "Conteneurs Docker",
+    "de": "Docker-Container",
+    "pt": "Contêineres Docker"
+  },
+  "docker_images_button_title": {
+    "it": "Immagini Docker",
+    "en": "Docker images",
+    "es": "Imágenes Docker",
+    "fr": "Images Docker",
+    "de": "Docker-Bilder",
+    "pt": "Imagens Docker"
+  },
+  "screen_sessions_button_title": {
+    "it": "Sessioni screen",
+    "en": "Screen sessions",
+    "es": "Sesiones de pantalla",
+    "fr": "Sessions screen",
+    "de": "Screen-Sitzungen",
+    "pt": "Sessões screen"
+  },
+  "split_view_button_title": {
+    "it": "Affianca un'altra scheda (split view)",
+    "en": "Open another tab side by side (split view)",
+    "es": "Abrir otra pestaña lado a lado (vista dividida)",
+    "fr": "Ouvrir un autre onglet côte à côte (split view)",
+    "de": "Weitere Registerkarte nebeneinander öffnen (Split-Ansicht)",
+    "pt": "Abrir outra aba lado a lado (split view)"
+  },
+  "screen_detach_button": {
+    "it": "Detach",
+    "en": "Detach",
+    "es": "Desconectar",
+    "fr": "Détacher",
+    "de": "Trennen",
+    "pt": "Desconectar"
+  },
+  "screen_detach_button_title": {
+    "it": "Stacca dallo screen (Ctrl-A D)",
+    "en": "Detach from screen (Ctrl-A D)",
+    "es": "Desconectar de la pantalla (Ctrl-A D)",
+    "fr": "Détacher du screen (Ctrl-A D)",
+    "de": "Von Screen trennen (Ctrl-A D)",
+    "pt": "Desconectar do screen (Ctrl-A D)"
+  },
+  "duplicate_session": {
+    "it": "Duplica sessione",
+    "en": "Duplicate session",
+    "es": "Duplicar sesión",
+    "fr": "Dupliquer la session",
+    "de": "Sitzung duplizieren",
+    "pt": "Duplicar sessão"
+  },
+  "rename_session": {
+    "it": "Rinomina",
+    "en": "Rename",
+    "es": "Renombrar",
+    "fr": "Renommer",
+    "de": "Umbenennen",
+    "pt": "Renomear"
+  },
+  "close_session": {
+    "it": "Chiudi",
+    "en": "Close",
+    "es": "Cerrar",
+    "fr": "Fermer",
+    "de": "Schließen",
+    "pt": "Fechar"
+  },
+  "split_view_active": {
+    "it": "Split view attiva — trascina il divisore centrale per ridimensionare",
+    "en": "Split view active — drag the center divider to resize",
+    "es": "Vista dividida activa — arrastra el divisor central para redimensionar",
+    "fr": "Split view actif — faites glisser le séparateur central pour redimensionner",
+    "de": "Split-Ansicht aktiv — ziehen Sie den Mitteltrenner zum Größenändern",
+    "pt": "Split view ativo — arraste o divisor central para redimensionar"
+  },
+  "split_view_closed": {
+    "it": "Split view chiusa",
+    "en": "Split view closed",
+    "es": "Vista dividida cerrada",
+    "fr": "Split view fermée",
+    "de": "Split-Ansicht geschlossen",
+    "pt": "Split view fechado"
+  },
+  "split_min_2_tabs": {
+    "it": "Apri almeno 2 schede per usare lo split",
+    "en": "Open at least 2 tabs to use split view",
+    "es": "Abre al menos 2 pestañas para usar la vista dividida",
+    "fr": "Ouvrez au moins 2 onglets pour utiliser le split view",
+    "de": "Öffnen Sie mindestens 2 Registerkarten, um die Split-Ansicht zu verwenden",
+    "pt": "Abra pelo menos 2 abas para usar o split view"
+  },
+  "listing_loading": {
+    "it": "Lettura container Docker…",
+    "en": "Reading Docker containers…",
+    "es": "Leyendo contenedores Docker…",
+    "fr": "Lecture des conteneurs Docker…",
+    "de": "Lese Docker-Container…",
+    "pt": "Lendo contêineres Docker…"
+  },
+  "listing_error": {
+    "it": "Errore elenco: {error}",
+    "en": "Listing error: {error}",
+    "es": "Error de listado: {error}",
+    "fr": "Erreur de listage : {error}",
+    "de": "Auflistungsfehler: {error}",
+    "pt": "Erro de listagem: {error}"
+  },
+  "listing_folder_info": {
+    "it": "<i class=\"fa-solid fa-folder-open\"></i> {path} — {count} elementi",
+    "en": "<i class=\"fa-solid fa-folder-open\"></i> {path} — {count} items",
+    "es": "<i class=\"fa-solid fa-folder-open\"></i> {path} — {count} elementos",
+    "fr": "<i class=\"fa-solid fa-folder-open\"></i> {path} — {count} éléments",
+    "de": "<i class=\"fa-solid fa-folder-open\"></i> {path} — {count} Elemente",
+    "pt": "<i class=\"fa-solid fa-folder-open\"></i> {path} — {count} itens"
+  },
+  "search_folder": {
+    "it": "Cerca nella cartella (grep)",
+    "en": "Search in folder (grep)",
+    "es": "Buscar en carpeta (grep)",
+    "fr": "Rechercher dans le dossier (grep)",
+    "de": "Im Ordner suchen (grep)",
+    "pt": "Pesquisar na pasta (grep)"
+  },
+  "new_file": {
+    "it": "Nuovo file",
+    "en": "New file",
+    "es": "Nuevo archivo",
+    "fr": "Nouveau fichier",
+    "de": "Neue Datei",
+    "pt": "Novo arquivo"
+  },
+  "import_file": {
+    "it": "Importa",
+    "en": "Import",
+    "es": "Importar",
+    "fr": "Importer",
+    "de": "Importieren",
+    "pt": "Importar"
+  },
+  "delete": {
+    "it": "Elimina",
+    "en": "Delete",
+    "es": "Eliminar",
+    "fr": "Supprimer",
+    "de": "Löschen",
+    "pt": "Deletar"
+  },
+  "copy": {
+    "it": "Copia",
+    "en": "Copy",
+    "es": "Copiar",
+    "fr": "Copier",
+    "de": "Kopieren",
+    "pt": "Copiar"
+  },
+  "paste": {
+    "it": "Incolla",
+    "en": "Paste",
+    "es": "Pegar",
+    "fr": "Coller",
+    "de": "Einfügen",
+    "pt": "Colar"
+  },
+  "edit": {
+    "it": "Modifica",
+    "en": "Edit",
+    "es": "Editar",
+    "fr": "Éditer",
+    "de": "Bearbeiten",
+    "pt": "Editar"
+  },
+  "download": {
+    "it": "Scarica",
+    "en": "Download",
+    "es": "Descargar",
+    "fr": "Télécharger",
+    "de": "Herunterladen",
+    "pt": "Download"
+  },
+  "copied": {
+    "it": "Copiato: {name}",
+    "en": "Copied: {name}",
+    "es": "Copiado: {name}",
+    "fr": "Copié : {name}",
+    "de": "Kopiert: {name}",
+    "pt": "Copiado: {name}"
+  },
+  "confirm_delete_entry": {
+    "it": "Eliminare \"{name}\"{suffix}?",
+    "en": "Delete \"{name}\"{suffix}?",
+    "es": "¿Eliminar \"{name}\"{suffix}?",
+    "fr": "Supprimer \"{name}\"{suffix} ?",
+    "de": "Löschen \"{name}\"{suffix}?",
+    "pt": "Deletar \"{name}\"{suffix}?"
+  },
+  "confirm_delete_entry_dir": {
+    "it": " e tutto il contenuto",
+    "en": " and all contents",
+    "es": " y todo su contenido",
+    "fr": " et tout son contenu",
+    "de": " und aller Inhalte",
+    "pt": " e todo seu conteúdo"
+  },
+  "entry_deleted": {
+    "it": "Eliminato: {name}",
+    "en": "Deleted: {name}",
+    "es": "Eliminado: {name}",
+    "fr": "Supprimé : {name}",
+    "de": "Gelöscht: {name}",
+    "pt": "Deletado: {name}"
+  },
+  "paste_only_same_connection": {
+    "it": "Incolla supportato solo nella stessa connessione",
+    "en": "Paste supported only on the same connection",
+    "es": "Pegar solo se admite en la misma conexión",
+    "fr": "Coller pris en charge uniquement sur la même connexion",
+    "de": "Einfügen nur bei derselben Verbindung unterstützt",
+    "pt": "Colar suportado apenas na mesma conexão"
+  },
+  "pasted": {
+    "it": "Incollato: {name}",
+    "en": "Pasted: {name}",
+    "es": "Pegado: {name}",
+    "fr": "Collé : {name}",
+    "de": "Eingefügt: {name}",
+    "pt": "Colado: {name}"
+  },
+  "download_folder_loading": {
+    "it": "Download cartella in corso…",
+    "en": "Downloading folder…",
+    "es": "Descargando carpeta…",
+    "fr": "Téléchargement du dossier…",
+    "de": "Ordner wird heruntergeladen…",
+    "pt": "Baixando pasta…"
+  },
+  "download_saved": {
+    "it": "Scaricato in: {path}",
+    "en": "Downloaded to: {path}",
+    "es": "Descargado a: {path}",
+    "fr": "Téléchargé vers : {path}",
+    "de": "Heruntergeladen nach: {path}",
+    "pt": "Baixado para: {path}"
+  },
+  "download_error": {
+    "it": "Errore download: {error}",
+    "en": "Download error: {error}",
+    "es": "Error de descarga: {error}",
+    "fr": "Erreur de téléchargement : {error}",
+    "de": "Download-Fehler: {error}",
+    "pt": "Erro de download: {error}"
+  },
+  "importing": {
+    "it": "Importazione in corso…",
+    "en": "Importing…",
+    "es": "Importando…",
+    "fr": "Importation en cours…",
+    "de": "Import läuft…",
+    "pt": "Importando…"
+  },
+  "import_error": {
+    "it": "Errore import: {error}",
+    "en": "Import error: {error}",
+    "es": "Error de importación: {error}",
+    "fr": "Erreur d'importation : {error}",
+    "de": "Importfehler: {error}",
+    "pt": "Erro de importação: {error}"
+  },
+  "paste_password": {
+    "it": "Incolla password",
+    "en": "Paste password",
+    "es": "Pegar contraseña",
+    "fr": "Coller le mot de passe",
+    "de": "Passwort einfügen",
+    "pt": "Colar senha"
+  },
+  "password_pasted": {
+    "it": "Password inserita",
+    "en": "Password pasted",
+    "es": "Contraseña pegada",
+    "fr": "Mot de passe collé",
+    "de": "Passwort eingefügt",
+    "pt": "Senha colada"
+  },
+  "docker_no_containers": {
+    "it": "Nessun container attivo.",
+    "en": "No active containers.",
+    "es": "Sin contenedores activos.",
+    "fr": "Aucun conteneur actif.",
+    "de": "Keine aktiven Container.",
+    "pt": "Nenhum contêiner ativo."
+  },
+  "docker_containers_title": {
+    "it": "<i class=\"fa-brands fa-docker\"></i> Container attivi — {count}",
+    "en": "<i class=\"fa-brands fa-docker\"></i> Active containers — {count}",
+    "es": "<i class=\"fa-brands fa-docker\"></i> Contenedores activos — {count}",
+    "fr": "<i class=\"fa-brands fa-docker\"></i> Conteneurs actifs — {count}",
+    "de": "<i class=\"fa-brands fa-docker\"></i> Aktive Container — {count}",
+    "pt": "<i class=\"fa-brands fa-docker\"></i> Contêineres ativos — {count}"
+  },
+  "docker_filter_containers": {
+    "it": "Filtra container…",
+    "en": "Filter containers…",
+    "es": "Filtrar contenedores…",
+    "fr": "Filtrer les conteneurs…",
+    "de": "Container filtern…",
+    "pt": "Filtrar contêineres…"
+  },
+  "docker_no_results": {
+    "it": "Nessun risultato.",
+    "en": "No results.",
+    "es": "Sin resultados.",
+    "fr": "Aucun résultat.",
+    "de": "Keine Ergebnisse.",
+    "pt": "Sem resultados."
+  },
+  "docker_logs": {
+    "it": "Logs",
+    "en": "Logs",
+    "es": "Registros",
+    "fr": "Journaux",
+    "de": "Protokolle",
+    "pt": "Logs"
+  },
+  "docker_shell": {
+    "it": "Shell",
+    "en": "Shell",
+    "es": "Shell",
+    "fr": "Shell",
+    "de": "Shell",
+    "pt": "Shell"
+  },
+  "docker_browser": {
+    "it": "Browser",
+    "en": "Browser",
+    "es": "Navegador",
+    "fr": "Navigateur",
+    "de": "Browser",
+    "pt": "Navegador"
+  },
+  "docker_stop": {
+    "it": "Stop",
+    "en": "Stop",
+    "es": "Detener",
+    "fr": "Arrêter",
+    "de": "Stoppen",
+    "pt": "Parar"
+  },
+  "docker_restart": {
+    "it": "Restart",
+    "en": "Restart",
+    "es": "Reiniciar",
+    "fr": "Redémarrer",
+    "de": "Neu starten",
+    "pt": "Reiniciar"
+  },
+  "docker_down": {
+    "it": "Down",
+    "en": "Down",
+    "es": "Abajo",
+    "fr": "Arrêter",
+    "de": "Herunterfahren",
+    "pt": "Parar"
+  },
+  "docker_pull": {
+    "it": "Pull",
+    "en": "Pull",
+    "es": "Obtener",
+    "fr": "Récupérer",
+    "de": "Abrufen",
+    "pt": "Obter"
+  },
+  "docker_up": {
+    "it": "Up",
+    "en": "Up",
+    "es": "Arriba",
+    "fr": "Démarrer",
+    "de": "Hochfahren",
+    "pt": "Iniciar"
+  },
+  "docker_action_loading": {
+    "it": "{action} {name}…",
+    "en": "{action} {name}…",
+    "es": "{action} {name}…",
+    "fr": "{action} {name}…",
+    "de": "{action} {name}…",
+    "pt": "{action} {name}…"
+  },
+  "docker_action_done": {
+    "it": "{action} completato: {name}",
+    "en": "{action} completed: {name}",
+    "es": "{action} completado: {name}",
+    "fr": "{action} terminé : {name}",
+    "de": "{action} abgeschlossen: {name}",
+    "pt": "{action} concluído: {name}"
+  },
+  "docker_action_error": {
+    "it": "Errore {action}: {error}",
+    "en": "Error {action}: {error}",
+    "es": "Error {action}: {error}",
+    "fr": "Erreur {action} : {error}",
+    "de": "Fehler {action}: {error}",
+    "pt": "Erro {action}: {error}"
+  },
+  "confirm_docker_down": {
+    "it": "Eseguire \"down\" su \"{name}\"?",
+    "en": "Run \"down\" on \"{name}\"?",
+    "es": "¿Ejecutar \"abajo\" en \"{name}\"?",
+    "fr": "Exécuter \"arrêter\" sur \"{name}\" ?",
+    "de": "\"Herunterfahren\" auf \"{name}\" ausführen?",
+    "pt": "Executar \"parar\" em \"{name}\"?"
+  },
+  "docker_no_ports": {
+    "it": "Il container non espone porte",
+    "en": "Container does not expose ports",
+    "es": "El contenedor no expone puertos",
+    "fr": "Le conteneur n'expose pas de ports",
+    "de": "Container stellt keine Ports bereit",
+    "pt": "O contêiner não expõe portas"
+  },
+  "docker_port_label": {
+    "it": "Porta {port}",
+    "en": "Port {port}",
+    "es": "Puerto {port}",
+    "fr": "Port {port}",
+    "de": "Port {port}",
+    "pt": "Porta {port}"
+  },
+  "docker_no_images": {
+    "it": "Nessuna immagine trovata nei compose.",
+    "en": "No images found in compose.",
+    "es": "No se encontraron imágenes en compose.",
+    "fr": "Aucune image trouvée dans compose.",
+    "de": "Keine Bilder in Compose gefunden.",
+    "pt": "Nenhuma imagem encontrada no compose."
+  },
+  "docker_images_title": {
+    "it": "<i class=\"fa-solid fa-hard-drive\"></i> Immagini Docker",
+    "en": "<i class=\"fa-solid fa-hard-drive\"></i> Docker images",
+    "es": "<i class=\"fa-solid fa-hard-drive\"></i> Imágenes Docker",
+    "fr": "<i class=\"fa-solid fa-hard-drive\"></i> Images Docker",
+    "de": "<i class=\"fa-solid fa-hard-drive\"></i> Docker-Bilder",
+    "pt": "<i class=\"fa-solid fa-hard-drive\"></i> Imagens Docker"
+  },
+  "docker_images_in_compose": {
+    "it": "<i class=\"fa-solid fa-layer-group\"></i> Nei compose — {count}",
+    "en": "<i class=\"fa-solid fa-layer-group\"></i> In compose — {count}",
+    "es": "<i class=\"fa-solid fa-layer-group\"></i> En compose — {count}",
+    "fr": "<i class=\"fa-solid fa-layer-group\"></i> Dans compose — {count}",
+    "de": "<i class=\"fa-solid fa-layer-group\"></i> In Compose — {count}",
+    "pt": "<i class=\"fa-solid fa-layer-group\"></i> Em compose — {count}"
+  },
+  "docker_images_available": {
+    "it": "<i class=\"fa-solid fa-hard-drive\"></i> Presenti sul remoto — {count}",
+    "en": "<i class=\"fa-solid fa-hard-drive\"></i> Available on remote — {count}",
+    "es": "<i class=\"fa-solid fa-hard-drive\"></i> Disponibles en remoto — {count}",
+    "fr": "<i class=\"fa-solid fa-hard-drive\"></i> Disponibles sur le serveur distant — {count}",
+    "de": "<i class=\"fa-solid fa-hard-drive\"></i> Auf Remote verfügbar — {count}",
+    "pt": "<i class=\"fa-solid fa-hard-drive\"></i> Disponíveis no remoto — {count}"
+  },
+  "docker_filter_images": {
+    "it": "Filtra immagini…",
+    "en": "Filter images…",
+    "es": "Filtrar imágenes…",
+    "fr": "Filtrer les images…",
+    "de": "Bilder filtern…",
+    "pt": "Filtrar imagens…"
+  },
+  "docker_images_none_available": {
+    "it": "Nessuna immagine presente.",
+    "en": "No images available.",
+    "es": "Sin imágenes disponibles.",
+    "fr": "Aucune image disponible.",
+    "de": "Keine Bilder verfügbar.",
+    "pt": "Nenhuma imagem disponível."
+  },
+  "docker_manual_pull": {
+    "it": "Manual Pull",
+    "en": "Manual Pull",
+    "es": "Obtención Manual",
+    "fr": "Récupération Manuelle",
+    "de": "Manueller Abruf",
+    "pt": "Obtenção Manual"
+  },
+  "docker_delete_image": {
+    "it": "Elimina",
+    "en": "Delete",
+    "es": "Eliminar",
+    "fr": "Supprimer",
+    "de": "Löschen",
+    "pt": "Deletar"
+  },
+  "confirm_delete_image": {
+    "it": "Eliminare l'immagine \"{name}\"?",
+    "en": "Delete image \"{name}\"?",
+    "es": "¿Eliminar la imagen \"{name}\"?",
+    "fr": "Supprimer l'image \"{name}\" ?",
+    "de": "Bild \"{name}\" löschen?",
+    "pt": "Deletar imagem \"{name}\"?"
+  },
+  "docker_pull_not_available": {
+    "it": "Immagine senza tag: pull non disponibile",
+    "en": "Image without tag: pull not available",
+    "es": "Imagen sin etiqueta: pull no disponible",
+    "fr": "Image sans tag : pull non disponible",
+    "de": "Bild ohne Tag: Abruf nicht verfügbar",
+    "pt": "Imagem sem tag: obtenção não disponível"
+  },
+  "docker_manual_pull_title": {
+    "it": "Manual Pull → {image}",
+    "en": "Manual Pull → {image}",
+    "es": "Obtención Manual → {image}",
+    "fr": "Récupération Manuelle → {image}",
+    "de": "Manueller Abruf → {image}",
+    "pt": "Obtenção Manual → {image}"
+  },
+  "docker_manual_pull_destination": {
+    "it": "Destinazione retag: {image}",
+    "en": "Retag destination: {image}",
+    "es": "Destino de reetiquetar: {image}",
+    "fr": "Destination du retag : {image}",
+    "de": "Neues Tag-Ziel: {image}",
+    "pt": "Destino de retagenação: {image}"
+  },
+  "docker_manual_pull_invalid": {
+    "it": "Riferimento non valido. Atteso: repo:tag@sha256:<digest>",
+    "en": "Invalid reference. Expected: repo:tag@sha256:<digest>",
+    "es": "Referencia no válida. Esperado: repo:tag@sha256:<digest>",
+    "fr": "Référence invalide. Attendu : repo:tag@sha256:<digest>",
+    "de": "Ungültige Referenz. Erwartet: repo:tag@sha256:<digest>",
+    "pt": "Referência inválida. Esperado: repo:tag@sha256:<digest>"
+  },
+  "docker_manual_pull_done": {
+    "it": "Completato — immagine ritaggata come {image}",
+    "en": "Completed — image retagged as {image}",
+    "es": "Completado — imagen reetiqueada como {image}",
+    "fr": "Terminé — image reetiquetée en tant que {image}",
+    "de": "Abgeschlossen — Bild neu getaggt als {image}",
+    "pt": "Concluído — imagem retagenada como {image}"
+  },
+  "docker_manual_pull_error": {
+    "it": "Errore: {error}",
+    "en": "Error: {error}",
+    "es": "Error: {error}",
+    "fr": "Erreur : {error}",
+    "de": "Fehler: {error}",
+    "pt": "Erro: {error}"
+  },
+  "docker_manual_pull_placeholder": {
+    "it": "registry/repo:tag@sha256:… — Invio per avviare, Esc per annullare",
+    "en": "registry/repo:tag@sha256:… — Enter to start, Esc to cancel",
+    "es": "registry/repo:tag@sha256:… — Enter para iniciar, Esc para cancelar",
+    "fr": "registry/repo:tag@sha256:… — Entrée pour démarrer, Esc pour annuler",
+    "de": "registry/repo:tag@sha256:… — Eingabetaste zum Starten, Esc zum Abbrechen",
+    "pt": "registry/repo:tag@sha256:… — Enter para iniciar, Esc para cancelar"
+  },
+  "screen_sessions_title": {
+    "it": "<i class=\"fa-brands fa-buffer\"></i> Sessioni screen — {count}",
+    "en": "<i class=\"fa-brands fa-buffer\"></i> Screen sessions — {count}",
+    "es": "<i class=\"fa-brands fa-buffer\"></i> Sesiones de pantalla — {count}",
+    "fr": "<i class=\"fa-brands fa-buffer\"></i> Sessions screen — {count}",
+    "de": "<i class=\"fa-brands fa-buffer\"></i> Screen-Sitzungen — {count}",
+    "pt": "<i class=\"fa-brands fa-buffer\"></i> Sessões screen — {count}"
+  },
+  "screen_no_sessions": {
+    "it": "Nessuna sessione screen attiva.",
+    "en": "No active screen sessions.",
+    "es": "Sin sesiones de pantalla activas.",
+    "fr": "Aucune session screen active.",
+    "de": "Keine aktiven Screen-Sitzungen.",
+    "pt": "Nenhuma sessão screen ativa."
+  },
+  "screen_detach_all": {
+    "it": "Detach dalla sessione attuale (Ctrl-A D)",
+    "en": "Detach from current session (Ctrl-A D)",
+    "es": "Desconectar de la sesión actual (Ctrl-A D)",
+    "fr": "Détacher de la session actuelle (Ctrl-A D)",
+    "de": "Von aktueller Sitzung trennen (Ctrl-A D)",
+    "pt": "Desconectar da sessão atual (Ctrl-A D)"
+  },
+  "screen_create_placeholder": {
+    "it": "Nome nuovo screen — Invio per crearlo (senza entrarci)",
+    "en": "New screen name — Enter to create (without entering)",
+    "es": "Nombre de nueva pantalla — Enter para crear (sin entrar)",
+    "fr": "Nom du nouveau screen — Entrée pour créer (sans entrer)",
+    "de": "Name für neue Screen-Sitzung — Eingabetaste zum Erstellen (nicht betreten)",
+    "pt": "Nome da nova sessão screen — Enter para criar (sem entrar)"
+  },
+  "screen_create_button": {
+    "it": "Crea",
+    "en": "Create",
+    "es": "Crear",
+    "fr": "Créer",
+    "de": "Erstellen",
+    "pt": "Criar"
+  },
+  "screen_creating": {
+    "it": "Creazione screen…",
+    "en": "Creating screen…",
+    "es": "Creando pantalla…",
+    "fr": "Création du screen…",
+    "de": "Screen wird erstellt…",
+    "pt": "Criando screen…"
+  },
+  "screen_invalid_name": {
+    "it": "Il nome non può contenere spazi",
+    "en": "Name cannot contain spaces",
+    "es": "El nombre no puede contener espacios",
+    "fr": "Le nom ne peut pas contenir d'espaces",
+    "de": "Name darf keine Leerzeichen enthalten",
+    "pt": "O nome não pode conter espaços"
+  },
+  "screen_created": {
+    "it": "Screen creato: {name}",
+    "en": "Screen created: {name}",
+    "es": "Pantalla creada: {name}",
+    "fr": "Screen créé : {name}",
+    "de": "Screen erstellt: {name}",
+    "pt": "Screen criado: {name}"
+  },
+  "screen_create_error": {
+    "it": "Errore creazione screen: {error}",
+    "en": "Error creating screen: {error}",
+    "es": "Error al crear pantalla: {error}",
+    "fr": "Erreur lors de la création du screen : {error}",
+    "de": "Fehler beim Erstellen des Screens: {error}",
+    "pt": "Erro ao criar screen: {error}"
+  },
+  "screen_enter": {
+    "it": "Entra",
+    "en": "Enter",
+    "es": "Entrar",
+    "fr": "Entrer",
+    "de": "Betreten",
+    "pt": "Entrar"
+  },
+  "screen_kill": {
+    "it": "Elimina",
+    "en": "Kill",
+    "es": "Matar",
+    "fr": "Tuer",
+    "de": "Beenden",
+    "pt": "Matar"
+  },
+  "screen_detach": {
+    "it": "Detach",
+    "en": "Detach",
+    "es": "Desconectar",
+    "fr": "Détacher",
+    "de": "Trennen",
+    "pt": "Desconectar"
+  },
+  "confirm_delete_screen": {
+    "it": "Eliminare lo screen \"{name}\"?",
+    "en": "Delete screen \"{name}\"?",
+    "es": "¿Eliminar pantalla \"{name}\"?",
+    "fr": "Supprimer le screen \"{name}\" ?",
+    "de": "Screen \"{name}\" löschen?",
+    "pt": "Deletar screen \"{name}\"?"
+  },
+  "screen_deleted": {
+    "it": "Screen eliminato: {name}",
+    "en": "Screen deleted: {name}",
+    "es": "Pantalla eliminada: {name}",
+    "fr": "Screen supprimé : {name}",
+    "de": "Screen gelöscht: {name}",
+    "pt": "Screen deletado: {name}"
+  },
+  "screen_delete_error": {
+    "it": "Errore eliminazione: {error}",
+    "en": "Error deleting: {error}",
+    "es": "Error al eliminar: {error}",
+    "fr": "Erreur lors de la suppression : {error}",
+    "de": "Fehler beim Löschen: {error}",
+    "pt": "Erro ao deletar: {error}"
+  },
+  "screen_detach_done": {
+    "it": "Detach effettuato: {name}",
+    "en": "Detach completed: {name}",
+    "es": "Desconexión completada: {name}",
+    "fr": "Détachement terminé : {name}",
+    "de": "Trennung abgeschlossen: {name}",
+    "pt": "Desconexão concluída: {name}"
+  },
+  "screen_detach_error": {
+    "it": "Errore detach: {error}",
+    "en": "Detach error: {error}",
+    "es": "Error de desconexión: {error}",
+    "fr": "Erreur de détachement : {error}",
+    "de": "Trennungsfehler: {error}",
+    "pt": "Erro de desconexão: {error}"
+  },
+  "search_placeholder": {
+    "it": "Testo da cercare con grep — Invio per cercare, Esc per chiudere",
+    "en": "Text to search with grep — Enter to search, Esc to close",
+    "es": "Texto para buscar con grep — Enter para buscar, Esc para cerrar",
+    "fr": "Texte à rechercher avec grep — Entrée pour rechercher, Esc pour fermer",
+    "de": "Text zum Suchen mit grep — Eingabetaste zum Suchen, Esc zum Schließen",
+    "pt": "Texto para pesquisar com grep — Enter para pesquisar, Esc para fechar"
+  },
+  "newfile_placeholder": {
+    "it": "nome-file.txt — Invio per creare, Esc per annullare",
+    "en": "filename.txt — Enter to create, Esc to cancel",
+    "es": "nombre-archivo.txt — Enter para crear, Esc para cancelar",
+    "fr": "nom-fichier.txt — Entrée pour créer, Esc pour annuler",
+    "de": "dateiname.txt — Eingabetaste zum Erstellen, Esc zum Abbrechen",
+    "pt": "nome-arquivo.txt — Enter para criar, Esc para cancelar"
+  },
+  "newfile_created": {
+    "it": "File creato: {name}",
+    "en": "File created: {name}",
+    "es": "Archivo creado: {name}",
+    "fr": "Fichier créé : {name}",
+    "de": "Datei erstellt: {name}",
+    "pt": "Arquivo criado: {name}"
+  },
+  "config_header_title": {
+    "it": "<img src=\"logo.png\" class=\"app-logo\" alt=\"\" /> Remote Guru",
+    "en": "<img src=\"logo.png\" class=\"app-logo\" alt=\"\" /> Remote Guru",
+    "es": "<img src=\"logo.png\" class=\"app-logo\" alt=\"\" /> Remote Guru",
+    "fr": "<img src=\"logo.png\" class=\"app-logo\" alt=\"\" /> Remote Guru",
+    "de": "<img src=\"logo.png\" class=\"app-logo\" alt=\"\" /> Remote Guru",
+    "pt": "<img src=\"logo.png\" class=\"app-logo\" alt=\"\" /> Remote Guru"
+  },
+  "config_header_subtitle": {
+    "it": "Gestisci le tue connessioni SSH. Seleziona un server per connetterti.",
+    "en": "Manage your SSH connections. Select a server to connect.",
+    "es": "Gestiona tus conexiones SSH. Selecciona un servidor para conectarte.",
+    "fr": "Gérez vos connexions SSH. Sélectionnez un serveur pour vous connecter.",
+    "de": "Verwalten Sie Ihre SSH-Verbindungen. Wählen Sie einen Server zum Verbinden.",
+    "pt": "Gerencie suas conexões SSH. Selecione um servidor para conectar."
+  },
+  "server_list_title": {
+    "it": "Server salvati",
+    "en": "Saved servers",
+    "es": "Servidores guardados",
+    "fr": "Serveurs enregistrés",
+    "de": "Gespeicherte Server",
+    "pt": "Servidores salvos"
+  },
+  "select_or_create_server": {
+    "it": "Seleziona un server o creane uno nuovo.",
+    "en": "Select a server or create a new one.",
+    "es": "Selecciona un servidor o crea uno nuevo.",
+    "fr": "Sélectionnez un serveur ou créez-en un nouveau.",
+    "de": "Wählen Sie einen Server oder erstellen Sie einen neuen.",
+    "pt": "Selecione um servidor ou crie um novo."
+  },
+  "btn_new_server": {
+    "it": "+ Nuovo",
+    "en": "+ New",
+    "es": "+ Nuevo",
+    "fr": "+ Nouveau",
+    "de": "+ Neu",
+    "pt": "+ Novo"
+  },
+  "form_label_nickname": {
+    "it": "Nickname",
+    "en": "Nickname",
+    "es": "Apodo",
+    "fr": "Surnom",
+    "de": "Spitzname",
+    "pt": "Apelido"
+  },
+  "form_placeholder_nickname": {
+    "it": "Macchina TEST [203.0.113.10]",
+    "en": "TEST Machine [203.0.113.10]",
+    "es": "Máquina TEST [203.0.113.10]",
+    "fr": "Machine TEST [203.0.113.10]",
+    "de": "TEST-Maschine [203.0.113.10]",
+    "pt": "Máquina TEST [203.0.113.10]"
+  },
+  "form_label_host": {
+    "it": "Host",
+    "en": "Host",
+    "es": "Host",
+    "fr": "Hôte",
+    "de": "Host",
+    "pt": "Host"
+  },
+  "form_placeholder_host": {
+    "it": "203.0.113.10",
+    "en": "203.0.113.10",
+    "es": "203.0.113.10",
+    "fr": "203.0.113.10",
+    "de": "203.0.113.10",
+    "pt": "203.0.113.10"
+  },
+  "form_label_port": {
+    "it": "Porta",
+    "en": "Port",
+    "es": "Puerto",
+    "fr": "Port",
+    "de": "Port",
+    "pt": "Porta"
+  },
+  "form_label_username": {
+    "it": "Username",
+    "en": "Username",
+    "es": "Nombre de usuario",
+    "fr": "Nom d'utilisateur",
+    "de": "Benutzername",
+    "pt": "Nome de usuário"
+  },
+  "form_placeholder_username": {
+    "it": "user",
+    "en": "user",
+    "es": "user",
+    "fr": "user",
+    "de": "user",
+    "pt": "user"
+  },
+  "form_auth_password": {
+    "it": "Password",
+    "en": "Password",
+    "es": "Contraseña",
+    "fr": "Mot de passe",
+    "de": "Passwort",
+    "pt": "Senha"
+  },
+  "form_auth_pem": {
+    "it": "File PEM",
+    "en": "PEM file",
+    "es": "Archivo PEM",
+    "fr": "Fichier PEM",
+    "de": "PEM-Datei",
+    "pt": "Arquivo PEM"
+  },
+  "form_label_password": {
+    "it": "Password",
+    "en": "Password",
+    "es": "Contraseña",
+    "fr": "Mot de passe",
+    "de": "Passwort",
+    "pt": "Senha"
+  },
+  "form_placeholder_password": {
+    "it": "••••••••",
+    "en": "••••••••",
+    "es": "••••••••",
+    "fr": "••••••••",
+    "de": "••••••••",
+    "pt": "••••••••"
+  },
+  "form_password_hint": {
+    "it": "Usata per il login (modalità Password) e per \"Incolla password\".",
+    "en": "Used for login (Password mode) and for \"Paste password\".",
+    "es": "Se utiliza para el inicio de sesión (modo Contraseña) y para \"Pegar contraseña\".",
+    "fr": "Utilisé pour la connexion (mode Mot de passe) et pour \"Coller le mot de passe\".",
+    "de": "Wird zum Anmelden (Passwortmodus) und zum \"Passwort einfügen\" verwendet.",
+    "pt": "Usado para login (modo Senha) e para \"Colar senha\"."
+  },
+  "form_label_pempath": {
+    "it": "File PEM",
+    "en": "PEM file",
+    "es": "Archivo PEM",
+    "fr": "Fichier PEM",
+    "de": "PEM-Datei",
+    "pt": "Arquivo PEM"
+  },
+  "form_placeholder_pempath": {
+    "it": "/percorso/chiave.pem",
+    "en": "/path/to/key.pem",
+    "es": "/ruta/a/clave.pem",
+    "fr": "/chemin/vers/clé.pem",
+    "de": "/pfad/zur/schlüssel.pem",
+    "pt": "/caminho/para/chave.pem"
+  },
+  "form_btn_browse_pem": {
+    "it": "Sfoglia…",
+    "en": "Browse…",
+    "es": "Examinar…",
+    "fr": "Parcourir…",
+    "de": "Durchsuchen…",
+    "pt": "Procurar…"
+  },
+  "form_label_passphrase": {
+    "it": "Passphrase chiave PEM (opzionale)",
+    "en": "PEM key passphrase (optional)",
+    "es": "Contraseña de clave PEM (opcional)",
+    "fr": "Phrase de passe de la clé PEM (optionnel)",
+    "de": "PEM-Schlüssel-Passphrase (optional)",
+    "pt": "Frase de senha da chave PEM (opcional)"
+  },
+  "form_placeholder_passphrase": {
+    "it": "(solo se la chiave è protetta)",
+    "en": "(only if the key is protected)",
+    "es": "(solo si la clave está protegida)",
+    "fr": "(uniquement si la clé est protégée)",
+    "de": "(nur wenn der Schlüssel geschützt ist)",
+    "pt": "(apenas se a chave estiver protegida)"
+  },
+  "form_btn_save": {
+    "it": "Salva",
+    "en": "Save",
+    "es": "Guardar",
+    "fr": "Enregistrer",
+    "de": "Speichern",
+    "pt": "Salvar"
+  },
+  "form_btn_connect": {
+    "it": "Connetti",
+    "en": "Connect",
+    "es": "Conectar",
+    "fr": "Connecter",
+    "de": "Verbinden",
+    "pt": "Conectar"
+  },
+  "form_btn_delete": {
+    "it": "Elimina",
+    "en": "Delete",
+    "es": "Eliminar",
+    "fr": "Supprimer",
+    "de": "Löschen",
+    "pt": "Deletar"
+  },
+  "settings_title": {
+    "it": "<i class=\"fa-solid fa-wrench\"></i> Impostazioni",
+    "en": "<i class=\"fa-solid fa-wrench\"></i> Settings",
+    "es": "<i class=\"fa-solid fa-wrench\"></i> Configuración",
+    "fr": "<i class=\"fa-solid fa-wrench\"></i> Paramètres",
+    "de": "<i class=\"fa-solid fa-wrench\"></i> Einstellungen",
+    "pt": "<i class=\"fa-solid fa-wrench\"></i> Configurações"
+  },
+  "settings_subtitle": {
+    "it": "Personalizza l'aspetto dell'applicazione.",
+    "en": "Customize the appearance of the application.",
+    "es": "Personaliza la apariencia de la aplicación.",
+    "fr": "Personnalisez l'apparence de l'application.",
+    "de": "Passen Sie das Erscheinungsbild der Anwendung an.",
+    "pt": "Personalize a aparência do aplicativo."
+  },
+  "settings_theme_label": {
+    "it": "Tema",
+    "en": "Theme",
+    "es": "Tema",
+    "fr": "Thème",
+    "de": "Design",
+    "pt": "Tema"
+  },
+  "settings_theme_mocha": {
+    "it": "Mocha (predefinito)",
+    "en": "Mocha (default)",
+    "es": "Mocha (predeterminado)",
+    "fr": "Mocha (par défaut)",
+    "de": "Mocha (Standard)",
+    "pt": "Mocha (padrão)"
+  },
+  "settings_theme_miami": {
+    "it": "Miami",
+    "en": "Miami",
+    "es": "Miami",
+    "fr": "Miami",
+    "de": "Miami",
+    "pt": "Miami"
+  },
+  "settings_theme_dracula": {
+    "it": "Dracula",
+    "en": "Dracula",
+    "es": "Dracula",
+    "fr": "Dracula",
+    "de": "Dracula",
+    "pt": "Dracula"
+  },
+  "settings_theme_nord": {
+    "it": "Nord",
+    "en": "Nord",
+    "es": "Nord",
+    "fr": "Nord",
+    "de": "Nord",
+    "pt": "Nord"
+  },
+  "settings_theme_tokyo": {
+    "it": "Tokyo Night",
+    "en": "Tokyo Night",
+    "es": "Tokyo Night",
+    "fr": "Tokyo Night",
+    "de": "Tokyo Night",
+    "pt": "Tokyo Night"
+  },
+  "settings_theme_gruvbox": {
+    "it": "Gruvbox",
+    "en": "Gruvbox",
+    "es": "Gruvbox",
+    "fr": "Gruvbox",
+    "de": "Gruvbox",
+    "pt": "Gruvbox"
+  },
+  "settings_theme_matrix": {
+    "it": "Matrix",
+    "en": "Matrix",
+    "es": "Matrix",
+    "fr": "Matrix",
+    "de": "Matrix",
+    "pt": "Matrix"
+  },
+  "settings_language_label": {
+    "it": "Lingua",
+    "en": "Language",
+    "es": "Idioma",
+    "fr": "Langue",
+    "de": "Sprache",
+    "pt": "Idioma"
+  },
+  "settings_language_italian": {
+    "it": "Italiano",
+    "en": "Italian",
+    "es": "Italiano",
+    "fr": "Italien",
+    "de": "Italienisch",
+    "pt": "Italiano"
+  },
+  "settings_language_english": {
+    "it": "English",
+    "en": "English",
+    "es": "English",
+    "fr": "Anglais",
+    "de": "Englisch",
+    "pt": "Inglês"
+  },
+  "settings_language_spanish": {
+    "it": "Español",
+    "en": "Spanish",
+    "es": "Español",
+    "fr": "Espagnol",
+    "de": "Spanisch",
+    "pt": "Espanhol"
+  },
+  "settings_language_french": {
+    "it": "Français",
+    "en": "French",
+    "es": "Francés",
+    "fr": "Français",
+    "de": "Französisch",
+    "pt": "Francês"
+  },
+  "settings_language_german": {
+    "it": "Deutsch",
+    "en": "German",
+    "es": "Alemán",
+    "fr": "Allemand",
+    "de": "Deutsch",
+    "pt": "Alemão"
+  },
+  "settings_language_portuguese": {
+    "it": "Português",
+    "en": "Portuguese",
+    "es": "Portugués",
+    "fr": "Portugais",
+    "de": "Portugiesisch",
+    "pt": "Português"
+  },
+  "settings_config_label": {
+    "it": "Configurazione server",
+    "en": "Server configuration",
+    "es": "Configuración del servidor",
+    "fr": "Configuration du serveur",
+    "de": "Serverkonfiguration",
+    "pt": "Configuração do servidor"
+  },
+  "settings_btn_import": {
+    "it": "Importa configurazione",
+    "en": "Import configuration",
+    "es": "Importar configuración",
+    "fr": "Importer la configuration",
+    "de": "Konfiguration importieren",
+    "pt": "Importar configuração"
+  },
+  "settings_btn_export": {
+    "it": "Esporta configurazione",
+    "en": "Export configuration",
+    "es": "Exportar configuración",
+    "fr": "Exporter la configuration",
+    "de": "Konfiguration exportieren",
+    "pt": "Exportar configuração"
+  },
+  "export_dialog_title": {
+    "it": "Esporta configurazione (servers.json)",
+    "en": "Export configuration (servers.json)",
+    "es": "Exportar configuración (servers.json)",
+    "fr": "Exporter la configuration (servers.json)",
+    "de": "Konfiguration exportieren (servers.json)",
+    "pt": "Exportar configuração (servers.json)"
+  },
+  "export_done": {
+    "it": "Configurazione esportata in {path}",
+    "en": "Configuration exported to {path}",
+    "es": "Configuración exportada a {path}",
+    "fr": "Configuration exportée vers {path}",
+    "de": "Konfiguration exportiert nach {path}",
+    "pt": "Configuração exportada para {path}"
+  },
+  "export_error": {
+    "it": "Errore nell'esportazione: {error}",
+    "en": "Export error: {error}",
+    "es": "Error de exportación: {error}",
+    "fr": "Erreur d'exportation : {error}",
+    "de": "Exportfehler: {error}",
+    "pt": "Erro de exportação: {error}"
+  },
+  "import_confirm": {
+    "it": "Sostituire la configurazione attuale con {count} server importati?",
+    "en": "Replace current configuration with {count} imported servers?",
+    "es": "¿Reemplazar la configuración actual con {count} servidores importados?",
+    "fr": "Remplacer la configuration actuelle par {count} serveurs importés ?",
+    "de": "Aktuelle Konfiguration durch {count} importierte Server ersetzen?",
+    "pt": "Substituir configuração atual por {count} servidores importados?"
+  },
+  "import_done": {
+    "it": "Importati {count} server",
+    "en": "Imported {count} servers",
+    "es": "Importados {count} servidores",
+    "fr": "{count} serveurs importés",
+    "de": "{count} Server importiert",
+    "pt": "Importados {count} servidores"
+  },
+  "import_error": {
+    "it": "Errore nell'importazione: {error}",
+    "en": "Import error: {error}",
+    "es": "Error de importación: {error}",
+    "fr": "Erreur d'importation : {error}",
+    "de": "Importfehler: {error}",
+    "pt": "Erro de importação: {error}"
+  },
+  "connection_closed": {
+    "it": "[connessione chiusa]",
+    "en": "[connection closed]",
+    "es": "[conexión cerrada]",
+    "fr": "[connexion fermée]",
+    "de": "[Verbindung geschlossen]",
+    "pt": "[conexão fechada]"
+  },
+  "generic_error": {
+    "it": "Errore: {error}",
+    "en": "Error: {error}",
+    "es": "Error: {error}",
+    "fr": "Erreur : {error}",
+    "de": "Fehler: {error}",
+    "pt": "Erro: {error}"
+  },
+  "refresh": {
+    "it": "Aggiorna",
+    "en": "Refresh",
+    "es": "Actualizar",
+    "fr": "Actualiser",
+    "de": "Aktualisieren",
+    "pt": "Atualizar"
+  }
+}
