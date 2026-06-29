@@ -11,6 +11,82 @@
   --yellow: #f9e2af;
 }
 
+/* ---------- Temi (tutti scuri) ----------
+   Ogni tema ridefinisce solo le variabili colore; viene applicato impostando
+   l'attributo data-theme sull'elemento <html> (vedi renderer.js). */
+:root[data-theme="miami"] {
+  --bg: #1a1126;
+  --bg2: #120b1c;
+  --panel: #241733;
+  --border: #3a2151;
+  --text: #f5e6ff;
+  --muted: #b08fc7;
+  --accent: #ff4fa3;
+  --green: #2de2e6;
+  --red: #ff3864;
+  --yellow: #fee440;
+}
+:root[data-theme="dracula"] {
+  --bg: #282a36;
+  --bg2: #21222c;
+  --panel: #343746;
+  --border: #44475a;
+  --text: #f8f8f2;
+  --muted: #6272a4;
+  --accent: #bd93f9;
+  --green: #50fa7b;
+  --red: #ff5555;
+  --yellow: #f1fa8c;
+}
+:root[data-theme="nord"] {
+  --bg: #2e3440;
+  --bg2: #272c36;
+  --panel: #3b4252;
+  --border: #434c5e;
+  --text: #eceff4;
+  --muted: #7b88a1;
+  --accent: #88c0d0;
+  --green: #a3be8c;
+  --red: #bf616a;
+  --yellow: #ebcb8b;
+}
+:root[data-theme="tokyo-night"] {
+  --bg: #1a1b26;
+  --bg2: #16161e;
+  --panel: #24283b;
+  --border: #2f3549;
+  --text: #c0caf5;
+  --muted: #565f89;
+  --accent: #7aa2f7;
+  --green: #9ece6a;
+  --red: #f7768e;
+  --yellow: #e0af68;
+}
+:root[data-theme="gruvbox"] {
+  --bg: #282828;
+  --bg2: #1d2021;
+  --panel: #3c3836;
+  --border: #504945;
+  --text: #ebdbb2;
+  --muted: #a89984;
+  --accent: #83a598;
+  --green: #b8bb26;
+  --red: #fb4934;
+  --yellow: #fabd2f;
+}
+:root[data-theme="matrix"] {
+  --bg: #0b0f0b;
+  --bg2: #060906;
+  --panel: #101810;
+  --border: #1c2a1c;
+  --text: #c8facc;
+  --muted: #4f7a52;
+  --accent: #39ff14;
+  --green: #00ff66;
+  --red: #ff5555;
+  --yellow: #d6ff00;
+}
+
 * { box-sizing: border-box; }
 
 html, body {
@@ -346,3 +422,21 @@ html, body {
 }
 #toast.show { opacity: 1; }
 #toast.err { border-color: var(--red); }
+
+/* ---------- Settings view ---------- */
+#settings-view { width: 100%; justify-content: center; align-items: flex-start; overflow: auto; }
+.settings-wrap { width: 100%; max-width: 640px; padding: 32px; }
+.settings-header h1 { margin: 0 0 4px; }
+.settings-header p { color: var(--muted); margin: 0 0 24px; }
+.settings-header #btn-settings-back { margin-bottom: 32px; }
+.settings-card { background: var(--panel); border-radius: 10px; padding: 20px; }
+.settings-row { display: flex; flex-direction: column; gap: 6px; }
+.settings-row label { font-size: 13px; color: var(--muted); }
+.settings-row select {
+  width: 100%; padding: 9px 11px; border-radius: 6px;
+  border: 1px solid var(--border); background: var(--bg2); color: var(--text);
+  font-size: 14px; outline: none; cursor: pointer;
+}
+.settings-row select:focus { border-color: var(--accent); }
+.settings-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+.settings-card + .settings-card { margin-top: 16px; }

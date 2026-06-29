@@ -24,8 +24,8 @@
           <div class="panel-title">
             <span>Server salvati</span>
             <div class="panel-actions">
-              <button id="btn-import" class="btn btn-sm" title="Importa configurazione"><i class="fa-solid fa-upload"></i></button>
-              <button id="btn-export" class="btn btn-sm" title="Esporta configurazione"><i class="fa-solid fa-download"></i></button>
+              <button id="btn-toggle-groups" class="btn btn-sm" title="Espandi/comprimi tutti i gruppi"><i class="fa-solid fa-angles-down"></i></button>
+              <button id="btn-settings" class="btn btn-sm" title="Impostazioni"><i class="fa-solid fa-wrench"></i></button>
               <button id="btn-new" class="btn btn-primary btn-sm">+ Nuovo</button>
             </div>
           </div>
@@ -96,6 +96,42 @@
               <button type="button" id="btn-delete" class="btn btn-danger"><i class="fa-solid fa-trash"></i> Elimina</button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ VISTA IMPOSTAZIONI ============ -->
+  <div id="settings-view" class="view">
+    <div class="settings-wrap">
+      <header class="settings-header">
+        <h1><i class="fa-solid fa-wrench"></i> Impostazioni</h1>
+        <p>Personalizza l'aspetto dell'applicazione.</p>
+        <button id="btn-settings-back" class="btn btn-primary"><i class="fa-solid fa-arrow-left"></i> Torna alla home</button>
+      </header>
+
+      <div class="settings-card">
+        <div class="settings-row">
+          <label for="theme-select">Tema</label>
+          <select id="theme-select">
+            <option value="mocha">Mocha (predefinito)</option>
+            <option value="miami">Miami</option>
+            <option value="dracula">Dracula</option>
+            <option value="nord">Nord</option>
+            <option value="tokyo-night">Tokyo Night</option>
+            <option value="gruvbox">Gruvbox</option>
+            <option value="matrix">Matrix</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-row">
+          <label>Configurazione server</label>
+          <div class="settings-actions">
+            <button id="btn-import" class="btn"><i class="fa-solid fa-upload"></i> Importa configurazione</button>
+            <button id="btn-export" class="btn"><i class="fa-solid fa-download"></i> Esporta configurazione</button>
+          </div>
         </div>
       </div>
     </div>

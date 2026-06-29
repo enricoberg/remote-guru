@@ -112,6 +112,7 @@ function renderServerList() {
     empty.textContent = 'Nessuna macchina corrisponde alla ricerca.';
     ul.appendChild(empty);
   }
+  updateToggleGroupsBtn();
 }
 
 /** Crea la riga di un server (selezione, doppio click per connettere, drag&drop). */
@@ -263,6 +264,35 @@ function setGroupCollapsed(name, val) {
 }
 function toggleGroupCollapsed(name) { setGroupCollapsed(name, !isGroupCollapsed(name)); }
 
+/** Nomi di tutti i gruppi presenti (inclusa la sezione "Senza gruppo" se non vuota). */
+function allGroupKeys() {
+  const keys = [...new Set(servers.map((s) => (s.group || '').trim()).filter(Boolean))];
+  if (servers.some((s) => !(s.group || '').trim())) keys.push(UNGROUPED);
+  return keys;
+}
+
+/** Espande o comprime tutti i gruppi in un colpo solo. */
+function toggleAllGroups() {
+  const keys = allGroupKeys();
+  // se anche un solo gruppo è espanso, l'azione comprime tutto; altrimenti espande tutto
+  const anyExpanded = keys.some((k) => !isGroupCollapsed(k));
+  keys.forEach((k) => setGroupCollapsed(k, anyExpanded));
+  renderServerList();
+  updateToggleGroupsBtn();
+}
+
+/** Aggiorna icona/etichetta del bottone in base allo stato corrente dei gruppi. */
+function updateToggleGroupsBtn() {
+  const btn = $('#btn-toggle-groups');
+  if (!btn) return;
+  const keys = allGroupKeys();
+  btn.classList.toggle('hidden', keys.length < 1);
+  const anyExpanded = keys.some((k) => !isGroupCollapsed(k));
+  // se c'è qualcosa di espanso, il prossimo click comprime (freccia su); altrimenti espande (freccia giù)
+  btn.querySelector('i').className = anyExpanded ? 'fa-solid fa-angles-up' : 'fa-solid fa-angles-down';
+  btn.title = anyExpanded ? 'Comprimi tutti i gruppi' : 'Espandi tutti i gruppi';
+}
+
 /** Escape minimale per un valore usato in un selettore [data-group="…"]. */
 function cssEscape(s) { return String(s).replace(/["\\]/g, '\\$&'); }
 
@@ -374,10 +404,21 @@ async function connectFromForm() {
 
 function showView(name) {
   $('#config-view').classList.toggle('active', name === 'config');
+  $('#settings-view').classList.toggle('active', name === 'settings');
   $('#terminal-view').classList.toggle('active', name === 'terminal');
   // mostra "torna alle sessioni" solo se ci sono schede aperte
   $('#btn-back').classList.toggle('hidden', !(name === 'config' && tabs.size > 0));
   if (name === 'terminal') setTimeout(fitAll, 50);
+}
+
+// ---------- Tema (persistito in localStorage) ----------
+const DEFAULT_THEME = 'mocha';
+function getSavedTheme() {
+  return localStorage.getItem('theme') || DEFAULT_THEME;
+}
+function applyTheme(name) {
+  document.documentElement.setAttribute('data-theme', name || DEFAULT_THEME);
+  localStorage.setItem('theme', name || DEFAULT_THEME);
 }
 
 async function openConnection(server) {
@@ -1891,6 +1932,15 @@ function toast(msg, isErr) {
 
 window.addEventListener('DOMContentLoaded', () => {
   loadServers();
+
+  // tema: applica quello salvato e collega la dropdown
+  const themeSelect = $('#theme-select');
+  applyTheme(getSavedTheme());
+  themeSelect.value = getSavedTheme();
+  themeSelect.addEventListener('change', (e) => applyTheme(e.target.value));
+  $('#btn-settings').addEventListener('click', () => showView('settings'));
+  $('#btn-settings-back').addEventListener('click', () => showView('config'));
+  $('#btn-toggle-groups').addEventListener('click', toggleAllGroups);
 
   $('#btn-new').addEventListener('click', newServer);
   $('#btn-export').addEventListener('click', exportServers);
