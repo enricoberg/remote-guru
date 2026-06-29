@@ -21,6 +21,7 @@ function createWindow() {
     minWidth: 800,
     minHeight: 500,
     title: 'Remote Guru',
+    icon: path.join(__dirname, '..', 'icon.png'),
     backgroundColor: '#1e1e2e',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),

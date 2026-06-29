@@ -17,7 +17,8 @@
     "files": [
       "src/**/*",
       "node_modules/**/*",
-      "package.json"
+      "package.json",
+      "icon.png"
     ],
     "mac": {
       "target": "dmg",
