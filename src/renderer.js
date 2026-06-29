@@ -419,6 +419,36 @@ function getSavedTheme() {
 function applyTheme(name) {
   document.documentElement.setAttribute('data-theme', name || DEFAULT_THEME);
   localStorage.setItem('theme', name || DEFAULT_THEME);
+  // Allinea i colori dei terminali aperti al tema selezionato
+  const theme = buildTerminalTheme();
+  tabs.forEach((tab) => { tab.term.options.theme = theme; });
+}
+
+// Costruisce il theme di xterm.js leggendo le variabili CSS del tema attivo,
+// così il terminale resta coerente con i temi dell'app (mocha, dracula, nord...).
+function buildTerminalTheme() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name, fallback) => (cs.getPropertyValue(name).trim() || fallback);
+  const bg = v('--bg', '#1e1e2e');
+  const text = v('--text', '#cdd6f4');
+  const accent = v('--accent', '#89b4fa');
+  const green = v('--green', '#a6e3a1');
+  const red = v('--red', '#f38ba8');
+  const yellow = v('--yellow', '#f9e2af');
+  const muted = v('--muted', '#9399b2');
+  const border = v('--border', '#313244');
+  return {
+    background: bg,
+    foreground: text,
+    cursor: accent,
+    cursorAccent: bg,
+    selectionBackground: border,
+    // palette ANSI derivata dai colori del tema
+    black: border, red, green, yellow,
+    blue: accent, magenta: accent, cyan: green, white: text,
+    brightBlack: muted, brightRed: red, brightGreen: green, brightYellow: yellow,
+    brightBlue: accent, brightMagenta: accent, brightCyan: green, brightWhite: text,
+  };
 }
 
 async function openConnection(server) {
@@ -435,7 +465,7 @@ async function openConnection(server) {
     fontFamily: 'SFMono-Regular, Menlo, monospace',
     fontSize: 13,
     cursorBlink: true,
-    theme: { background: '#1e1e2e', foreground: '#cdd6f4', cursor: '#89b4fa' },
+    theme: buildTerminalTheme(),
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
@@ -508,7 +538,7 @@ function buildPane(tab) {
   llBtn.addEventListener('click', () => showListing(tab));
   const clearBtn = el('button', 'btn-ll');
   clearBtn.title = i18n.t('clear_button_title');
-  clearBtn.innerHTML = '<i class="fa-solid fa-display"></i>';
+  clearBtn.innerHTML = '<i class="fa-solid fa-broom"></i>';
   clearBtn.addEventListener('click', () => {
     tab.term.clear();
     window.api.write(tab.id, 'clear\r');
