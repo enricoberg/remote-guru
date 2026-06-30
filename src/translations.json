@@ -279,6 +279,62 @@
     "de": "Bearbeiten",
     "pt": "Editar"
   },
+  "edit_with_editor": {
+    "it": "Modifica con editor",
+    "en": "Edit with editor",
+    "es": "Editar con editor",
+    "fr": "Éditer avec l'éditeur",
+    "de": "Mit Editor bearbeiten",
+    "pt": "Editar com editor"
+  },
+  "editor_loading": {
+    "it": "Apertura di {name}…",
+    "en": "Opening {name}…",
+    "es": "Abriendo {name}…",
+    "fr": "Ouverture de {name}…",
+    "de": "{name} wird geöffnet…",
+    "pt": "Abrindo {name}…"
+  },
+  "editor_save": {
+    "it": "Salva ed esci",
+    "en": "Save & close",
+    "es": "Guardar y cerrar",
+    "fr": "Enregistrer et fermer",
+    "de": "Speichern & schließen",
+    "pt": "Salvar e fechar"
+  },
+  "editor_cancel": {
+    "it": "Esci senza salvare",
+    "en": "Close without saving",
+    "es": "Cerrar sin guardar",
+    "fr": "Fermer sans enregistrer",
+    "de": "Schließen ohne Speichern",
+    "pt": "Fechar sem salvar"
+  },
+  "editor_saved": {
+    "it": "Salvato: {name}",
+    "en": "Saved: {name}",
+    "es": "Guardado: {name}",
+    "fr": "Enregistré : {name}",
+    "de": "Gespeichert: {name}",
+    "pt": "Salvo: {name}"
+  },
+  "editor_save_error": {
+    "it": "Errore nel salvataggio: {error}",
+    "en": "Save error: {error}",
+    "es": "Error al guardar: {error}",
+    "fr": "Erreur d'enregistrement : {error}",
+    "de": "Speicherfehler: {error}",
+    "pt": "Erro ao salvar: {error}"
+  },
+  "editor_unsaved_confirm": {
+    "it": "Ci sono modifiche non salvate. Uscire comunque?",
+    "en": "There are unsaved changes. Close anyway?",
+    "es": "Hay cambios sin guardar. ¿Cerrar de todos modos?",
+    "fr": "Des modifications ne sont pas enregistrées. Fermer quand même ?",
+    "de": "Es gibt ungespeicherte Änderungen. Trotzdem schließen?",
+    "pt": "Há alterações não salvas. Fechar mesmo assim?"
+  },
   "download": {
     "it": "Scarica",
     "en": "Download",

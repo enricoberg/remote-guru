@@ -475,6 +475,7 @@ async function openConnection(server) {
     cwd: res.cwd || '~',
     paneEl: null, tabEl: null, hostEl: null, cwdEl: null,
     dead: false, inputBuffer: '',
+    termState: 'host', // 'host' | 'logs' | 'shell': stato del terminale per i comandi docker
   };
   tabs.set(id, tab);
 
@@ -886,9 +887,8 @@ function toggleSearch(tab, cwd, overlay) {
       e.preventDefault();
       const text = input.value.trim();
       if (!text) return;
-      overlay.remove();
-      tab.term.focus();
       // grep ricorsivo, case-insensitive, con numero di riga, nella cartella corrente
+      // (il file browser resta aperto)
       window.api.write(tab.id, `grep -rni ${shQuote(text)} ${shQuote(cwd)}\r`);
     }
   });
@@ -964,11 +964,8 @@ function makeEntry(tab, entry, cwd) {
       setTimeout(() => showListing(tab, target), 250);
     });
   } else {
-    // doppio clic su file -> cat automatico
+    // doppio clic su file -> cat automatico (il file browser resta aperto)
     row.addEventListener('dblclick', () => {
-      const ov = tab.hostEl.querySelector('.ll-overlay');
-      if (ov) ov.remove();
-      tab.term.focus();
       window.api.write(tab.id, `cat ${shQuote(fullPath)}\r`);
     });
   }
@@ -1149,6 +1146,28 @@ function makeDockerRow(tab, c) {
   return row;
 }
 
+/**
+ * Riporta il terminale alla shell host prima di lanciare un comando docker
+ * interattivo. Se stiamo seguendo dei log (logs -f) manda Ctrl+C; se siamo
+ * dentro la shell di un container manda `exit`. Lo stato torna a 'host' appena
+ * la shell host stampa un nuovo prompt (marker CWD gestito in onCwd), quindi
+ * un'uscita manuale dell'utente non provoca un `exit` di troppo (che chiuderebbe
+ * la sessione SSH). Ritorna i ms di attesa consigliati prima del comando dopo.
+ */
+function returnToHostShell(tab) {
+  if (tab.termState === 'logs') {
+    window.api.write(tab.id, '\x03'); // Ctrl+C: interrompe il follow dei log
+    tab.termState = 'host';
+    return 150;
+  }
+  if (tab.termState === 'shell') {
+    window.api.write(tab.id, 'exit\r'); // esce dalla shell del container
+    tab.termState = 'host';
+    return 250;
+  }
+  return 0;
+}
+
 async function dockerAction(tab, action, c, btn) {
   // i log vanno mostrati live nel terminale (come cat/grep)
   if (action === 'logs') {
@@ -1156,7 +1175,12 @@ async function dockerAction(tab, action, c, btn) {
     if (ov) ov.remove();
     tab.term.focus();
     const follow = c.running ? '-f ' : '';
-    window.api.write(tab.id, `docker logs --tail 200 ${follow}${shQuote(c.id)}\r`);
+    const wait = returnToHostShell(tab); // esci da log/shell aperti in precedenza
+    const run = () => {
+      window.api.write(tab.id, `docker logs --tail 200 ${follow}${shQuote(c.id)}\r`);
+      if (follow) tab.termState = 'logs'; // il follow blocca il prompt finché non si esce
+    };
+    wait ? setTimeout(run, wait) : run();
     return;
   }
 
@@ -1164,10 +1188,15 @@ async function dockerAction(tab, action, c, btn) {
   if (action === 'shell') {
     const ov = tab.hostEl.querySelector('.ll-overlay');
     if (ov) ov.remove();
-    tab.term.clear(); // pulisce lo scrollback prima di entrare
     tab.term.focus();
-    const inner = 'if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi';
-    window.api.write(tab.id, `clear && docker exec -it ${shQuote(c.name)} sh -c ${shQuote(inner)}\r`);
+    const wait = returnToHostShell(tab); // esci da log/shell aperti in precedenza
+    const run = () => {
+      tab.term.clear(); // pulisce lo scrollback prima di entrare
+      const inner = 'if command -v bash >/dev/null 2>&1; then exec bash; else exec sh; fi';
+      window.api.write(tab.id, `clear && docker exec -it ${shQuote(c.name)} sh -c ${shQuote(inner)}\r`);
+      tab.termState = 'shell'; // ora siamo dentro al container
+    };
+    wait ? setTimeout(run, wait) : run();
     return;
   }
 
@@ -1778,6 +1807,11 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
   ];
   if (!entry.isDir) {
     items.push({
+      icon: 'fa-solid fa-file-pen',
+      label: i18n.t('edit_with_editor'),
+      action: () => openEmbeddedEditor(tab, entry, fullPath),
+    });
+    items.push({
       icon: 'fa-solid fa-pen-to-square',
       label: i18n.t('edit'),
       action: () => {
@@ -1791,6 +1825,94 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
   // Scarica: disponibile sia per file che per cartelle
   items.push({ icon: 'fa-solid fa-download', label: i18n.t('download'), action: () => downloadEntry(tab, entry, fullPath) });
   openContextMenu(e.clientX, e.clientY, items);
+}
+
+/**
+ * Apre un editor di testo embeddato (overlay) per modificare un file remoto.
+ * Carica il contenuto via SFTP/sudo, mostra una textarea con due pulsanti:
+ * "Salva ed esci" e "Esci senza salvare".
+ */
+async function openEmbeddedEditor(tab, entry, fullPath) {
+  // chiudi eventuali overlay aperti (listing / docker / editor precedente)
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  if (old) old.remove();
+
+  let content;
+  try {
+    toast(i18n.t('editor_loading', { name: entry.name }));
+    content = await window.api.readFile(tab.id, fullPath);
+  } catch (e) {
+    return toast(i18n.t('generic_error', { error: e.message }), true);
+  }
+
+  const overlay = el('div', 'll-overlay editor-overlay');
+  const grip = el('div', 'll-resize');
+  overlay.appendChild(grip);
+  setupOverlayResize(grip, overlay, tab);
+  if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+
+  const head = el('div', 'll-head');
+  const info = el('span');
+  info.innerHTML = `<i class="fa-solid fa-file-pen"></i> ${entry.name}`;
+  const actions = el('span', 'll-head-actions');
+
+  const saveBtn = el('button', 'editor-save');
+  saveBtn.innerHTML = '<i class="fa-solid fa-floppy-disk"></i>';
+  saveBtn.title = i18n.t('editor_save');
+  const cancelBtn = el('button');
+  cancelBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+  cancelBtn.title = i18n.t('editor_cancel');
+  actions.appendChild(saveBtn);
+  actions.appendChild(cancelBtn);
+  head.appendChild(info);
+  head.appendChild(actions);
+  overlay.appendChild(head);
+
+  const ta = document.createElement('textarea');
+  ta.className = 'editor-textarea';
+  ta.value = content;
+  ta.spellcheck = false;
+  overlay.appendChild(ta);
+
+  const original = content;
+  const isDirty = () => ta.value !== original;
+
+  const close = () => {
+    overlay.remove();
+    tab.term.focus();
+  };
+
+  cancelBtn.addEventListener('click', () => {
+    if (isDirty() && !confirm(i18n.t('editor_unsaved_confirm'))) return;
+    close();
+  });
+
+  const save = async () => {
+    saveBtn.disabled = true;
+    try {
+      await window.api.writeFile(tab.id, fullPath, ta.value);
+      toast(i18n.t('editor_saved', { name: entry.name }));
+      close();
+    } catch (e) {
+      saveBtn.disabled = false;
+      toast(i18n.t('editor_save_error', { error: e.message }), true);
+    }
+  };
+  saveBtn.addEventListener('click', save);
+
+  // scorciatoie: Ctrl/Cmd+S salva, Esc esce
+  ta.addEventListener('keydown', (ev) => {
+    if ((ev.ctrlKey || ev.metaKey) && ev.key === 's') {
+      ev.preventDefault();
+      save();
+    } else if (ev.key === 'Escape') {
+      ev.preventDefault();
+      if (!isDirty() || confirm(i18n.t('editor_unsaved_confirm'))) close();
+    }
+  });
+
+  tab.hostEl.appendChild(overlay);
+  ta.focus();
 }
 
 function openTermContextMenu(e, tab) {
@@ -1859,8 +1981,8 @@ async function pasteEntry(tab, destDir) {
     return toast(i18n.t('paste_only_same_connection'), true);
   }
   try {
-    await window.api.copyEntry(tab.id, remoteClipboard.path, destDir, remoteClipboard.isDir);
-    toast(i18n.t('pasted', { name: remoteClipboard.name }));
+    const newName = await window.api.copyEntry(tab.id, remoteClipboard.path, destDir, remoteClipboard.isDir);
+    toast(i18n.t('pasted', { name: newName || remoteClipboard.name }));
     showListing(tab, tab.cwd);
   } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
 }
@@ -1897,6 +2019,8 @@ window.api.onCwd(({ id, cwd }) => {
   if (tab) {
     tab.cwd = cwd;
     if (tab.cwdEl) tab.cwdEl.textContent = cwd;
+    // un marker CWD = prompt della shell host: non siamo (più) in log/container
+    tab.termState = 'host';
   }
 });
 

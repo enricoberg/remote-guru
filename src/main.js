@@ -137,6 +137,10 @@ ipcMain.handle('ssh:copy', (_e, { id, src, destDir, isDir }) =>
 
 ipcMain.handle('ssh:createFile', (_e, { id, path: p }) => ssh.createFile(id, p));
 
+ipcMain.handle('ssh:readFile', (_e, { id, path: p }) => ssh.readFile(id, p));
+ipcMain.handle('ssh:writeFile', (_e, { id, path: p, content }) =>
+  ssh.writeFile(id, p, content));
+
 ipcMain.handle('ssh:import', async (_e, { id, destDir }) => {
   const res = await dialog.showOpenDialog(mainWindow, {
     title: 'Importa',

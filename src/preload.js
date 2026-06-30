@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('api', {
   copyEntry: (id, src, destDir, isDir) =>
     ipcRenderer.invoke('ssh:copy', { id, src, destDir, isDir }),
   createFile: (id, p) => ipcRenderer.invoke('ssh:createFile', { id, path: p }),
+  readFile: (id, p) => ipcRenderer.invoke('ssh:readFile', { id, path: p }),
+  writeFile: (id, p, content) => ipcRenderer.invoke('ssh:writeFile', { id, path: p, content }),
   importLocal: (id, destDir) => ipcRenderer.invoke('ssh:import', { id, destDir }),
   download: (id, remotePath, filename, isDir) =>
     ipcRenderer.invoke('ssh:download', { id, remotePath, filename, isDir }),

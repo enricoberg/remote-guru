@@ -318,6 +318,18 @@ html, body {
   border-radius: 4px; padding: 3px 7px; font-family: inherit; font-size: 13px; outline: none;
 }
 
+/* editor di testo embeddato (riusa .ll-overlay) */
+.editor-overlay { display: flex; flex-direction: column; }
+.editor-overlay .ll-head .editor-save:hover { color: var(--green, var(--accent)); }
+.editor-textarea {
+  flex: 1; min-height: 200px; width: 100%; box-sizing: border-box; resize: none;
+  background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 4px; padding: 8px 10px; outline: none;
+  font-family: "SFMono-Regular", Menlo, monospace; font-size: 13px; line-height: 1.45;
+  white-space: pre; tab-size: 4;
+}
+.editor-textarea:focus { border-color: var(--accent); }
+
 /* pannello container Docker (riusa .ll-overlay) */
 .docker-row {
   display: flex; align-items: center; gap: 12px; padding: 8px 4px;

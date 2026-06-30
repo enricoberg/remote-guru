@@ -199,10 +199,38 @@ class SshManager {
     return this.sudoExec(id, `rm -rf ${shellQuote(remotePath)}`);
   }
 
-  /** Copia remoto->remoto (usato da copia/incolla), con privilegi sudo. */
+  /**
+   * Copia remoto->remoto (usato da copia/incolla), con privilegi sudo.
+   * Aggiunge un suffisso "_copy" al nome (e "_copy2", "_copy3", … se necessario)
+   * così da non sovrascrivere l'originale o file già presenti. Ritorna il nome
+   * effettivamente creato.
+   */
   async copyRemote(id, src, destDir, isDir) {
     const flag = isDir ? '-r' : '';
-    return this.sudoExec(id, `cp ${flag} ${shellQuote(src)} ${shellQuote(destDir)}/`);
+    const base = path.basename(src);
+    // separa nome ed estensione (solo per i file; le cartelle restano intere)
+    let stem = base, ext = '';
+    if (!isDir) {
+      const dot = base.lastIndexOf('.');
+      if (dot > 0) { stem = base.slice(0, dot); ext = base.slice(dot); }
+    }
+    let candidate = `${stem}_copy${ext}`;
+    for (let n = 2; await this._remoteExists(id, `${destDir}/${candidate}`); n++) {
+      candidate = `${stem}_copy${n}${ext}`;
+    }
+    const dest = `${destDir}/${candidate}`;
+    await this.sudoExec(id, `cp ${flag} ${shellQuote(src)} ${shellQuote(dest)}`);
+    return candidate;
+  }
+
+  /** Verifica (con sudo) se un percorso remoto esiste già. */
+  async _remoteExists(id, remotePath) {
+    try {
+      await this.sudoExec(id, `test -e ${shellQuote(remotePath)}`);
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   /**
@@ -656,6 +684,38 @@ class SshManager {
   async screenClearStatus(id, target) {
     try { await this.exec(id, `screen -S ${shellQuote(target)} -X hardstatus ignore`); }
     catch (_) { /* niente da pulire: ignora */ }
+    return true;
+  }
+
+  /**
+   * Legge il contenuto testuale di un file remoto (con privilegi sudo, così da
+   * poter aprire anche file protetti come quelli di root). Usa base64 per il
+   * trasporto, evitando qualunque corruzione di codifica.
+   */
+  async readFile(id, remotePath) {
+    const b64 = await this.sudoExec(id, `base64 ${shellQuote(remotePath)}`);
+    return Buffer.from(b64, 'base64').toString('utf8');
+  }
+
+  /**
+   * Scrive il contenuto in un file remoto. Carica prima in /tmp via SFTP
+   * (scrivibile dall'utente), poi copia sulla destinazione con sudo: `cp` su un
+   * file esistente ne preserva proprietario e permessi.
+   */
+  async writeFile(id, remotePath, content) {
+    const sftp = await this._sftp(id);
+    const tmp = `/tmp/rg-edit-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
+    await new Promise((resolve, reject) => {
+      const ws = sftp.createWriteStream(tmp);
+      ws.on('error', reject);
+      ws.on('close', resolve);
+      ws.end(Buffer.from(content, 'utf8'));
+    });
+    try {
+      await this.sudoExec(id, `cp ${shellQuote(tmp)} ${shellQuote(remotePath)}`);
+    } finally {
+      await this.exec(id, `rm -f ${shellQuote(tmp)}`).catch(() => {});
+    }
     return true;
   }
 
