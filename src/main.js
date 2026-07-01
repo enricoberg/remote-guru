@@ -193,6 +193,43 @@ ipcMain.handle('docker:imageAction', (_e, { id, action, image }) =>
   ssh.imageAction(id, action, image)
 );
 
+// --- PostgreSQL -------------------------------------------------------------
+
+ipcMain.handle('pg:list', (_e, id) => ssh.pgListAll(id));
+
+// Sceglie il percorso locale dove salvare il dump.
+ipcMain.handle('pg:dumpPick', async (_e, { name }) => {
+  const now = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const stamp =
+    `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}` +
+    `-${pad(now.getHours())}${pad(now.getMinutes())}`;
+  const res = await dialog.showSaveDialog(mainWindow, {
+    title: 'Salva dump database',
+    defaultPath: `${name || 'database'}_${stamp}.dump`,
+    filters: [{ name: 'PostgreSQL dump', extensions: ['dump'] }],
+  });
+  return res.canceled || !res.filePath ? null : res.filePath;
+});
+
+ipcMain.handle('pg:dumpRun', (_e, { id, opId, group, dbName, localPath }) =>
+  ssh.pgDump(id, group, dbName, localPath, (p) => send('pg:dumpProgress', { opId, ...p }))
+);
+
+// Sceglie il file dump locale da ripristinare.
+ipcMain.handle('pg:restorePick', async () => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Seleziona il file dump da ripristinare',
+    properties: ['openFile'],
+    filters: [{ name: 'PostgreSQL dump', extensions: ['dump', 'backup', 'sql'] }, { name: 'Tutti i file', extensions: ['*'] }],
+  });
+  return res.canceled || !res.filePaths.length ? null : res.filePaths[0];
+});
+
+ipcMain.handle('pg:restoreRun', (_e, { id, group, dbName, localPath }) =>
+  ssh.pgRestore(id, group, dbName, localPath)
+);
+
 // --- Screen -----------------------------------------------------------------
 
 ipcMain.handle('screen:list', (_e, id) => ssh.screenList(id));

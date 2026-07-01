@@ -40,6 +40,16 @@ contextBridge.exposeInMainWorld('api', {
     ipcRenderer.invoke('docker:imageAction', { id, action, image }),
   openExternal: (url) => ipcRenderer.invoke('shell:openExternal', url),
 
+  // postgres
+  pgList: (id) => ipcRenderer.invoke('pg:list', id),
+  pgDumpPick: (name) => ipcRenderer.invoke('pg:dumpPick', { name }),
+  pgDumpRun: (id, opId, group, dbName, localPath) =>
+    ipcRenderer.invoke('pg:dumpRun', { id, opId, group, dbName, localPath }),
+  onDumpProgress: (cb) => ipcRenderer.on('pg:dumpProgress', (_e, p) => cb(p)),
+  pgRestorePick: () => ipcRenderer.invoke('pg:restorePick'),
+  pgRestoreRun: (id, group, dbName, localPath) =>
+    ipcRenderer.invoke('pg:restoreRun', { id, group, dbName, localPath }),
+
   // screen
   screenList: (id) => ipcRenderer.invoke('screen:list', id),
   screenCreate: (id, name) => ipcRenderer.invoke('screen:create', { id, name }),

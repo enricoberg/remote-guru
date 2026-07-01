@@ -207,6 +207,14 @@
     "de": "Lese Docker-Container…",
     "pt": "Lendo contêineres Docker…"
   },
+  "listing_databases": {
+    "it": "Lettura dei database…",
+    "en": "Reading databases…",
+    "es": "Leyendo bases de datos…",
+    "fr": "Lecture des bases de données…",
+    "de": "Lese Datenbanken…",
+    "pt": "Lendo bancos de dados…"
+  },
   "listing_error": {
     "it": "Errore elenco: {error}",
     "en": "Listing error: {error}",
@@ -478,6 +486,126 @@
     "fr": "Aucun résultat.",
     "de": "Keine Ergebnisse.",
     "pt": "Sem resultados."
+  },
+  "db_databases_button_title": {
+    "it": "Database PostgreSQL",
+    "en": "PostgreSQL databases",
+    "es": "Bases de datos PostgreSQL",
+    "fr": "Bases de données PostgreSQL",
+    "de": "PostgreSQL-Datenbanken",
+    "pt": "Bancos de dados PostgreSQL"
+  },
+  "db_databases_title": {
+    "it": "<i class=\"fa-solid fa-database\"></i> Database PostgreSQL — {count}",
+    "en": "<i class=\"fa-solid fa-database\"></i> PostgreSQL databases — {count}",
+    "es": "<i class=\"fa-solid fa-database\"></i> Bases de datos PostgreSQL — {count}",
+    "fr": "<i class=\"fa-solid fa-database\"></i> Bases de données PostgreSQL — {count}",
+    "de": "<i class=\"fa-solid fa-database\"></i> PostgreSQL-Datenbanken — {count}",
+    "pt": "<i class=\"fa-solid fa-database\"></i> Bancos de dados PostgreSQL — {count}"
+  },
+  "db_no_databases": {
+    "it": "Nessun database trovato.",
+    "en": "No databases found.",
+    "es": "No se encontraron bases de datos.",
+    "fr": "Aucune base de données trouvée.",
+    "de": "Keine Datenbanken gefunden.",
+    "pt": "Nenhum banco de dados encontrado."
+  },
+  "db_filter_databases": {
+    "it": "Filtra database…",
+    "en": "Filter databases…",
+    "es": "Filtrar bases de datos…",
+    "fr": "Filtrer les bases de données…",
+    "de": "Datenbanken filtern…",
+    "pt": "Filtrar bancos de dados…"
+  },
+  "db_host": {
+    "it": "Host",
+    "en": "Host",
+    "es": "Host",
+    "fr": "Hôte",
+    "de": "Host",
+    "pt": "Host"
+  },
+  "db_owner": {
+    "it": "proprietario {owner}",
+    "en": "owner {owner}",
+    "es": "propietario {owner}",
+    "fr": "propriétaire {owner}",
+    "de": "Eigentümer {owner}",
+    "pt": "proprietário {owner}"
+  },
+  "db_console": {
+    "it": "Console",
+    "en": "Console",
+    "es": "Consola",
+    "fr": "Console",
+    "de": "Konsole",
+    "pt": "Console"
+  },
+  "db_dump": {
+    "it": "Dump",
+    "en": "Dump",
+    "es": "Volcado",
+    "fr": "Dump",
+    "de": "Dump",
+    "pt": "Dump"
+  },
+  "db_restore": {
+    "it": "Restore",
+    "en": "Restore",
+    "es": "Restaurar",
+    "fr": "Restaurer",
+    "de": "Wiederherstellen",
+    "pt": "Restaurar"
+  },
+  "db_dump_running": {
+    "it": "Dump di {name} in corso…",
+    "en": "Dumping {name}…",
+    "es": "Volcando {name}…",
+    "fr": "Dump de {name} en cours…",
+    "de": "Dump von {name} läuft…",
+    "pt": "Fazendo dump de {name}…"
+  },
+  "db_dump_done": {
+    "it": "Dump di {name} completato.",
+    "en": "Dump of {name} completed.",
+    "es": "Volcado de {name} completado.",
+    "fr": "Dump de {name} terminé.",
+    "de": "Dump von {name} abgeschlossen.",
+    "pt": "Dump de {name} concluído."
+  },
+  "db_restore_running": {
+    "it": "Restore su {name} in corso…",
+    "en": "Restoring into {name}…",
+    "es": "Restaurando en {name}…",
+    "fr": "Restauration dans {name} en cours…",
+    "de": "Wiederherstellung in {name} läuft…",
+    "pt": "Restaurando em {name}…"
+  },
+  "db_restore_done": {
+    "it": "Restore su {name} completato.",
+    "en": "Restore into {name} completed.",
+    "es": "Restauración en {name} completada.",
+    "fr": "Restauration dans {name} terminée.",
+    "de": "Wiederherstellung in {name} abgeschlossen.",
+    "pt": "Restauração em {name} concluída."
+  },
+  "confirm_db_restore": {
+    "it": "Ripristinare il dump nel database \"{name}\"? Gli oggetti esistenti verranno sovrascritti.",
+    "en": "Restore the dump into database \"{name}\"? Existing objects will be overwritten.",
+    "es": "¿Restaurar el volcado en la base de datos \"{name}\"? Los objetos existentes se sobrescribirán.",
+    "fr": "Restaurer le dump dans la base de données \"{name}\" ? Les objets existants seront écrasés.",
+    "de": "Dump in Datenbank \"{name}\" wiederherstellen? Vorhandene Objekte werden überschrieben.",
+    "pt": "Restaurar o dump no banco de dados \"{name}\"? Os objetos existentes serão sobrescritos."
+  },
+  "db_action_error": {
+    "it": "Errore database: {error}",
+    "en": "Database error: {error}",
+    "es": "Error de base de datos: {error}",
+    "fr": "Erreur de base de données : {error}",
+    "de": "Datenbankfehler: {error}",
+    "pt": "Erro de banco de dados: {error}"
   },
   "docker_logs": {
     "it": "Logs",

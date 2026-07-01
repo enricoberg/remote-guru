@@ -553,6 +553,10 @@ function buildPane(tab) {
   imagesBtn.title = i18n.t('docker_images_button_title');
   imagesBtn.innerHTML = '<i class="fa-solid fa-hard-drive"></i>';
   imagesBtn.addEventListener('click', () => showImages(tab));
+  const dbBtn = el('button', 'btn-ll');
+  dbBtn.title = i18n.t('db_databases_button_title');
+  dbBtn.innerHTML = '<i class="fa-solid fa-database"></i>';
+  dbBtn.addEventListener('click', () => showDatabases(tab));
   const screensBtn = el('button', 'btn-ll');
   screensBtn.title = i18n.t('screen_sessions_button_title');
   screensBtn.innerHTML = '<i class="fa-brands fa-buffer"></i>';
@@ -571,6 +575,7 @@ function buildPane(tab) {
   toolbar.appendChild(clearBtn);
   toolbar.appendChild(dockerBtn);
   toolbar.appendChild(imagesBtn);
+  toolbar.appendChild(dbBtn);
   toolbar.appendChild(screensBtn);
   toolbar.appendChild(srv);
   toolbar.appendChild(cwd);
@@ -1146,6 +1151,246 @@ function makeDockerRow(tab, c) {
   return row;
 }
 
+// ---- Database (PostgreSQL) --------------------------------------------------
+
+async function showDatabases(tab) {
+  let groups;
+  try {
+    toast(i18n.t('listing_databases'));
+    groups = await window.api.pgList(tab.id);
+  } catch (e) {
+    return toast(i18n.t('db_action_error', { error: e.message }), true);
+  }
+
+  // riusa lo stesso overlay di docker/file browser
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  if (old) old.remove();
+
+  const overlay = el('div', 'll-overlay docker-overlay containers-overlay');
+  const grip = el('div', 'll-resize');
+  overlay.appendChild(grip);
+  setupOverlayResize(grip, overlay, tab);
+  if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+
+  const total = groups.reduce((n, g) => n + g.databases.length, 0);
+
+  const head = el('div', 'll-head');
+  const info = el('span');
+  info.innerHTML = i18n.t('db_databases_title', { count: total });
+  const actions = el('span', 'll-head-actions');
+  const refreshBtn = el('button');
+  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
+  refreshBtn.title = i18n.t('refresh');
+  refreshBtn.addEventListener('click', () => showDatabases(tab));
+  const closeBtn = el('button');
+  closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+  closeBtn.title = 'Chiudi';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  actions.appendChild(refreshBtn);
+  actions.appendChild(closeBtn);
+  head.appendChild(info);
+  head.appendChild(actions);
+  overlay.appendChild(head);
+
+  if (!total) {
+    const empty = el('div', 'docker-empty');
+    empty.textContent = i18n.t('db_no_databases');
+    overlay.appendChild(empty);
+  }
+
+  // barra di ricerca (filtra per nome/proprietario)
+  let searchInput = null;
+  if (total) {
+    const bar = el('div', 'll-search');
+    const icon = el('i', 'fa-solid fa-magnifying-glass');
+    searchInput = document.createElement('input');
+    searchInput.type = 'text';
+    searchInput.className = 'search-input';
+    searchInput.placeholder = i18n.t('db_filter_databases');
+    bar.appendChild(icon);
+    bar.appendChild(searchInput);
+    overlay.appendChild(bar);
+  }
+
+  // un blocco per sorgente: host e ogni container Postgres
+  const blocks = [];
+  groups.forEach((g) => {
+    const header = el('div', 'docker-group');
+    header.innerHTML = g.source === 'container'
+      ? `<i class="fa-brands fa-docker"></i> ${escapeHtml(g.container)}` +
+        (g.image ? ` <span class="cwd">${escapeHtml(g.image)}</span>` : '')
+      : `<i class="fa-solid fa-server"></i> ${i18n.t('db_host')}`;
+    overlay.appendChild(header);
+    const items = g.databases.map((d) => {
+      const row = makeDbRow(tab, d, g);
+      overlay.appendChild(row);
+      return { text: `${d.name} ${d.owner}`.toLowerCase(), row };
+    });
+    blocks.push({ header, items });
+  });
+
+  const noRes = el('div', 'docker-empty');
+  noRes.textContent = i18n.t('docker_no_results');
+  noRes.style.display = 'none';
+  overlay.appendChild(noRes);
+
+  if (searchInput) {
+    searchInput.addEventListener('keydown', (e) => e.stopPropagation());
+    searchInput.addEventListener('input', () => {
+      const q = searchInput.value.trim().toLowerCase();
+      let total = 0;
+      blocks.forEach((b) => {
+        let vis = 0;
+        b.items.forEach((it) => {
+          const match = !q || it.text.includes(q);
+          it.row.style.display = match ? '' : 'none';
+          if (match) vis++;
+        });
+        b.header.style.display = vis ? '' : 'none'; // nascondi i gruppi vuoti
+        total += vis;
+      });
+      noRes.style.display = total ? 'none' : '';
+    });
+  }
+
+  tab.hostEl.appendChild(overlay);
+  if (searchInput) setTimeout(() => searchInput.focus(), 0);
+}
+
+function makeDbRow(tab, d, group) {
+  const row = el('div', 'docker-row');
+
+  const dot = el('span', 'docker-dot on');
+  dot.title = d.size || '';
+  row.appendChild(dot);
+
+  const meta = el('div', 'docker-meta');
+  const name = el('span', 'docker-name');
+  name.innerHTML = `<i class="fa-solid fa-database"></i> ${escapeHtml(d.name)}`;
+  name.title = d.name;
+  const sub = el('span', 'docker-img');
+  const parts = [];
+  if (d.owner) parts.push(i18n.t('db_owner', { owner: d.owner }));
+  if (d.size) parts.push(d.size);
+  sub.textContent = parts.join(' · ');
+  sub.title = sub.textContent;
+  meta.appendChild(name);
+  meta.appendChild(sub);
+
+  const btns = el('div', 'docker-actions');
+  const consoleBtn = el('button', 'docker-btn d-shell');
+  consoleBtn.innerHTML = `<i class="fa-solid fa-terminal"></i><span class="lbl">${i18n.t('db_console')}</span>`;
+  consoleBtn.title = `${i18n.t('db_console')} ${d.name}`;
+  consoleBtn.addEventListener('click', () => openPsql(tab, d, group));
+  btns.appendChild(consoleBtn);
+
+  const dumpBtn = el('button', 'docker-btn d-logs');
+  dumpBtn.innerHTML = `<i class="fa-solid fa-download"></i><span class="lbl">${i18n.t('db_dump')}</span>`;
+  dumpBtn.title = `${i18n.t('db_dump')} ${d.name}`;
+  dumpBtn.addEventListener('click', () => dbDump(tab, d, group, dumpBtn));
+  btns.appendChild(dumpBtn);
+
+  const restoreBtn = el('button', 'docker-btn d-pull');
+  restoreBtn.innerHTML = `<i class="fa-solid fa-upload"></i><span class="lbl">${i18n.t('db_restore')}</span>`;
+  restoreBtn.title = `${i18n.t('db_restore')} ${d.name}`;
+  restoreBtn.addEventListener('click', () => dbRestore(tab, d, group, restoreBtn));
+  btns.appendChild(restoreBtn);
+
+  row.appendChild(meta);
+  row.appendChild(btns);
+  return row;
+}
+
+/** Esegue il dump (custom, struttura + dati) del database in un file locale scelto,
+ *  mostrando una barra di avanzamento sotto la riga (come il Manual Pull). */
+async function dbDump(tab, d, group, btn) {
+  const localPath = await window.api.pgDumpPick(d.name);
+  if (!localPath) return; // scelta annullata
+
+  // box di avanzamento sotto la riga del database (riusa lo stile docker-mp)
+  const row = btn.closest('.docker-row');
+  const next = row && row.nextElementSibling;
+  if (next && next.classList.contains('docker-mp')) next.remove();
+  const box = el('div', 'docker-mp running indeterminate');
+  const status = el('div', 'docker-mp-status');
+  status.textContent = i18n.t('db_dump_running', { name: d.name });
+  const bar = el('div', 'docker-mp-bar');
+  const fill = el('div', 'docker-mp-fill');
+  bar.appendChild(fill);
+  box.appendChild(status);
+  box.appendChild(bar);
+  if (row) row.parentNode.insertBefore(box, row.nextElementSibling);
+
+  btn.disabled = true;
+  const opId = 'dump' + (++pgOpSeq);
+  const onProg = (p) => {
+    if (p.opId !== opId) return;
+    if (typeof p.pct === 'number') {
+      box.classList.remove('indeterminate');
+      fill.style.width = p.pct + '%';
+    } else {
+      box.classList.add('indeterminate');
+    }
+    if (p.text) status.textContent = p.text;
+  };
+  pgProgressHandlers.add(onProg);
+
+  try {
+    await window.api.pgDumpRun(tab.id, opId, group, d.name, localPath);
+    box.classList.remove('indeterminate');
+    fill.style.width = '100%';
+    status.textContent = i18n.t('db_dump_done', { name: d.name });
+    toast(i18n.t('db_dump_done', { name: d.name }));
+    setTimeout(() => box.remove(), 4000);
+  } catch (e) {
+    box.classList.remove('indeterminate', 'running');
+    status.textContent = i18n.t('db_action_error', { error: e.message });
+    status.classList.add('err');
+    toast(i18n.t('db_action_error', { error: e.message }), true);
+  } finally {
+    btn.disabled = false;
+    pgProgressHandlers.delete(onProg);
+  }
+}
+
+/** Ripristina un dump scelto dal disco nel database selezionato (sovrascrive). */
+async function dbRestore(tab, d, group, btn) {
+  const localPath = await window.api.pgRestorePick();
+  if (!localPath) return; // scelta annullata
+  if (!confirm(i18n.t('confirm_db_restore', { name: d.name }))) return;
+  btn.disabled = true;
+  toast(i18n.t('db_restore_running', { name: d.name }));
+  try {
+    await window.api.pgRestoreRun(tab.id, group, d.name, localPath);
+    toast(i18n.t('db_restore_done', { name: d.name }));
+  } catch (e) {
+    toast(i18n.t('db_action_error', { error: e.message }), true);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+/**
+ * Apre una console psql sul database scelto, nel terminale della scheda.
+ * Per i database dentro un container si usa `docker exec -it … psql`,
+ * altrimenti si accede come utente di sistema `postgres` sull'host.
+ */
+function openPsql(tab, d, group) {
+  const ov = tab.hostEl.querySelector('.ll-overlay');
+  if (ov) ov.remove();
+  tab.term.focus();
+  const wait = returnToHostShell(tab); // esci da eventuali log/shell aperti
+  const run = () => {
+    tab.term.clear();
+    const cmd = group && group.source === 'container'
+      ? `docker exec -it ${shQuote(group.container)} psql -U ${shQuote(group.user || 'postgres')} -d ${shQuote(d.name)}`
+      : `sudo -u postgres psql -d ${shQuote(d.name)}`;
+    window.api.write(tab.id, `clear && ${cmd}\r`);
+    tab.termState = 'shell'; // \q o exit riportano alla shell host
+  };
+  wait ? setTimeout(run, wait) : run();
+}
+
 /**
  * Riporta il terminale alla shell host prima di lanciare un comando docker
  * interattivo. Se stiamo seguendo dei log (logs -f) manda Ctrl+C; se siamo
@@ -1682,6 +1927,10 @@ async function killScreen(tab, s, btn) {
 let mpOpSeq = 0;
 const mpProgressHandlers = new Set();
 
+// avanzamento dump database (stesso meccanismo del Manual Pull)
+let pgOpSeq = 0;
+const pgProgressHandlers = new Set();
+
 /** Ripulisce un riferimento immagine incollato (toglie "docker pull " e apici). */
 function cleanImageRef(raw) {
   return String(raw || '')
@@ -2038,6 +2287,10 @@ window.api.onSty(({ id, sty }) => {
 
 window.api.onPullProgress((p) => {
   mpProgressHandlers.forEach((h) => h(p));
+});
+
+window.api.onDumpProgress((p) => {
+  pgProgressHandlers.forEach((h) => h(p));
 });
 
 window.api.onClosed(({ id }) => {

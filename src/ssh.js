@@ -750,6 +750,212 @@ class SshManager {
     return localPath;
   }
 
+  // ---- PostgreSQL ------------------------------------------------------------
+
+  /**
+   * Esegue un comando psql come utente di sistema `postgres` via sudo,
+   * fornendo la password del server via stdin (come sudoExec). Serve quando
+   * l'utente SSH non ha un ruolo Postgres proprio (caso più comune).
+   */
+  _pgSudo(id, psqlCmd) {
+    const s = this.get(id);
+    const password = s.server.password || '';
+    const full = `sudo -S -p '' -u postgres ${psqlCmd}`;
+    return new Promise((resolve, reject) => {
+      s.client.exec(full, (err, stream) => {
+        if (err) return reject(err);
+        let out = '';
+        let errOut = '';
+        stream.on('data', (d) => (out += d.toString('utf8')));
+        stream.stderr.on('data', (d) => (errOut += d.toString('utf8')));
+        stream.on('close', (code) => {
+          if (code === 0) return resolve(out);
+          const msg = errOut.trim().replace(/\[sudo\][^\n]*\n?/g, '').trim();
+          reject(new Error(msg || `Comando uscito con codice ${code}`));
+        });
+        if (password) stream.write(password + '\n');
+      });
+    });
+  }
+
+  /**
+   * Elenca i database PostgreSQL installati direttamente sull'host (esclusi i
+   * template). Prova prima con l'utente SSH corrente (se ha accesso diretto a
+   * psql), poi come utente di sistema `postgres` via sudo.
+   */
+  async pgListDatabases(id) {
+    // -A: output non allineato, -t: solo le righe dati, separatore di default '|'
+    const psqlCmd = `psql -At -c ${shellQuote(PG_LIST_SQL)}`;
+    let out;
+    try {
+      out = await this.exec(id, psqlCmd);
+    } catch (_) {
+      out = await this._pgSudo(id, psqlCmd);
+    }
+    return parsePgList(out);
+  }
+
+  /** Ricava il super-utente Postgres di un container (POSTGRES_USER o 'postgres'). */
+  async _pgContainerUser(id, container) {
+    try {
+      const fmt = '{{range .Config.Env}}{{println .}}{{end}}';
+      const out = await this.dockerExec(
+        id,
+        `docker inspect --format ${shellQuote(fmt)} ${shellQuote(container.id)}`
+      );
+      const line = out
+        .split('\n')
+        .map((l) => l.trim())
+        .find((l) => l.startsWith('POSTGRES_USER='));
+      if (line) return line.slice('POSTGRES_USER='.length).trim() || 'postgres';
+    } catch (_) { /* env non leggibile: usa il default */ }
+    return 'postgres';
+  }
+
+  /** Elenca i database dentro un container Postgres via `docker exec ... psql`. */
+  async _pgListInContainer(id, container, user) {
+    const cmd =
+      `docker exec ${shellQuote(container.id)} ` +
+      `psql -U ${shellQuote(user)} -At -c ${shellQuote(PG_LIST_SQL)}`;
+    return parsePgList(await this.dockerExec(id, cmd));
+  }
+
+  /**
+   * Elenca tutti i database PostgreSQL raggiungibili sulla macchina, sia quelli
+   * installati sull'host sia quelli dentro container Docker basati su immagini
+   * Postgres. Ritorna un elenco di gruppi:
+   *   { source: 'host' | 'container', container?, image?, user?, databases: [] }
+   */
+  async pgListAll(id) {
+    const groups = [];
+
+    // 1. Host
+    try {
+      const dbs = await this.pgListDatabases(id);
+      if (dbs.length) groups.push({ source: 'host', databases: dbs });
+    } catch (_) { /* nessun Postgres sull'host: ignora */ }
+
+    // 2. Container Postgres in esecuzione
+    let containers = [];
+    try { containers = await this.dockerPs(id); } catch (_) { /* docker assente */ }
+    const pgContainers = containers.filter(
+      (c) => c.running && /postgres|postgis|timescale/i.test(c.image)
+    );
+    for (const c of pgContainers) {
+      try {
+        const user = await this._pgContainerUser(id, c);
+        const dbs = await this._pgListInContainer(id, c, user);
+        groups.push({ source: 'container', container: c.name, image: c.image, user, databases: dbs });
+      } catch (_) { /* container non pronto o non interrogabile: salta */ }
+    }
+
+    return groups;
+  }
+
+  /** Rende un file leggibile a tutti (utile prima di scaricarlo o di leggerlo come postgres). */
+  async _chmodReadable(id, p) {
+    try { await this.exec(id, `chmod 644 ${shellQuote(p)}`); }
+    catch (_) { await this.sudoExec(id, `chmod 644 ${shellQuote(p)}`).catch(() => {}); }
+  }
+
+  /** Rimuove un file temporaneo, con fallback sudo se creato da un altro utente. */
+  async _rmForce(id, p) {
+    try { await this.exec(id, `rm -f ${shellQuote(p)}`); }
+    catch (_) { await this.sudoExec(id, `rm -f ${shellQuote(p)}`).catch(() => {}); }
+  }
+
+  /** Dimensione in byte di un file remoto (0 se non leggibile). */
+  async _remoteFileSize(id, p) {
+    try {
+      const out = await this.exec(id, `wc -c < ${shellQuote(p)}`);
+      const n = parseInt(String(out).trim(), 10);
+      return Number.isFinite(n) ? n : 0;
+    } catch (_) { return 0; }
+  }
+
+  /** Scarica un file remoto riportando l'avanzamento (byte trasferiti / totale). */
+  async _downloadWithProgress(id, remotePath, localPath, total, onProgress) {
+    const sftp = await this._sftp(id);
+    return new Promise((resolve, reject) => {
+      const opts = {
+        step: (transferred) => {
+          if (total > 0) {
+            const pct = Math.min(99, Math.round((transferred / total) * 100));
+            onProgress({ phase: 'transfer', pct, text: `${humanBytes(transferred)} / ${humanBytes(total)}` });
+          } else {
+            onProgress({ phase: 'transfer', pct: null, text: humanBytes(transferred) });
+          }
+        },
+      };
+      sftp.fastGet(remotePath, localPath, opts, (err) => (err ? reject(err) : resolve(localPath)));
+    });
+  }
+
+  /**
+   * Esegue il dump (formato custom `-Fc`, struttura + dati) del database indicato
+   * e lo scarica in `localPath`. Funziona sia per Postgres installato sull'host
+   * sia per i container Docker. Il dump viene prima scritto in un file temporaneo
+   * remoto, poi trasferito via SFTP e infine rimosso. `onProgress` riceve
+   * l'avanzamento (indeterminato durante la creazione, in percentuale durante il
+   * download).
+   */
+  async pgDump(id, group, dbName, localPath, onProgress = () => {}) {
+    const tmp = `/tmp/rg-dump-${Date.now()}-${Math.floor(Math.random() * 1e6)}.dump`;
+    try {
+      onProgress({ phase: 'dump', pct: null }); // creazione dump: barra indeterminata
+      if (group && group.source === 'container') {
+        const user = group.user || 'postgres';
+        const cmd =
+          `docker exec ${shellQuote(group.container)} ` +
+          `pg_dump -U ${shellQuote(user)} -Fc ${shellQuote(dbName)} > ${shellQuote(tmp)}`;
+        await this.dockerExec(id, cmd);
+      } else {
+        const cmd = `pg_dump -Fc ${shellQuote(dbName)} > ${shellQuote(tmp)}`;
+        try { await this.exec(id, cmd); }
+        catch (_) { await this._pgSudo(id, cmd); }
+      }
+      await this._chmodReadable(id, tmp); // il file può appartenere a root/postgres
+      const total = await this._remoteFileSize(id, tmp);
+      onProgress({ phase: 'transfer', pct: 0, text: `0 B / ${humanBytes(total)}` });
+      await this._downloadWithProgress(id, tmp, localPath, total, onProgress);
+    } finally {
+      await this._rmForce(id, tmp);
+    }
+    return localPath;
+  }
+
+  /**
+   * Ripristina un dump (formato custom) da `localPath` nel database indicato.
+   * Il file viene caricato via SFTP in un temporaneo remoto e poi passato a
+   * `pg_restore` (`--clean --if-exists` per sovrascrivere gli oggetti esistenti).
+   * Funziona sia sull'host sia nei container Docker.
+   */
+  async pgRestore(id, group, dbName, localPath) {
+    const tmp = `/tmp/rg-restore-${Date.now()}-${Math.floor(Math.random() * 1e6)}.dump`;
+    const sftp = await this._sftp(id);
+    await new Promise((resolve, reject) => {
+      sftp.fastPut(localPath, tmp, (err) => (err ? reject(err) : resolve()));
+    });
+    try {
+      await this._chmodReadable(id, tmp); // leggibile anche dall'utente postgres
+      if (group && group.source === 'container') {
+        const user = group.user || 'postgres';
+        const cmd =
+          `docker exec -i ${shellQuote(group.container)} ` +
+          `pg_restore -U ${shellQuote(user)} --clean --if-exists ` +
+          `-d ${shellQuote(dbName)} < ${shellQuote(tmp)}`;
+        await this.dockerExec(id, cmd);
+      } else {
+        const cmd = `pg_restore --clean --if-exists -d ${shellQuote(dbName)} ${shellQuote(tmp)}`;
+        try { await this.exec(id, cmd); }
+        catch (_) { await this._pgSudo(id, cmd); }
+      }
+    } finally {
+      await this._rmForce(id, tmp);
+    }
+    return localPath;
+  }
+
 }
 
 class Session {
@@ -794,6 +1000,24 @@ class Session {
 
 function shellQuote(s) {
   return `'${String(s).replace(/'/g, `'\\''`)}'`;
+}
+
+// SQL per elencare i database (escludendo i template): nome, proprietario, dimensione.
+const PG_LIST_SQL =
+  'SELECT datname, pg_catalog.pg_get_userbyid(datdba), ' +
+  'pg_size_pretty(pg_database_size(datname)) ' +
+  'FROM pg_database WHERE datistemplate = false ORDER BY datname;';
+
+/** Converte l'output `nome|proprietario|dimensione` di psql in oggetti. */
+function parsePgList(out) {
+  return String(out)
+    .split('\n')
+    .map((l) => l.replace(/\r$/, ''))
+    .filter((l) => l.trim())
+    .map((line) => {
+      const [name, owner, size] = line.split('|');
+      return { name, owner: owner || '', size: size || '' };
+    });
 }
 
 /**
