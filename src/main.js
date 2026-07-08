@@ -242,6 +242,12 @@ ipcMain.handle('screen:detach', (_e, { id, target }) => ssh.screenDetach(id, tar
 
 ipcMain.handle('screen:clearStatus', (_e, { id, target }) => ssh.screenClearStatus(id, target));
 
+// --- Crontab ------------------------------------------------------------------
+
+ipcMain.handle('cron:read', (_e, id) => ssh.cronRead(id));
+
+ipcMain.handle('cron:write', (_e, { id, content }) => ssh.cronWrite(id, content));
+
 ipcMain.handle('shell:openExternal', (_e, url) => shell.openExternal(url));
 
 function send(channel, payload) {

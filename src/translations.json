@@ -1438,5 +1438,421 @@
     "fr": "Actualiser",
     "de": "Aktualisieren",
     "pt": "Atualizar"
+  },
+  "cron_button_title": {
+    "it": "Crontab",
+    "en": "Crontab",
+    "es": "Crontab",
+    "fr": "Crontab",
+    "de": "Crontab",
+    "pt": "Crontab"
+  },
+  "cron_title": {
+    "it": "<i class='fa-solid fa-clock'></i> Crontab (root) — {count} job",
+    "en": "<i class='fa-solid fa-clock'></i> Crontab (root) — {count} jobs",
+    "es": "<i class='fa-solid fa-clock'></i> Crontab (root) — {count} tareas",
+    "fr": "<i class='fa-solid fa-clock'></i> Crontab (root) — {count} tâches",
+    "de": "<i class='fa-solid fa-clock'></i> Crontab (root) — {count} Jobs",
+    "pt": "<i class='fa-solid fa-clock'></i> Crontab (root) — {count} tarefas"
+  },
+  "cron_no_jobs": {
+    "it": "Nessun job cron configurato.",
+    "en": "No cron jobs configured.",
+    "es": "No hay tareas cron configuradas.",
+    "fr": "Aucune tâche cron configurée.",
+    "de": "Keine Cron-Jobs konfiguriert.",
+    "pt": "Nenhuma tarefa cron configurada."
+  },
+  "cron_add_button": {
+    "it": "Aggiungi cron",
+    "en": "Add cron job",
+    "es": "Añadir tarea cron",
+    "fr": "Ajouter une tâche cron",
+    "de": "Cron-Job hinzufügen",
+    "pt": "Adicionar tarefa cron"
+  },
+  "cron_save": {
+    "it": "Salva",
+    "en": "Save",
+    "es": "Guardar",
+    "fr": "Enregistrer",
+    "de": "Speichern",
+    "pt": "Salvar"
+  },
+  "cron_saved": {
+    "it": "Crontab salvato",
+    "en": "Crontab saved",
+    "es": "Crontab guardado",
+    "fr": "Crontab enregistré",
+    "de": "Crontab gespeichert",
+    "pt": "Crontab salvo"
+  },
+  "cron_pause": {
+    "it": "Pausa",
+    "en": "Pause",
+    "es": "Pausar",
+    "fr": "Pause",
+    "de": "Pausieren",
+    "pt": "Pausar"
+  },
+  "cron_resume": {
+    "it": "Riattiva",
+    "en": "Resume",
+    "es": "Reactivar",
+    "fr": "Réactiver",
+    "de": "Fortsetzen",
+    "pt": "Reativar"
+  },
+  "cron_paused_label": {
+    "it": "in pausa",
+    "en": "paused",
+    "es": "en pausa",
+    "fr": "en pause",
+    "de": "pausiert",
+    "pt": "pausado"
+  },
+  "cron_edit": {
+    "it": "Modifica",
+    "en": "Edit",
+    "es": "Editar",
+    "fr": "Modifier",
+    "de": "Bearbeiten",
+    "pt": "Editar"
+  },
+  "cron_delete": {
+    "it": "Elimina",
+    "en": "Delete",
+    "es": "Eliminar",
+    "fr": "Supprimer",
+    "de": "Löschen",
+    "pt": "Excluir"
+  },
+  "confirm_delete_cron": {
+    "it": "Eliminare il cron \"{command}\"?",
+    "en": "Delete the cron job \"{command}\"?",
+    "es": "¿Eliminar la tarea cron \"{command}\"?",
+    "fr": "Supprimer la tâche cron \"{command}\" ?",
+    "de": "Cron-Job \"{command}\" löschen?",
+    "pt": "Excluir a tarefa cron \"{command}\"?"
+  },
+  "cron_invalid": {
+    "it": "Espressione cron non valida",
+    "en": "Invalid cron expression",
+    "es": "Expresión cron no válida",
+    "fr": "Expression cron non valide",
+    "de": "Ungültiger Cron-Ausdruck",
+    "pt": "Expressão cron inválida"
+  },
+  "cron_command_required": {
+    "it": "Inserisci il comando da eseguire",
+    "en": "Enter the command to run",
+    "es": "Introduce el comando a ejecutar",
+    "fr": "Saisissez la commande à exécuter",
+    "de": "Auszuführenden Befehl eingeben",
+    "pt": "Insira o comando a executar"
+  },
+  "cron_error": {
+    "it": "Errore crontab: {error}",
+    "en": "Crontab error: {error}",
+    "es": "Error de crontab: {error}",
+    "fr": "Erreur crontab : {error}",
+    "de": "Crontab-Fehler: {error}",
+    "pt": "Erro de crontab: {error}"
+  },
+  "cron_open_script": {
+    "it": "Apri lo script {path}",
+    "en": "Open script {path}",
+    "es": "Abrir el script {path}",
+    "fr": "Ouvrir le script {path}",
+    "de": "Skript {path} öffnen",
+    "pt": "Abrir o script {path}"
+  },
+  "cron_command_placeholder": {
+    "it": "Comando o script da eseguire…",
+    "en": "Command or script to run…",
+    "es": "Comando o script a ejecutar…",
+    "fr": "Commande ou script à exécuter…",
+    "de": "Auszuführender Befehl oder Skript…",
+    "pt": "Comando ou script a executar…"
+  },
+  "cron_custom_placeholder": {
+    "it": "*/5 8-18 * * 1-5 (min ora giorno mese giorno-settimana)",
+    "en": "*/5 8-18 * * 1-5 (min hour day month weekday)",
+    "es": "*/5 8-18 * * 1-5 (min hora día mes día-semana)",
+    "fr": "*/5 8-18 * * 1-5 (min heure jour mois jour-semaine)",
+    "de": "*/5 8-18 * * 1-5 (Min Stunde Tag Monat Wochentag)",
+    "pt": "*/5 8-18 * * 1-5 (min hora dia mês dia-semana)"
+  },
+  "cron_freq_label": {
+    "it": "Frequenza",
+    "en": "Frequency",
+    "es": "Frecuencia",
+    "fr": "Fréquence",
+    "de": "Häufigkeit",
+    "pt": "Frequência"
+  },
+  "cron_freq_minutes": {
+    "it": "Ogni X minuti",
+    "en": "Every X minutes",
+    "es": "Cada X minutos",
+    "fr": "Toutes les X minutes",
+    "de": "Alle X Minuten",
+    "pt": "A cada X minutos"
+  },
+  "cron_freq_hourly": {
+    "it": "Ogni ora",
+    "en": "Every hour",
+    "es": "Cada hora",
+    "fr": "Toutes les heures",
+    "de": "Jede Stunde",
+    "pt": "A cada hora"
+  },
+  "cron_freq_daily": {
+    "it": "Ogni giorno",
+    "en": "Every day",
+    "es": "Cada día",
+    "fr": "Chaque jour",
+    "de": "Jeden Tag",
+    "pt": "Todos os dias"
+  },
+  "cron_freq_weekly": {
+    "it": "Ogni settimana",
+    "en": "Every week",
+    "es": "Cada semana",
+    "fr": "Chaque semaine",
+    "de": "Jede Woche",
+    "pt": "Toda semana"
+  },
+  "cron_freq_monthly": {
+    "it": "Ogni mese",
+    "en": "Every month",
+    "es": "Cada mes",
+    "fr": "Chaque mois",
+    "de": "Jeden Monat",
+    "pt": "Todo mês"
+  },
+  "cron_freq_custom": {
+    "it": "Personalizzata (cron)",
+    "en": "Custom (cron)",
+    "es": "Personalizada (cron)",
+    "fr": "Personnalisée (cron)",
+    "de": "Benutzerdefiniert (cron)",
+    "pt": "Personalizada (cron)"
+  },
+  "cron_every_label": {
+    "it": "ogni",
+    "en": "every",
+    "es": "cada",
+    "fr": "toutes les",
+    "de": "alle",
+    "pt": "a cada"
+  },
+  "cron_minutes_suffix": {
+    "it": "minuti",
+    "en": "minutes",
+    "es": "minutos",
+    "fr": "minutes",
+    "de": "Minuten",
+    "pt": "minutos"
+  },
+  "cron_at_minute": {
+    "it": "al minuto",
+    "en": "at minute",
+    "es": "en el minuto",
+    "fr": "à la minute",
+    "de": "zur Minute",
+    "pt": "no minuto"
+  },
+  "cron_at_time": {
+    "it": "alle",
+    "en": "at",
+    "es": "a las",
+    "fr": "à",
+    "de": "um",
+    "pt": "às"
+  },
+  "cron_on_day": {
+    "it": "il giorno",
+    "en": "on day",
+    "es": "el día",
+    "fr": "le jour",
+    "de": "am Tag",
+    "pt": "no dia"
+  },
+  "cron_at_reboot": {
+    "it": "All'avvio del sistema",
+    "en": "At system startup",
+    "es": "Al iniciar el sistema",
+    "fr": "Au démarrage du système",
+    "de": "Beim Systemstart",
+    "pt": "Na inicialização do sistema"
+  },
+  "cron_every_minute": {
+    "it": "Ogni minuto",
+    "en": "Every minute",
+    "es": "Cada minuto",
+    "fr": "Chaque minute",
+    "de": "Jede Minute",
+    "pt": "A cada minuto"
+  },
+  "cron_every_n_minutes": {
+    "it": "Ogni {n} minuti",
+    "en": "Every {n} minutes",
+    "es": "Cada {n} minutos",
+    "fr": "Toutes les {n} minutes",
+    "de": "Alle {n} Minuten",
+    "pt": "A cada {n} minutos"
+  },
+  "cron_every_hour": {
+    "it": "Ogni ora",
+    "en": "Every hour",
+    "es": "Cada hora",
+    "fr": "Toutes les heures",
+    "de": "Jede Stunde",
+    "pt": "A cada hora"
+  },
+  "cron_every_hour_at": {
+    "it": "Ogni ora al minuto {m}",
+    "en": "Every hour at minute {m}",
+    "es": "Cada hora en el minuto {m}",
+    "fr": "Toutes les heures à la minute {m}",
+    "de": "Jede Stunde zur Minute {m}",
+    "pt": "A cada hora no minuto {m}"
+  },
+  "cron_every_n_hours": {
+    "it": "Ogni {n} ore al minuto {m}",
+    "en": "Every {n} hours at minute {m}",
+    "es": "Cada {n} horas en el minuto {m}",
+    "fr": "Toutes les {n} heures à la minute {m}",
+    "de": "Alle {n} Stunden zur Minute {m}",
+    "pt": "A cada {n} horas no minuto {m}"
+  },
+  "cron_every_day": {
+    "it": "Ogni giorno a mezzanotte",
+    "en": "Every day at midnight",
+    "es": "Cada día a medianoche",
+    "fr": "Chaque jour à minuit",
+    "de": "Jeden Tag um Mitternacht",
+    "pt": "Todos os dias à meia-noite"
+  },
+  "cron_every_day_at": {
+    "it": "Ogni giorno alle {time}",
+    "en": "Every day at {time}",
+    "es": "Cada día a las {time}",
+    "fr": "Chaque jour à {time}",
+    "de": "Jeden Tag um {time}",
+    "pt": "Todos os dias às {time}"
+  },
+  "cron_every_week": {
+    "it": "Ogni settimana (domenica a mezzanotte)",
+    "en": "Every week (Sunday at midnight)",
+    "es": "Cada semana (domingo a medianoche)",
+    "fr": "Chaque semaine (dimanche à minuit)",
+    "de": "Jede Woche (Sonntag um Mitternacht)",
+    "pt": "Toda semana (domingo à meia-noite)"
+  },
+  "cron_every_week_at": {
+    "it": "Ogni {day} alle {time}",
+    "en": "Every {day} at {time}",
+    "es": "Cada {day} a las {time}",
+    "fr": "Chaque {day} à {time}",
+    "de": "Jeden {day} um {time}",
+    "pt": "Toda {day} às {time}"
+  },
+  "cron_every_month": {
+    "it": "Ogni mese (giorno 1 a mezzanotte)",
+    "en": "Every month (day 1 at midnight)",
+    "es": "Cada mes (día 1 a medianoche)",
+    "fr": "Chaque mois (jour 1 à minuit)",
+    "de": "Jeden Monat (Tag 1 um Mitternacht)",
+    "pt": "Todo mês (dia 1 à meia-noite)"
+  },
+  "cron_every_month_at": {
+    "it": "Il giorno {d} di ogni mese alle {time}",
+    "en": "On day {d} of every month at {time}",
+    "es": "El día {d} de cada mes a las {time}",
+    "fr": "Le jour {d} de chaque mois à {time}",
+    "de": "Am Tag {d} jedes Monats um {time}",
+    "pt": "No dia {d} de cada mês às {time}"
+  },
+  "cron_every_year": {
+    "it": "Ogni anno (1 gennaio a mezzanotte)",
+    "en": "Every year (January 1 at midnight)",
+    "es": "Cada año (1 de enero a medianoche)",
+    "fr": "Chaque année (1er janvier à minuit)",
+    "de": "Jedes Jahr (1. Januar um Mitternacht)",
+    "pt": "Todo ano (1º de janeiro à meia-noite)"
+  },
+  "cron_between_hours": {
+    "it": "dalle {from} alle {to}",
+    "en": "from {from} to {to}",
+    "es": "de {from} a {to}",
+    "fr": "de {from} à {to} h",
+    "de": "von {from} bis {to} Uhr",
+    "pt": "das {from} às {to}"
+  },
+  "cron_on_days_range": {
+    "it": "dal {from} al {to}",
+    "en": "from {from} to {to}",
+    "es": "de {from} a {to}",
+    "fr": "du {from} au {to}",
+    "de": "von {from} bis {to}",
+    "pt": "de {from} a {to}"
+  },
+  "cron_day_0": {
+    "it": "domenica",
+    "en": "Sunday",
+    "es": "domingo",
+    "fr": "dimanche",
+    "de": "Sonntag",
+    "pt": "domingo"
+  },
+  "cron_day_1": {
+    "it": "lunedì",
+    "en": "Monday",
+    "es": "lunes",
+    "fr": "lundi",
+    "de": "Montag",
+    "pt": "segunda-feira"
+  },
+  "cron_day_2": {
+    "it": "martedì",
+    "en": "Tuesday",
+    "es": "martes",
+    "fr": "mardi",
+    "de": "Dienstag",
+    "pt": "terça-feira"
+  },
+  "cron_day_3": {
+    "it": "mercoledì",
+    "en": "Wednesday",
+    "es": "miércoles",
+    "fr": "mercredi",
+    "de": "Mittwoch",
+    "pt": "quarta-feira"
+  },
+  "cron_day_4": {
+    "it": "giovedì",
+    "en": "Thursday",
+    "es": "jueves",
+    "fr": "jeudi",
+    "de": "Donnerstag",
+    "pt": "quinta-feira"
+  },
+  "cron_day_5": {
+    "it": "venerdì",
+    "en": "Friday",
+    "es": "viernes",
+    "fr": "vendredi",
+    "de": "Freitag",
+    "pt": "sexta-feira"
+  },
+  "cron_day_6": {
+    "it": "sabato",
+    "en": "Saturday",
+    "es": "sábado",
+    "fr": "samedi",
+    "de": "Samstag",
+    "pt": "sábado"
   }
 }

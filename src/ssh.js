@@ -687,6 +687,32 @@ class SshManager {
     return true;
   }
 
+  // ---- Crontab (root, via sudo) -----------------------------------------------
+
+  /**
+   * Legge il crontab di root (sudo crontab -l). Un crontab inesistente
+   * ("no crontab for root") non è un errore: ritorna testo vuoto.
+   */
+  async cronRead(id) {
+    try {
+      return await this.sudoExec(id, 'crontab -l');
+    } catch (e) {
+      if (/no crontab/i.test(e.message || '')) return '';
+      throw e;
+    }
+  }
+
+  /**
+   * Sovrascrive il crontab di root con il contenuto indicato. Il testo passa
+   * in base64 per evitare qualunque problema di quoting (apici, $, backslash…).
+   */
+  async cronWrite(id, content) {
+    let text = String(content || '');
+    if (text && !text.endsWith('\n')) text += '\n'; // cron richiede il newline finale
+    const b64 = Buffer.from(text, 'utf8').toString('base64');
+    return this.sudoExec(id, `echo ${b64} | base64 -d | crontab -`);
+  }
+
   /**
    * Legge il contenuto testuale di un file remoto (con privilegi sudo, così da
    * poter aprire anche file protetti come quelli di root). Usa base64 per il

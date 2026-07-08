@@ -453,3 +453,20 @@ html, body {
 .settings-row select:focus { border-color: var(--accent); }
 .settings-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .settings-card + .settings-card { margin-top: 16px; }
+
+/* ---------- Crontab ---------- */
+.cron-link { color: var(--accent); text-decoration: underline; cursor: pointer; }
+.cron-link:hover { filter: brightness(1.2); }
+.cron-form-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.cron-form-row + .cron-form-row { margin-top: 8px; }
+.cron-form-row > i { color: var(--accent); }
+.cron-form-label { font-size: 12px; color: var(--muted); min-width: 72px; }
+.cron-form-hint { font-size: 12px; color: var(--muted); }
+.cron-form-params { display: flex; align-items: center; gap: 8px; flex: 1; flex-wrap: wrap; }
+.cron-select, .cron-num, .cron-time {
+  padding: 6px 8px; border-radius: 6px; border: 1px solid var(--border);
+  background: var(--bg2); color: var(--text); font-size: 13px; outline: none;
+}
+.cron-select { cursor: pointer; }
+.cron-select:focus, .cron-num:focus, .cron-time:focus { border-color: var(--accent); }
+.cron-raw { flex: 1; }

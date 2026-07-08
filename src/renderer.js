@@ -561,6 +561,10 @@ function buildPane(tab) {
   screensBtn.title = i18n.t('screen_sessions_button_title');
   screensBtn.innerHTML = '<i class="fa-brands fa-buffer"></i>';
   screensBtn.addEventListener('click', () => showScreens(tab));
+  const cronBtn = el('button', 'btn-ll');
+  cronBtn.title = i18n.t('cron_button_title');
+  cronBtn.innerHTML = '<i class="fa-solid fa-clock"></i>';
+  cronBtn.addEventListener('click', () => showCrontab(tab));
   const srv = el('span', 'srv-name');
   srv.textContent = tab.server.nickname || tab.server.name;
   const cwd = el('span', 'cwd');
@@ -577,6 +581,7 @@ function buildPane(tab) {
   toolbar.appendChild(imagesBtn);
   toolbar.appendChild(dbBtn);
   toolbar.appendChild(screensBtn);
+  toolbar.appendChild(cronBtn);
   toolbar.appendChild(srv);
   toolbar.appendChild(cwd);
   toolbar.appendChild(splitBtn);
@@ -1920,6 +1925,524 @@ async function killScreen(tab, s, btn) {
     toast(i18n.t('screen_delete_error', { error: e.message }), true);
     if (btn) { btn.disabled = false; btn.innerHTML = orig; }
   }
+}
+
+// ============================================================================
+// CRONTAB (root, via sudo)
+// ============================================================================
+
+// riga cron: schedule (@keyword oppure 5 campi) + comando
+const CRON_LINE_RE = /^(@\w+|(?:\S+\s+){4}\S+)\s+(.+)$/;
+
+/** True se la stringa ha la forma di una pianificazione cron valida. */
+function looksLikeCronSchedule(s) {
+  const t = String(s).trim();
+  if (/^@(reboot|yearly|annually|monthly|weekly|daily|midnight|hourly)$/i.test(t)) return true;
+  const fields = t.split(/\s+/);
+  if (fields.length !== 5) return false;
+  return fields.every((f) => /^[\dA-Za-z*\/,-]+$/.test(f)) && fields.some((f) => /[\d*]/.test(f));
+}
+
+/**
+ * Analizza il testo del crontab. Ritorna { lines, jobs }: `lines` sono le righe
+ * grezze (per riscrivere il file preservando commenti e variabili), `jobs` le
+ * voci riconosciute come job cron — attive, oppure commentate = "in pausa".
+ */
+// righe d'esempio dei crontab di default delle distro: da non mostrare mai
+const CRON_EXAMPLE_MARKER = '/var/backups/home.tgz';
+
+function parseCrontab(text) {
+  const lines = String(text || '').replace(/\r/g, '').split('\n');
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  const jobs = [];
+  lines.forEach((raw, idx) => {
+    const line = raw.trim();
+    if (!line) return;
+    if (line.includes(CRON_EXAMPLE_MARKER)) return;
+    if (line.startsWith('#')) {
+      const inner = line.replace(/^#+\s*/, '');
+      const m = inner.match(CRON_LINE_RE);
+      if (m && looksLikeCronSchedule(m[1])) {
+        jobs.push({ idx, schedule: m[1].trim(), command: m[2].trim(), paused: true });
+      }
+      return;
+    }
+    if (/^\w+\s*=/.test(line)) return; // variabile d'ambiente (PATH=, MAILTO=…)
+    const m = line.match(CRON_LINE_RE);
+    if (m && looksLikeCronSchedule(m[1])) {
+      jobs.push({ idx, schedule: m[1].trim(), command: m[2].trim(), paused: false });
+    }
+  });
+  return { lines, jobs };
+}
+
+/** Nome (tradotto) del giorno della settimana cron: 0/7 = domenica. */
+function cronDayName(n) {
+  return i18n.t('cron_day_' + (Number(n) % 7));
+}
+
+/** Descrizione human-readable di una pianificazione cron (fallback: la stringa grezza). */
+function humanizeCron(schedule) {
+  const s = String(schedule).trim();
+  const kw = {
+    '@reboot': 'cron_at_reboot',
+    '@hourly': 'cron_every_hour',
+    '@daily': 'cron_every_day',
+    '@midnight': 'cron_every_day',
+    '@weekly': 'cron_every_week',
+    '@monthly': 'cron_every_month',
+    '@yearly': 'cron_every_year',
+    '@annually': 'cron_every_year',
+  };
+  if (kw[s.toLowerCase()]) return i18n.t(kw[s.toLowerCase()]);
+
+  const f = s.split(/\s+/);
+  if (f.length !== 5) return s;
+  const [min, hour, dom, mon, dow] = f;
+  const num = (x) => /^\d+$/.test(x);
+  const time = (h, m) => `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+  let m;
+
+  // i mesi ristretti non hanno una forma leggibile: si mostra l'espressione grezza
+  if (mon !== '*') return s;
+
+  // suffisso per il giorno della settimana: singolo, intervallo (1-5) o lista (1,3,5)
+  let dowSuffix = null;
+  if (dow === '*') dowSuffix = '';
+  else if (num(dow)) dowSuffix = ' (' + cronDayName(dow) + ')';
+  else if ((m = dow.match(/^(\d+)-(\d+)$/)))
+    dowSuffix = ' ' + i18n.t('cron_on_days_range', { from: cronDayName(m[1]), to: cronDayName(m[2]) });
+  else if (/^\d+(,\d+)+$/.test(dow))
+    dowSuffix = ' (' + dow.split(',').map(cronDayName).join(', ') + ')';
+  if (dowSuffix === null) return s;
+
+  // suffisso per la fascia oraria (es. 6-20)
+  const hourRange = hour.match(/^(\d+)-(\d+)$/);
+  const hourSuffix = hourRange
+    ? ' ' + i18n.t('cron_between_hours', { from: hourRange[1], to: hourRange[2] })
+    : '';
+
+  const numList = (x) => /^\d+(,\d+)+$/.test(x);
+
+  // pattern basati sul minuto, validi con ora piena o fascia oraria
+  if ((hour === '*' || hourRange) && dom === '*' && mon === '*') {
+    let base = null;
+    if (min === '*') base = i18n.t('cron_every_minute');
+    else if ((m = min.match(/^\*\/(\d+)$/))) base = i18n.t('cron_every_n_minutes', { n: m[1] });
+    else if (num(min)) base = i18n.t('cron_every_hour_at', { m: min });
+    else if (numList(min)) base = i18n.t('cron_every_hour_at', { m: min.split(',').join(', ') });
+    if (base) return base + hourSuffix + dowSuffix;
+  }
+
+  if (num(min) && (m = hour.match(/^\*\/(\d+)$/)) && dom === '*' && mon === '*')
+    return i18n.t('cron_every_n_hours', { n: m[1], m: min }) + dowSuffix;
+  // lista di ore (es. 4,13,20): un'esecuzione al giorno per ciascun orario
+  if (num(min) && numList(hour) && dom === '*' && mon === '*') {
+    const times = hour.split(',').map((h) => time(h, min)).join(', ');
+    return i18n.t('cron_every_day_at', { time: times }) + dowSuffix;
+  }
+  if (num(min) && num(hour) && dom === '*' && mon === '*') {
+    if (num(dow)) return i18n.t('cron_every_week_at', { day: cronDayName(dow), time: time(hour, min) });
+    if (dowSuffix) return i18n.t('cron_every_day_at', { time: time(hour, min) }) + dowSuffix;
+    return i18n.t('cron_every_day_at', { time: time(hour, min) });
+  }
+  if (num(min) && num(hour) && num(dom) && mon === '*' && dow === '*')
+    return i18n.t('cron_every_month_at', { d: dom, time: time(hour, min) });
+  return s;
+}
+
+async function showCrontab(tab) {
+  let text;
+  try {
+    toast(i18n.t('listing_loading'));
+    text = await window.api.cronRead(tab.id);
+  } catch (e) {
+    return toast(i18n.t('cron_error', { error: e.message }), true);
+  }
+  const { lines, jobs } = parseCrontab(text);
+
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  if (old) old.remove();
+
+  const overlay = el('div', 'll-overlay docker-overlay');
+  const grip = el('div', 'll-resize');
+  overlay.appendChild(grip);
+  setupOverlayResize(grip, overlay, tab);
+  if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+
+  const head = el('div', 'll-head');
+  const info = el('span');
+  info.innerHTML = i18n.t('cron_title', { count: jobs.length });
+  const actions = el('span', 'll-head-actions');
+  const addBtn = el('button');
+  addBtn.innerHTML = '<i class="fa-solid fa-plus"></i>';
+  addBtn.title = i18n.t('cron_add_button');
+  addBtn.addEventListener('click', () => {
+    const existing = overlay.querySelector('.cron-form');
+    if (existing) { existing.remove(); return; }
+    const form = makeCronForm(tab, lines, null);
+    overlay.insertBefore(form, head.nextElementSibling);
+  });
+  const refreshBtn = el('button');
+  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
+  refreshBtn.title = i18n.t('refresh');
+  refreshBtn.addEventListener('click', () => showCrontab(tab));
+  const closeBtn = el('button');
+  closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+  closeBtn.title = 'Chiudi';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  actions.appendChild(addBtn);
+  actions.appendChild(refreshBtn);
+  actions.appendChild(closeBtn);
+  head.appendChild(info);
+  head.appendChild(actions);
+  overlay.appendChild(head);
+
+  if (!jobs.length) {
+    const empty = el('div', 'docker-empty');
+    empty.textContent = i18n.t('cron_no_jobs');
+    overlay.appendChild(empty);
+  } else {
+    jobs.forEach((job) => overlay.appendChild(makeCronRow(tab, job, lines)));
+  }
+
+  tab.hostEl.appendChild(overlay);
+}
+
+function makeCronRow(tab, job, lines) {
+  const row = el('div', 'docker-row' + (job.paused ? ' stopped' : ''));
+
+  const dot = el('span', 'docker-dot' + (job.paused ? '' : ' on'));
+  dot.title = job.paused ? i18n.t('cron_paused_label') : humanizeCron(job.schedule);
+  row.appendChild(dot);
+
+  const meta = el('div', 'docker-meta');
+  const name = el('span', 'docker-name');
+  const ico = el('i', 'fa-solid fa-clock');
+  name.appendChild(ico);
+  name.appendChild(document.createTextNode(' '));
+  appendCronCommand(tab, name, job.command);
+  name.title = job.command;
+  const sub = el('span', 'docker-img');
+  const human = humanizeCron(job.schedule);
+  sub.textContent = [
+    human !== job.schedule ? human : null,
+    job.schedule,
+    job.paused ? i18n.t('cron_paused_label') : null,
+  ].filter(Boolean).join(' · ');
+  sub.title = sub.textContent;
+  meta.appendChild(name);
+  meta.appendChild(sub);
+
+  const btns = el('div', 'docker-actions');
+
+  const pauseBtn = el('button', 'docker-btn ' + (job.paused ? 'd-up' : 'd-stop'));
+  pauseBtn.innerHTML = job.paused
+    ? `<i class="fa-solid fa-play"></i><span class="lbl">${i18n.t('cron_resume')}</span>`
+    : `<i class="fa-solid fa-pause"></i><span class="lbl">${i18n.t('cron_pause')}</span>`;
+  pauseBtn.title = job.paused ? i18n.t('cron_resume') : i18n.t('cron_pause');
+  pauseBtn.addEventListener('click', () => toggleCronPause(tab, job, lines, pauseBtn));
+  btns.appendChild(pauseBtn);
+
+  const editBtn = el('button', 'docker-btn d-restart');
+  editBtn.innerHTML = `<i class="fa-solid fa-pen"></i><span class="lbl">${i18n.t('cron_edit')}</span>`;
+  editBtn.title = i18n.t('cron_edit');
+  editBtn.addEventListener('click', () => {
+    const next = row.nextElementSibling;
+    if (next && next.classList.contains('cron-form')) { next.remove(); return; }
+    const form = makeCronForm(tab, lines, job);
+    row.parentNode.insertBefore(form, row.nextElementSibling);
+  });
+  btns.appendChild(editBtn);
+
+  const delBtn = el('button', 'docker-btn d-down');
+  delBtn.innerHTML = `<i class="fa-solid fa-trash"></i><span class="lbl">${i18n.t('cron_delete')}</span>`;
+  delBtn.title = i18n.t('cron_delete');
+  delBtn.addEventListener('click', () => deleteCron(tab, job, lines, delBtn));
+  btns.appendChild(delBtn);
+
+  row.appendChild(meta);
+  row.appendChild(btns);
+  return row;
+}
+
+// percorsi assoluti che sembrano script: cliccabili, aprono l'editor embeddato
+const CRON_SCRIPT_RE = /\/(?:[^\s;|&<>'"]+\/)*[^\s;|&<>'"]+\.(?:sh|bash|py|pl|rb|php|js|mjs|cjs)\b/g;
+
+/** Rende il comando nel container, con gli script come link cliccabili. */
+function appendCronCommand(tab, container, command) {
+  let last = 0;
+  for (const m of command.matchAll(CRON_SCRIPT_RE)) {
+    if (m.index > last) container.appendChild(document.createTextNode(command.slice(last, m.index)));
+    const path = m[0];
+    const link = el('span', 'cron-link');
+    link.textContent = path;
+    link.title = i18n.t('cron_open_script', { path: path });
+    link.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const name = path.split('/').pop();
+      openEmbeddedEditor(tab, { name }, path);
+    });
+    container.appendChild(link);
+    last = m.index + path.length;
+  }
+  if (last < command.length) container.appendChild(document.createTextNode(command.slice(last)));
+}
+
+/** Riscrive l'intero crontab a partire dalle righe e ricarica la lista. */
+async function saveCrontabLines(tab, lines) {
+  await window.api.cronWrite(tab.id, lines.join('\n'));
+  toast(i18n.t('cron_saved'));
+  showCrontab(tab);
+}
+
+/** Mette in pausa (commenta) o riattiva (scommenta) un job. */
+async function toggleCronPause(tab, job, lines, btn) {
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+  try {
+    lines[job.idx] = job.paused
+      ? `${job.schedule} ${job.command}`
+      : `# ${job.schedule} ${job.command}`;
+    await saveCrontabLines(tab, lines);
+  } catch (e) {
+    toast(i18n.t('cron_error', { error: e.message }), true);
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+async function deleteCron(tab, job, lines, btn) {
+  if (!confirm(i18n.t('confirm_delete_cron', { command: job.command }))) return;
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>';
+  try {
+    lines.splice(job.idx, 1);
+    await saveCrontabLines(tab, lines);
+  } catch (e) {
+    toast(i18n.t('cron_error', { error: e.message }), true);
+    btn.disabled = false;
+    btn.innerHTML = orig;
+  }
+}
+
+/**
+ * Prova a ricondurre una pianificazione cron a uno dei preset del form.
+ * Ritorna { freq, ...valori } oppure { freq: 'custom', raw } se non riconosciuta.
+ */
+function cronToPreset(schedule) {
+  const f = String(schedule).trim().split(/\s+/);
+  if (f.length !== 5) return { freq: 'custom', raw: schedule };
+  const [min, hour, dom, mon, dow] = f;
+  const num = (x) => /^\d+$/.test(x);
+  let m;
+  if ((m = min.match(/^\*\/(\d+)$/)) && hour === '*' && dom === '*' && mon === '*' && dow === '*')
+    return { freq: 'minutes', n: +m[1] };
+  if (num(min) && hour === '*' && dom === '*' && mon === '*' && dow === '*')
+    return { freq: 'hourly', min: +min };
+  if (num(min) && num(hour) && dom === '*' && mon === '*' && dow === '*')
+    return { freq: 'daily', min: +min, hour: +hour };
+  if (num(min) && num(hour) && dom === '*' && mon === '*' && num(dow))
+    return { freq: 'weekly', min: +min, hour: +hour, dow: +dow % 7 };
+  if (num(min) && num(hour) && num(dom) && mon === '*' && dow === '*')
+    return { freq: 'monthly', min: +min, hour: +hour, dom: +dom };
+  return { freq: 'custom', raw: schedule };
+}
+
+/**
+ * Form inline (stile Manual Pull) per creare o modificare un job cron.
+ * `job` = null per una nuova voce. Frequenze human-readable + modalità custom.
+ */
+function makeCronForm(tab, lines, job) {
+  const box = el('div', 'docker-mp cron-form');
+
+  // --- riga frequenza ---
+  const freqRow = el('div', 'cron-form-row');
+  const freqLbl = el('span', 'cron-form-label');
+  freqLbl.textContent = i18n.t('cron_freq_label');
+  const freqSel = document.createElement('select');
+  freqSel.className = 'cron-select';
+  [
+    ['minutes', i18n.t('cron_freq_minutes')],
+    ['hourly', i18n.t('cron_freq_hourly')],
+    ['daily', i18n.t('cron_freq_daily')],
+    ['weekly', i18n.t('cron_freq_weekly')],
+    ['monthly', i18n.t('cron_freq_monthly')],
+    ['custom', i18n.t('cron_freq_custom')],
+  ].forEach(([v, label]) => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = label;
+    freqSel.appendChild(o);
+  });
+  const params = el('span', 'cron-form-params');
+  freqRow.appendChild(freqLbl);
+  freqRow.appendChild(freqSel);
+  freqRow.appendChild(params);
+  box.appendChild(freqRow);
+
+  // --- riga comando ---
+  const cmdRow = el('div', 'cron-form-row');
+  const cmdIcon = el('i', 'fa-solid fa-terminal');
+  const cmdInput = document.createElement('input');
+  cmdInput.type = 'text';
+  cmdInput.className = 'docker-mp-input';
+  cmdInput.placeholder = i18n.t('cron_command_placeholder');
+  const saveBtn = el('button', 'docker-btn d-up');
+  saveBtn.innerHTML = `<i class="fa-solid fa-floppy-disk"></i> ${i18n.t('cron_save')}`;
+  cmdRow.appendChild(cmdIcon);
+  cmdRow.appendChild(cmdInput);
+  cmdRow.appendChild(saveBtn);
+  box.appendChild(cmdRow);
+
+  const status = el('div', 'docker-mp-status');
+  box.appendChild(status);
+
+  // input dinamici per i parametri della frequenza scelta
+  const mkNum = (value, min, max, width) => {
+    const inp = document.createElement('input');
+    inp.type = 'number';
+    inp.className = 'cron-num';
+    inp.min = min; inp.max = max; inp.value = value;
+    if (width) inp.style.width = width;
+    return inp;
+  };
+  const mkTime = (h, m) => {
+    const inp = document.createElement('input');
+    inp.type = 'time';
+    inp.className = 'cron-time';
+    inp.value = `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
+    return inp;
+  };
+  const mkText = (value, placeholder) => {
+    const inp = document.createElement('input');
+    inp.type = 'text';
+    inp.className = 'docker-mp-input cron-raw';
+    inp.value = value || '';
+    inp.placeholder = placeholder;
+    return inp;
+  };
+  const mkLabel = (key) => {
+    const s = el('span', 'cron-form-hint');
+    s.textContent = i18n.t(key);
+    return s;
+  };
+
+  const preset = job ? cronToPreset(job.schedule) : { freq: 'daily', hour: 0, min: 0 };
+  const fields = {};
+
+  const renderParams = (freq) => {
+    params.innerHTML = '';
+    if (freq === 'minutes') {
+      fields.n = mkNum(preset.n || 5, 1, 59, '64px');
+      params.appendChild(mkLabel('cron_every_label'));
+      params.appendChild(fields.n);
+      params.appendChild(mkLabel('cron_minutes_suffix'));
+    } else if (freq === 'hourly') {
+      fields.min = mkNum(preset.min || 0, 0, 59, '64px');
+      params.appendChild(mkLabel('cron_at_minute'));
+      params.appendChild(fields.min);
+    } else if (freq === 'daily') {
+      fields.time = mkTime(preset.hour ?? 0, preset.min ?? 0);
+      params.appendChild(mkLabel('cron_at_time'));
+      params.appendChild(fields.time);
+    } else if (freq === 'weekly') {
+      fields.dow = document.createElement('select');
+      fields.dow.className = 'cron-select';
+      for (let d = 0; d < 7; d++) {
+        const o = document.createElement('option');
+        o.value = d;
+        o.textContent = cronDayName(d);
+        fields.dow.appendChild(o);
+      }
+      fields.dow.value = preset.dow ?? 1;
+      fields.time = mkTime(preset.hour ?? 0, preset.min ?? 0);
+      params.appendChild(fields.dow);
+      params.appendChild(mkLabel('cron_at_time'));
+      params.appendChild(fields.time);
+    } else if (freq === 'monthly') {
+      fields.dom = mkNum(preset.dom || 1, 1, 31, '64px');
+      fields.time = mkTime(preset.hour ?? 0, preset.min ?? 0);
+      params.appendChild(mkLabel('cron_on_day'));
+      params.appendChild(fields.dom);
+      params.appendChild(mkLabel('cron_at_time'));
+      params.appendChild(fields.time);
+    } else { // custom
+      fields.raw = mkText(preset.raw || (job && job.schedule) || '', i18n.t('cron_custom_placeholder'));
+      params.appendChild(fields.raw);
+    }
+  };
+
+  freqSel.value = preset.freq;
+  renderParams(preset.freq);
+  freqSel.addEventListener('change', () => renderParams(freqSel.value));
+  if (job) cmdInput.value = job.command;
+
+  const buildSchedule = () => {
+    const freq = freqSel.value;
+    const t = () => {
+      const [h, m] = (fields.time.value || '00:00').split(':');
+      return { h: +h, m: +m };
+    };
+    if (freq === 'minutes') {
+      const n = Math.max(1, Math.min(59, parseInt(fields.n.value, 10) || 0));
+      return n ? `*/${n} * * * *` : null;
+    }
+    if (freq === 'hourly') {
+      const m = parseInt(fields.min.value, 10);
+      return m >= 0 && m <= 59 ? `${m} * * * *` : null;
+    }
+    if (freq === 'daily') { const { h, m } = t(); return `${m} ${h} * * *`; }
+    if (freq === 'weekly') { const { h, m } = t(); return `${m} ${h} * * ${fields.dow.value}`; }
+    if (freq === 'monthly') {
+      const d = parseInt(fields.dom.value, 10);
+      if (!(d >= 1 && d <= 31)) return null;
+      const { h, m } = t();
+      return `${m} ${h} ${d} * *`;
+    }
+    const raw = fields.raw.value.trim();
+    return looksLikeCronSchedule(raw) ? raw : null;
+  };
+
+  const save = async () => {
+    const schedule = buildSchedule();
+    if (!schedule) {
+      status.textContent = i18n.t('cron_invalid');
+      status.classList.add('err');
+      return;
+    }
+    const command = cmdInput.value.trim();
+    if (!command) {
+      status.textContent = i18n.t('cron_command_required');
+      status.classList.add('err');
+      return;
+    }
+    status.classList.remove('err');
+    saveBtn.disabled = true;
+    try {
+      const entry = (job && job.paused ? '# ' : '') + `${schedule} ${command}`;
+      if (job) lines[job.idx] = entry;
+      else lines.push(entry);
+      await saveCrontabLines(tab, lines);
+    } catch (e) {
+      saveBtn.disabled = false;
+      status.textContent = i18n.t('cron_error', { error: e.message });
+      status.classList.add('err');
+      if (job) lines[job.idx] = (job.paused ? '# ' : '') + `${job.schedule} ${job.command}`;
+      else lines.pop();
+    }
+  };
+  saveBtn.addEventListener('click', save);
+  cmdInput.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter') { e.preventDefault(); save(); }
+    else if (e.key === 'Escape') { e.preventDefault(); box.remove(); }
+  });
+
+  setTimeout(() => cmdInput.focus(), 0);
+  return box;
 }
 
 // --- Manual Pull ------------------------------------------------------------

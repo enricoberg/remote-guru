@@ -57,6 +57,10 @@ contextBridge.exposeInMainWorld('api', {
   screenDetach: (id, target) => ipcRenderer.invoke('screen:detach', { id, target }),
   screenClearStatus: (id, target) => ipcRenderer.invoke('screen:clearStatus', { id, target }),
 
+  // crontab
+  cronRead: (id) => ipcRenderer.invoke('cron:read', id),
+  cronWrite: (id, content) => ipcRenderer.invoke('cron:write', { id, content }),
+
   // eventi dal main
   onData: (cb) => ipcRenderer.on('ssh:data', (_e, p) => cb(p)),
   onCwd: (cb) => ipcRenderer.on('ssh:cwd', (_e, p) => cb(p)),
