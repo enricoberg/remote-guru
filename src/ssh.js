@@ -408,7 +408,8 @@ class SshManager {
 
     // 1. pull locale solo se l'immagine non è già presente sull'host
     onProgress({ phase: 'check', pct: null, text: 'Verifica immagine sull\'host…' });
-    if (!(await this._localImageExists(image))) {
+    const pulledNow = !(await this._localImageExists(image));
+    if (pulledNow) {
       onProgress({ phase: 'pull', pct: null, text: 'docker pull sull\'host…' });
       await this._localPull(image, onProgress);
     }
@@ -429,8 +430,24 @@ class SshManager {
     onProgress({ phase: 'transfer', pct: 0, text: 'Trasferimento immagine sul remoto…' });
     await this._streamSaveLoad(id, targetImage, size, onProgress);
 
+    // 3. pulizia locale: rimuoviamo il tag di destinazione (artefatto creato da
+    //    noi per il transfer) e, se l'abbiamo scaricata in questa operazione,
+    //    anche l'immagine sorgente. Un'immagine che l'utente aveva già viene
+    //    lasciata intatta. Errori qui non compromettono il trasferimento.
+    onProgress({ phase: 'cleanup', pct: null, text: 'Pulizia immagine locale…' });
+    await this._localRemoveImage(targetImage);
+    if (pulledNow && image !== targetImage) {
+      await this._localRemoveImage(image);
+    }
+
     onProgress({ phase: 'done', pct: 100, text: `Completato — ritaggata come ${targetImage}` });
     return { ok: true, image, targetImage };
+  }
+
+  /** Rimuove un'immagine locale (best-effort: eventuali errori sono ignorati). */
+  async _localRemoveImage(ref) {
+    try { await this._localDocker(['rmi', ref]); }
+    catch (_) { /* già assente o in uso: ignora */ }
   }
 
   // ---- Immagini --------------------------------------------------------------
