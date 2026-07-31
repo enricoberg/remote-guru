@@ -15,8 +15,10 @@ const serverLabel = (s) => s.nickname || s.name || s.host || '';
 /** @type {Map<string, Tab>} sessione SSH id -> tab */
 const tabs = new Map();
 let activeTabId = null;
-let splitTabId = null; // seconda scheda mostrata in split view
-let splitRatio = 0.5;
+// split view: elenco ordinato (sinistra→destra) delle schede affiancate.
+// Vuoto o con un solo elemento = vista singola (solo activeTab).
+let splitIds = [];
+let splitWeights = new Map(); // id -> peso flex (somma qualsiasi, conta il rapporto)
 
 let remoteClipboard = null; // { sessionId, path, isDir, name }
 
@@ -532,6 +534,10 @@ function buildPane(tab) {
   const pane = el('div', 'pane');
   pane.dataset.id = tab.id;
 
+  // in split view la linguetta della scheda vive qui, sopra il proprio pane
+  const tabSlot = el('div', 'pane-tabslot');
+  tab.tabSlotEl = tabSlot;
+
   const toolbar = el('div', 'pane-toolbar');
 
   // unico pulsante "Actions" con menu a tendina (si apre in hover)
@@ -599,19 +605,35 @@ function buildPane(tab) {
   const host = el('div', 'term-host');
   tab.hostEl = host;
 
-  // drop zone per split view (con evidenziazione)
+  // in split, cliccare su un pane lo rende quello "attivo" (focus tastiera)
+  pane.addEventListener('mousedown', () => {
+    if (tab.id !== activeTabId && splitOrder().includes(tab.id)) {
+      activeTabId = tab.id;
+      layout();
+    }
+  });
+
+  // drop zone per split view (con evidenziazione); vicino ai bordi della
+  // finestra ha la precedenza lo snap a metà schermo (vedi setupEdgeSnap)
   pane.addEventListener('dragover', (e) => {
     e.preventDefault();
-    pane.classList.add('drop-hint');
+    const edge = edgeSide(e);
+    showEdgeHint(edge);
+    pane.classList.toggle('drop-hint', !edge);
   });
   pane.addEventListener('dragleave', () => pane.classList.remove('drop-hint'));
   pane.addEventListener('drop', (e) => {
     e.preventDefault();
     pane.classList.remove('drop-hint');
+    const edge = edgeSide(e);
+    showEdgeHint(null);
     const dropped = e.dataTransfer.getData('text/tab');
-    if (dropped && dropped !== activeTabId) enableSplit(dropped);
+    if (!dropped) return;
+    if (edge) splitToSide(dropped, edge);
+    else enableSplit(dropped);
   });
 
+  pane.appendChild(tabSlot);
   pane.appendChild(toolbar);
   pane.appendChild(screenBar);
   pane.appendChild(host);
@@ -670,87 +692,209 @@ function renameTab(id) {
 }
 
 function setActive(id) {
+  // selezionare una scheda fuori dallo split chiude lo split e la mostra da sola
+  const order = splitOrder();
+  if (order.length && !order.includes(id)) {
+    splitIds = [];
+    splitWeights.clear();
+  }
   activeTabId = id;
   layout();
   const tab = tabs.get(id);
   if (tab) setTimeout(() => { tab.fit.fit(); tab.term.focus(); }, 30);
 }
 
-/** Dispone i pane: solo activeTab, oppure activeTab + splitTab affiancati e ridimensionabili. */
+/** Schede realmente affiancate: quelle ancora aperte presenti in splitIds (>= 2). */
+function splitOrder() {
+  const list = splitIds.filter((id) => tabs.has(id));
+  return list.length >= 2 ? list : [];
+}
+
+/** Peso flex di un pane nello split (1 se non ancora impostato). */
+function weightOf(id) {
+  const w = splitWeights.get(id);
+  return w > 0 ? w : 1;
+}
+
+/** Dispone i pane: solo activeTab, oppure tutte le schede in splitIds
+ *  affiancate in orizzontale e ridimensionabili tramite i divider. */
 function layout() {
   const panes = $('#panes');
-  // rimuovi eventuale divider
+  // rimuovi eventuali divider della disposizione precedente
   panes.querySelectorAll('.split-divider').forEach((d) => d.remove());
 
+  const order = splitOrder();
+  splitIds = order; // normalizza (scarta le schede chiuse)
+  const shown = order.length ? order : (activeTabId ? [activeTabId] : []);
+  // lo split deve includere la scheda attiva: altrimenti l'attiva diventa la prima mostrata
+  if (order.length && !order.includes(activeTabId)) activeTabId = order[0];
+
   tabs.forEach((tab) => {
-    const visible = tab.id === activeTabId || tab.id === splitTabId;
+    const visible = shown.includes(tab.id);
     tab.paneEl.classList.toggle('visible', visible);
     tab.paneEl.style.flex = '';
     tab.paneEl.style.order = '';
   });
 
-  // aggiorna stato schede
-  const splitting = splitTabId && tabs.has(splitTabId) && splitTabId !== activeTabId;
+  // aggiorna stato schede: tutte quelle affiancate risultano "attive".
+  // In split, la linguetta si sposta sopra il proprio pane (così ne segue
+  // larghezza e posizione anche durante il resize); le altre restano in barra.
+  const tabbar = $('#tabs');
   tabs.forEach((tab) => {
-    const isActive = tab.id === activeTabId || tab.id === splitTabId;
-    tab.tabEl.classList.toggle('active', isActive);
-    // indicatori split: quale scheda è a sinistra e quale a destra
-    tab.tabEl.classList.toggle('split-left', !!splitting && tab.id === activeTabId);
-    tab.tabEl.classList.toggle('split-right', !!splitting && tab.id === splitTabId);
+    const inSplit = order.includes(tab.id);
+    tab.tabEl.classList.toggle('active', shown.includes(tab.id));
+    tab.tabEl.classList.toggle('focused', tab.id === activeTabId && order.length > 1);
+    tab.tabEl.classList.toggle('docked', inSplit);
     tab.tabEl.querySelector('.dot').classList.toggle('dead', tab.dead);
+    const host = inSplit ? tab.tabSlotEl : tabbar;
+    if (tab.tabEl.parentElement !== host) host.appendChild(tab.tabEl);
+    else if (!inSplit) tabbar.appendChild(tab.tabEl); // mantiene l'ordine di apertura
   });
 
-  if (splitTabId && tabs.has(splitTabId) && splitTabId !== activeTabId) {
-    const left = tabs.get(activeTabId).paneEl;
-    const right = tabs.get(splitTabId).paneEl;
-    // ordine visivo esplicito (indipendente dall'ordine nel DOM): left | divider | right
-    left.style.flex = splitRatio;
-    left.style.order = '1';
-    right.style.flex = 1 - splitRatio;
-    right.style.order = '3';
-    const divider = el('div', 'split-divider');
-    divider.style.order = '2';
-    panes.appendChild(divider);
-    setupDividerDrag(divider);
-  } else {
-    splitTabId = splitTabId === activeTabId ? null : splitTabId;
-  }
+  // ordine visivo esplicito (indipendente dall'ordine nel DOM):
+  // pane | divider | pane | divider | pane …
+  order.forEach((id, i) => {
+    const pane = tabs.get(id).paneEl;
+    pane.style.flex = weightOf(id);
+    pane.style.order = String(i * 2 + 1);
+    if (i < order.length - 1) {
+      const divider = el('div', 'split-divider');
+      divider.style.order = String(i * 2 + 2);
+      panes.appendChild(divider);
+      setupDividerDrag(divider, id, order[i + 1]);
+    }
+  });
+
   setTimeout(fitAll, 30);
 }
 
-function enableSplit(secondId) {
-  if (secondId === activeTabId) return;
-  splitTabId = secondId;
+/** Imposta lo split sull'elenco di schede dato (in ordine sinistra→destra). */
+function setSplit(ids, { silent = false } = {}) {
+  const list = [...new Set(ids.filter((id) => tabs.has(id)))];
+  if (list.length < 2) {
+    splitIds = [];
+    splitWeights.clear();
+    layout();
+    if (!silent) toast(i18n.t('split_view_closed'));
+    return;
+  }
+  splitIds = list;
+  // conserva i pesi già impostati (utile nei riordini), 1 per le nuove sezioni
+  splitWeights = new Map(list.map((id) => [id, weightOf(id)]));
+  if (!list.includes(activeTabId)) activeTabId = list[0];
   layout();
-  toast(i18n.t('split_view_active'));
+  if (!silent) toast(i18n.t('split_view_active', { count: list.length }));
 }
 
-/** Attiva/disattiva lo split dal pulsante ⫿: se attivo lo chiude, altrimenti
- *  affianca la prima scheda diversa da quella attiva. */
+/** Aggiunge una scheda allo split esistente (o ne crea uno con l'attiva). */
+function enableSplit(secondId) {
+  if (!tabs.has(secondId)) return;
+  const order = splitOrder();
+  if (order.length) {
+    if (order.includes(secondId)) return;
+    setSplit([...order, secondId]);
+  } else {
+    if (secondId === activeTabId) return;
+    setSplit([activeTabId, secondId]);
+  }
+}
+
+/** Attiva/disattiva lo split dal pulsante ⫿: se attivo lo chiude,
+ *  altrimenti affianca in orizzontale tutte le schede aperte. */
 function toggleSplit(tabId) {
-  if (splitTabId) {
-    splitTabId = null;
-    layout();
-    toast(i18n.t('split_view_closed'));
+  if (splitOrder().length) {
+    setSplit([]);
     return;
   }
   if (tabId !== activeTabId) setActive(tabId);
-  const other = [...tabs.keys()].find((k) => k !== activeTabId);
-  if (!other) return toast(i18n.t('split_min_2_tabs'), true);
-  enableSplit(other);
+  if (tabs.size < 2) return toast(i18n.t('split_min_2_tabs'), true);
+  setSplit([...tabs.keys()]);
 }
 
-function setupDividerDrag(divider) {
+/** Assegna alla scheda la metà destra/sinistra dello schermo (drag verso il
+ *  bordo della finestra): le altre schede restano tutte visibili e si
+ *  spartiscono la metà opposta. */
+function splitToSide(id, side) {
+  if (!tabs.has(id)) return;
+  if (tabs.size < 2) return toast(i18n.t('split_min_2_tabs'), true);
+  // se non si è già in split, affianca tutte le schede aperte
+  const base = splitOrder().length ? splitOrder() : [...tabs.keys()];
+  const rest = base.filter((k) => k !== id);
+  if (!rest.length) return toast(i18n.t('split_min_2_tabs'), true);
+  setSplit(side === 'left' ? [id, ...rest] : [...rest, id], { silent: true });
+  // metà schermo alla scheda trascinata, l'altra metà divisa fra le rimanenti
+  splitWeights.set(id, 0.5);
+  rest.forEach((k) => splitWeights.set(k, 0.5 / rest.length));
+  layout();
+  setActive(id);
+  toast(i18n.t(side === 'left' ? 'split_view_left' : 'split_view_right'));
+}
+
+// ---------------------------------------------------------------------------
+// SNAP AI BORDI: trascinando una scheda verso il bordo destro/sinistro della
+// finestra, quella scheda viene mostrata nella metà corrispondente.
+// ---------------------------------------------------------------------------
+
+const EDGE_SNAP_PX = 90; // larghezza della zona sensibile ai bordi
+
+/** 'left' | 'right' | null in base alla vicinanza al bordo della finestra. */
+function edgeSide(e) {
+  const w = window.innerWidth;
+  if (e.clientX <= EDGE_SNAP_PX) return 'left';
+  if (e.clientX >= w - EDGE_SNAP_PX) return 'right';
+  return null;
+}
+
+/** Mostra/nasconde l'anteprima della metà schermo di destinazione. */
+function showEdgeHint(side) {
+  const hint = $('#edge-hint');
+  if (!hint) return;
+  hint.classList.toggle('hidden', !side);
+  hint.classList.toggle('right', side === 'right');
+}
+
+/** Collega le zone di snap sul contenitore del terminale (bordi finestra). */
+function setupEdgeSnap() {
+  const view = $('#terminal-view');
+  view.addEventListener('dragover', (e) => {
+    const side = edgeSide(e);
+    if (side) e.preventDefault();
+    showEdgeHint(side);
+  });
+  view.addEventListener('drop', (e) => {
+    const side = edgeSide(e);
+    showEdgeHint(null);
+    if (!side) return;
+    e.preventDefault();
+    const dropped = e.dataTransfer.getData('text/tab');
+    if (dropped) splitToSide(dropped, side);
+  });
+  view.addEventListener('dragleave', (e) => {
+    if (!e.relatedTarget) showEdgeHint(null); // uscita dalla finestra
+  });
+  document.addEventListener('dragend', () => showEdgeHint(null));
+}
+
+/** Trascinamento di un divider: ridistribuisce lo spazio fra i due pane adiacenti. */
+function setupDividerDrag(divider, leftId, rightId) {
   divider.addEventListener('mousedown', (e) => {
     e.preventDefault();
-    const panes = $('#panes');
-    const rect = panes.getBoundingClientRect();
+    const leftPane = tabs.get(leftId).paneEl;
+    const rightPane = tabs.get(rightId).paneEl;
+    // lo spazio (e il peso) da ripartire riguarda solo la coppia adiacente
+    const startLeft = leftPane.getBoundingClientRect();
+    const startRight = rightPane.getBoundingClientRect();
+    const span = startLeft.width + startRight.width;
+    const pairWeight = weightOf(leftId) + weightOf(rightId);
+    if (span <= 0) return;
     const onMove = (ev) => {
-      let r = (ev.clientX - rect.left) / rect.width;
-      r = Math.max(0.2, Math.min(0.8, r));
-      splitRatio = r;
-      tabs.get(activeTabId).paneEl.style.flex = r;
-      tabs.get(splitTabId).paneEl.style.flex = 1 - r;
+      let r = (ev.clientX - startLeft.left) / span;
+      r = Math.max(0.15, Math.min(0.85, r));
+      const wl = pairWeight * r;
+      splitWeights.set(leftId, wl);
+      splitWeights.set(rightId, pairWeight - wl);
+      leftPane.style.flex = wl;
+      rightPane.style.flex = pairWeight - wl;
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
@@ -778,7 +922,8 @@ async function closeTab(id) {
   tab.paneEl.remove();
   tab.tabEl.remove();
   tabs.delete(id);
-  if (splitTabId === id) splitTabId = null;
+  splitIds = splitIds.filter((s) => s !== id);
+  splitWeights.delete(id);
   if (activeTabId === id) {
     const next = tabs.keys().next();
     activeTabId = next.done ? null : next.value;
@@ -3689,6 +3834,8 @@ window.addEventListener('DOMContentLoaded', async () => {
     applyUITexts();
     renderServerList();
   });
+
+  setupEdgeSnap();
 
   $('#btn-settings').addEventListener('click', () => showView('settings'));
   $('#btn-settings-back').addEventListener('click', () => showView('config'));

@@ -206,7 +206,15 @@ html, body {
 .hidden { display: none !important; }
 
 /* ---------- Terminal view ---------- */
-#terminal-view { flex-direction: column; width: 100%; }
+#terminal-view { flex-direction: column; width: 100%; position: relative; }
+/* anteprima della metà schermo che la scheda occuperà rilasciandola sul bordo */
+.edge-hint {
+  position: absolute; top: 40px; bottom: 0; left: 0; width: 50%; z-index: 90;
+  pointer-events: none; background: color-mix(in srgb, var(--accent) 18%, transparent);
+  border: 2px dashed var(--accent);
+}
+.edge-hint.right { left: auto; right: 0; }
+.edge-hint.hidden { display: none; }
 .tabbar { display: flex; align-items: center; background: var(--bg2); border-bottom: 1px solid var(--border); height: 40px; }
 .btn-home { background: none; border: none; color: var(--text); font-size: 18px; padding: 0 14px; cursor: pointer; height: 100%; }
 .btn-home:hover { background: var(--border); }
@@ -218,12 +226,20 @@ html, body {
   white-space: nowrap; max-width: 240px;
 }
 .tab.active { color: var(--text); background: var(--bg); }
-/* indicatori split view: evidenzia le due schede affiancate e la loro posizione */
-.tab.split-left, .tab.split-right {
-  background: var(--bg); box-shadow: inset 0 -3px 0 var(--accent);
+/* in split view la linguetta è agganciata sopra il proprio pane: occupa tutta
+   la larghezza della sezione e ne segue il ridimensionamento */
+.pane-tabslot { display: none; }
+.pane-tabslot:not(:empty) {
+  display: flex; height: 34px; flex: 0 0 auto;
+  background: var(--bg2); border-bottom: 1px solid var(--border);
 }
-.tab.split-left .tab-title::before { content: '◧ '; color: var(--accent); }
-.tab.split-right .tab-title::before { content: '◨ '; color: var(--accent); }
+.tab.docked {
+  flex: 1 1 auto; min-width: 0; max-width: none; border-right: none;
+  background: var(--bg); box-shadow: inset 0 -3px 0 var(--border);
+}
+/* fra le schede affiancate, quella che ha il focus della tastiera */
+.tab.docked.focused { box-shadow: inset 0 -3px 0 var(--accent); }
+.tab.docked.focused .tab-title { color: var(--text); font-weight: 600; }
 .tab .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--green); flex: 0 0 auto; }
 .tab .dot.dead { background: var(--red); }
 .tab .tab-title { overflow: hidden; text-overflow: ellipsis; }

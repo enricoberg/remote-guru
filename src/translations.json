@@ -144,12 +144,12 @@
     "pt": "Sessões screen"
   },
   "split_view_button_title": {
-    "it": "Affianca un'altra scheda (split view)",
-    "en": "Open another tab side by side (split view)",
-    "es": "Abrir otra pestaña lado a lado (vista dividida)",
-    "fr": "Ouvrir un autre onglet côte à côte (split view)",
-    "de": "Weitere Registerkarte nebeneinander öffnen (Split-Ansicht)",
-    "pt": "Abrir outra aba lado a lado (split view)"
+    "it": "Affianca tutte le schede aperte (split view)",
+    "en": "Show all open tabs side by side (split view)",
+    "es": "Mostrar todas las pestañas abiertas lado a lado (vista dividida)",
+    "fr": "Afficher tous les onglets ouverts côte à côte (split view)",
+    "de": "Alle offenen Registerkarten nebeneinander anzeigen (Split-Ansicht)",
+    "pt": "Mostrar todas as abas abertas lado a lado (split view)"
   },
   "screen_detach_button": {
     "it": "Detach",
@@ -192,12 +192,28 @@
     "pt": "Fechar"
   },
   "split_view_active": {
-    "it": "Split view attiva — trascina il divisore centrale per ridimensionare",
-    "en": "Split view active — drag the center divider to resize",
-    "es": "Vista dividida activa — arrastra el divisor central para redimensionar",
-    "fr": "Split view actif — faites glisser le séparateur central pour redimensionner",
-    "de": "Split-Ansicht aktiv — ziehen Sie den Mitteltrenner zum Größenändern",
-    "pt": "Split view ativo — arraste o divisor central para redimensionar"
+    "it": "Split view su {count} schede — trascina i divisori per ridimensionare",
+    "en": "Split view across {count} tabs — drag the dividers to resize",
+    "es": "Vista dividida en {count} pestañas — arrastra los divisores para redimensionar",
+    "fr": "Split view sur {count} onglets — faites glisser les séparateurs pour redimensionner",
+    "de": "Split-Ansicht über {count} Registerkarten — ziehen Sie die Trenner zum Größenändern",
+    "pt": "Split view em {count} abas — arraste os divisores para redimensionar"
+  },
+  "split_view_left": {
+    "it": "Scheda nella metà sinistra, le altre nella metà destra",
+    "en": "Tab in the left half, the others in the right half",
+    "es": "Pestaña en la mitad izquierda, las demás en la derecha",
+    "fr": "Onglet dans la moitié gauche, les autres à droite",
+    "de": "Registerkarte in der linken Hälfte, die anderen rechts",
+    "pt": "Aba na metade esquerda, as outras na direita"
+  },
+  "split_view_right": {
+    "it": "Scheda nella metà destra, le altre nella metà sinistra",
+    "en": "Tab in the right half, the others in the left half",
+    "es": "Pestaña en la mitad derecha, las demás en la izquierda",
+    "fr": "Onglet dans la moitié droite, les autres à gauche",
+    "de": "Registerkarte in der rechten Hälfte, die anderen links",
+    "pt": "Aba na metade direita, as outras na esquerda"
   },
   "split_view_closed": {
     "it": "Split view chiusa",
