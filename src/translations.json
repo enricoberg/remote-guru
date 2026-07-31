@@ -432,7 +432,7 @@
     "pt": "Importando…"
   },
   "import_error": {
-    "it": "Errore import: {error}",
+    "it": "Errore nell'importazione: {error}",
     "en": "Import error: {error}",
     "es": "Error de importación: {error}",
     "fr": "Erreur d'importation : {error}",
@@ -1407,14 +1407,6 @@
     "de": "{count} Server importiert",
     "pt": "Importados {count} servidores"
   },
-  "import_error": {
-    "it": "Errore nell'importazione: {error}",
-    "en": "Import error: {error}",
-    "es": "Error de importación: {error}",
-    "fr": "Erreur d'importation : {error}",
-    "de": "Importfehler: {error}",
-    "pt": "Erro de importação: {error}"
-  },
   "connection_closed": {
     "it": "[connessione chiusa]",
     "en": "[connection closed]",
@@ -1854,5 +1846,381 @@
     "fr": "samedi",
     "de": "Samstag",
     "pt": "sábado"
+  },
+  "tf_title": {
+    "it": "Trasferimenti file",
+    "en": "File transfers",
+    "es": "Transferencias de archivos",
+    "fr": "Transferts de fichiers",
+    "de": "Dateiübertragungen",
+    "pt": "Transferências de ficheiros"
+  },
+  "tf_button_title": {
+    "it": "Trasferimenti file (upload e download)",
+    "en": "File transfers (uploads and downloads)",
+    "es": "Transferencias de archivos (subidas y descargas)",
+    "fr": "Transferts de fichiers (envois et téléchargements)",
+    "de": "Dateiübertragungen (Hoch- und Herunterladen)",
+    "pt": "Transferências de ficheiros (envios e descargas)"
+  },
+  "tf_empty": {
+    "it": "Nessun trasferimento.",
+    "en": "No transfers.",
+    "es": "Ninguna transferencia.",
+    "fr": "Aucun transfert.",
+    "de": "Keine Übertragungen.",
+    "pt": "Nenhuma transferência."
+  },
+  "tf_clear_done": {
+    "it": "Rimuovi i completati",
+    "en": "Clear completed",
+    "es": "Quitar los completados",
+    "fr": "Supprimer les terminés",
+    "de": "Abgeschlossene entfernen",
+    "pt": "Remover os concluídos"
+  },
+  "tf_close": {
+    "it": "Chiudi",
+    "en": "Close",
+    "es": "Cerrar",
+    "fr": "Fermer",
+    "de": "Schließen",
+    "pt": "Fechar"
+  },
+  "tf_pause": {
+    "it": "Sospendi",
+    "en": "Pause",
+    "es": "Pausar",
+    "fr": "Suspendre",
+    "de": "Anhalten",
+    "pt": "Pausar"
+  },
+  "tf_resume": {
+    "it": "Riprendi",
+    "en": "Resume",
+    "es": "Reanudar",
+    "fr": "Reprendre",
+    "de": "Fortsetzen",
+    "pt": "Retomar"
+  },
+  "tf_remove": {
+    "it": "Rimuovi dalla lista",
+    "en": "Remove from list",
+    "es": "Quitar de la lista",
+    "fr": "Retirer de la liste",
+    "de": "Aus der Liste entfernen",
+    "pt": "Remover da lista"
+  },
+  "tf_status_queued": {
+    "it": "In coda",
+    "en": "Queued",
+    "es": "En cola",
+    "fr": "En file d'attente",
+    "de": "In Warteschlange",
+    "pt": "Na fila"
+  },
+  "tf_status_running": {
+    "it": "In corso",
+    "en": "In progress",
+    "es": "En curso",
+    "fr": "En cours",
+    "de": "Läuft",
+    "pt": "Em curso"
+  },
+  "tf_status_paused": {
+    "it": "In pausa",
+    "en": "Paused",
+    "es": "En pausa",
+    "fr": "En pause",
+    "de": "Angehalten",
+    "pt": "Em pausa"
+  },
+  "tf_status_done": {
+    "it": "Completato",
+    "en": "Completed",
+    "es": "Completado",
+    "fr": "Terminé",
+    "de": "Abgeschlossen",
+    "pt": "Concluído"
+  },
+  "tf_status_error": {
+    "it": "Errore",
+    "en": "Error",
+    "es": "Error",
+    "fr": "Erreur",
+    "de": "Fehler",
+    "pt": "Erro"
+  },
+  "tf_preparing": {
+    "it": "Calcolo dimensioni…",
+    "en": "Calculating size…",
+    "es": "Calculando tamaño…",
+    "fr": "Calcul de la taille…",
+    "de": "Größe wird berechnet…",
+    "pt": "A calcular o tamanho…"
+  },
+  "tf_files_progress": {
+    "it": "{done}/{total} file",
+    "en": "{done}/{total} files",
+    "es": "{done}/{total} archivos",
+    "fr": "{done}/{total} fichiers",
+    "de": "{done}/{total} Dateien",
+    "pt": "{done}/{total} ficheiros"
+  },
+  "tf_queued_download": {
+    "it": "Download accodato: {name}",
+    "en": "Download queued: {name}",
+    "es": "Descarga en cola: {name}",
+    "fr": "Téléchargement mis en file: {name}",
+    "de": "Download eingereiht: {name}",
+    "pt": "Descarga na fila: {name}"
+  },
+  "tf_queued_upload": {
+    "it": "Upload accodato: {name}",
+    "en": "Upload queued: {name}",
+    "es": "Subida en cola: {name}",
+    "fr": "Envoi mis en file: {name}",
+    "de": "Upload eingereiht: {name}",
+    "pt": "Envio na fila: {name}"
+  },
+  "tf_done": {
+    "it": "{name}: trasferimento completato",
+    "en": "{name}: transfer completed",
+    "es": "{name}: transferencia completada",
+    "fr": "{name} : transfert terminé",
+    "de": "{name}: Übertragung abgeschlossen",
+    "pt": "{name}: transferência concluída"
+  },
+  "tf_failed": {
+    "it": "{name}: trasferimento non riuscito — {error}",
+    "en": "{name}: transfer failed — {error}",
+    "es": "{name}: transferencia fallida — {error}",
+    "fr": "{name} : transfert échoué — {error}",
+    "de": "{name}: Übertragung fehlgeschlagen — {error}",
+    "pt": "{name}: transferência falhou — {error}"
+  },
+  "tf_no_session": {
+    "it": "Connettiti a {server} per riprendere il trasferimento.",
+    "en": "Connect to {server} to resume the transfer.",
+    "es": "Conéctate a {server} para reanudar la transferencia.",
+    "fr": "Connectez-vous à {server} pour reprendre le transfert.",
+    "de": "Verbinde dich mit {server}, um die Übertragung fortzusetzen.",
+    "pt": "Liga-te a {server} para retomar a transferência."
+  },
+  "tf_pending_on_start": {
+    "it": "{count} trasferimenti da riprendere.",
+    "en": "{count} transfers to resume.",
+    "es": "{count} transferencias por reanudar.",
+    "fr": "{count} transferts à reprendre.",
+    "de": "{count} Übertragungen fortzusetzen.",
+    "pt": "{count} transferências para retomar."
+  },
+  "monitor_button_title": {
+    "it": "Monitor di sistema (dischi, CPU, RAM)",
+    "en": "System monitor (disks, CPU, RAM)",
+    "es": "Monitor del sistema (discos, CPU, RAM)",
+    "fr": "Moniteur système (disques, CPU, RAM)",
+    "de": "Systemmonitor (Datenträger, CPU, RAM)",
+    "pt": "Monitor do sistema (discos, CPU, RAM)"
+  },
+  "monitor_title": {
+    "it": "Monitor di sistema",
+    "en": "System monitor",
+    "es": "Monitor del sistema",
+    "fr": "Moniteur système",
+    "de": "Systemmonitor",
+    "pt": "Monitor do sistema"
+  },
+  "monitor_loading": {
+    "it": "Lettura dello stato del sistema…",
+    "en": "Reading system status…",
+    "es": "Leyendo el estado del sistema…",
+    "fr": "Lecture de l'état du système…",
+    "de": "Systemstatus wird gelesen…",
+    "pt": "A ler o estado do sistema…"
+  },
+  "monitor_error": {
+    "it": "Impossibile leggere lo stato: {error}",
+    "en": "Cannot read status: {error}",
+    "es": "No se puede leer el estado: {error}",
+    "fr": "Impossible de lire l'état : {error}",
+    "de": "Status nicht lesbar: {error}",
+    "pt": "Não foi possível ler o estado: {error}"
+  },
+  "monitor_no_data": {
+    "it": "Metriche non disponibili su questo server (serve /proc, come su Linux).",
+    "en": "Metrics unavailable on this server (/proc required, as on Linux).",
+    "es": "Métricas no disponibles en este servidor (se necesita /proc, como en Linux).",
+    "fr": "Métriques indisponibles sur ce serveur (/proc requis, comme sous Linux).",
+    "de": "Metriken auf diesem Server nicht verfügbar (/proc erforderlich, wie unter Linux).",
+    "pt": "Métricas indisponíveis neste servidor (é necessário /proc, como no Linux)."
+  },
+  "monitor_cpu": {
+    "it": "CPU",
+    "en": "CPU",
+    "es": "CPU",
+    "fr": "Processeur",
+    "de": "CPU",
+    "pt": "CPU"
+  },
+  "monitor_ram": {
+    "it": "Memoria",
+    "en": "Memory",
+    "es": "Memoria",
+    "fr": "Mémoire",
+    "de": "Speicher",
+    "pt": "Memória"
+  },
+  "monitor_disks": {
+    "it": "Dischi",
+    "en": "Disks",
+    "es": "Discos",
+    "fr": "Disques",
+    "de": "Datenträger",
+    "pt": "Discos"
+  },
+  "monitor_procs": {
+    "it": "Processi più esosi",
+    "en": "Top processes",
+    "es": "Procesos más exigentes",
+    "fr": "Processus les plus gourmands",
+    "de": "Ressourcenintensivste Prozesse",
+    "pt": "Processos mais exigentes"
+  },
+  "monitor_cores": {
+    "it": "{n} core",
+    "en": "{n} cores",
+    "es": "{n} núcleos",
+    "fr": "{n} cœurs",
+    "de": "{n} Kerne",
+    "pt": "{n} núcleos"
+  },
+  "monitor_load": {
+    "it": "Carico",
+    "en": "Load",
+    "es": "Carga",
+    "fr": "Charge",
+    "de": "Last",
+    "pt": "Carga"
+  },
+  "monitor_iowait": {
+    "it": "Attesa I/O",
+    "en": "I/O wait",
+    "es": "Espera E/S",
+    "fr": "Attente E/S",
+    "de": "E/A-Wartezeit",
+    "pt": "Espera de E/S"
+  },
+  "monitor_swap": {
+    "it": "Swap",
+    "en": "Swap",
+    "es": "Swap",
+    "fr": "Swap",
+    "de": "Swap",
+    "pt": "Swap"
+  },
+  "monitor_cache": {
+    "it": "Cache",
+    "en": "Cache",
+    "es": "Caché",
+    "fr": "Cache",
+    "de": "Cache",
+    "pt": "Cache"
+  },
+  "monitor_used": {
+    "it": "In uso",
+    "en": "Used",
+    "es": "En uso",
+    "fr": "Utilisée",
+    "de": "Belegt",
+    "pt": "Em uso"
+  },
+  "monitor_free": {
+    "it": "Libera",
+    "en": "Free",
+    "es": "Libre",
+    "fr": "Libre",
+    "de": "Frei",
+    "pt": "Livre"
+  },
+  "monitor_used_of": {
+    "it": "{used} di {total}",
+    "en": "{used} of {total}",
+    "es": "{used} de {total}",
+    "fr": "{used} sur {total}",
+    "de": "{used} von {total}",
+    "pt": "{used} de {total}"
+  },
+  "monitor_uptime": {
+    "it": "Attivo da",
+    "en": "Uptime",
+    "es": "Activo desde",
+    "fr": "Actif depuis",
+    "de": "Läuft seit",
+    "pt": "Ativo há"
+  },
+  "monitor_tasks": {
+    "it": "Processi",
+    "en": "Tasks",
+    "es": "Procesos",
+    "fr": "Processus",
+    "de": "Prozesse",
+    "pt": "Processos"
+  },
+  "monitor_col_user": {
+    "it": "UTENTE",
+    "en": "USER",
+    "es": "USUARIO",
+    "fr": "UTILISATEUR",
+    "de": "BENUTZER",
+    "pt": "UTILIZADOR"
+  },
+  "monitor_col_cmd": {
+    "it": "COMANDO",
+    "en": "COMMAND",
+    "es": "COMANDO",
+    "fr": "COMMANDE",
+    "de": "BEFEHL",
+    "pt": "COMANDO"
+  },
+  "monitor_no_disks": {
+    "it": "Nessun filesystem rilevato.",
+    "en": "No filesystems found.",
+    "es": "Ningún sistema de archivos detectado.",
+    "fr": "Aucun système de fichiers détecté.",
+    "de": "Keine Dateisysteme gefunden.",
+    "pt": "Nenhum sistema de ficheiros detetado."
+  },
+  "monitor_no_procs": {
+    "it": "Nessun processo da mostrare.",
+    "en": "No processes to show.",
+    "es": "Ningún proceso que mostrar.",
+    "fr": "Aucun processus à afficher.",
+    "de": "Keine Prozesse anzuzeigen.",
+    "pt": "Nenhum processo a mostrar."
+  },
+  "monitor_unit_d": {
+    "it": "g",
+    "en": "d",
+    "es": "d",
+    "fr": "j",
+    "de": "T",
+    "pt": "d"
+  },
+  "monitor_unit_h": {
+    "it": "h",
+    "en": "h",
+    "es": "h",
+    "fr": "h",
+    "de": "Std",
+    "pt": "h"
+  },
+  "monitor_unit_m": {
+    "it": "m",
+    "en": "m",
+    "es": "m",
+    "fr": "min",
+    "de": "Min",
+    "pt": "m"
   }
 }

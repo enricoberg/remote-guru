@@ -4,6 +4,7 @@ const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const ssh = require('./ssh');
+const transfers = require('./transfers');
 
 // In sviluppo si usa il servers.json del repo; nell'app pacchettizzata
 // app.getAppPath() punta dentro app.asar (sola lettura), quindi si salva
@@ -36,6 +37,13 @@ function createWindow() {
 }
 
 app.whenReady().then(() => {
+  // coda trasferimenti: stato persistito nella cartella dati utente, così i
+  // download/upload incompleti sopravvivono alla chiusura dell'app
+  transfers.init({
+    ssh,
+    emit: send,
+    storePath: path.join(app.getPath('userData'), 'transfers.json'),
+  });
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
@@ -107,7 +115,11 @@ ipcMain.handle('ssh:connect', async (_e, server) => {
   const onData = (id, data) => send('ssh:data', { id, data });
   const onCwd = (id, cwd) => send('ssh:cwd', { id, cwd });
   const onSty = (id, sty) => send('ssh:sty', { id, sty });
-  const onClose = (id) => send('ssh:closed', { id });
+  const onClose = (id) => {
+    // i trasferimenti in corso su questa sessione vanno in pausa, non persi
+    transfers.onSessionClosed(id);
+    send('ssh:closed', { id });
+  };
   const { id, cwd } = await ssh.connect(server, onData, onCwd, onSty, onClose);
   return { id, cwd };
 });
@@ -121,6 +133,7 @@ ipcMain.on('ssh:resize', (_e, { id, cols, rows }) => {
 });
 
 ipcMain.handle('ssh:disconnect', (_e, id) => {
+  transfers.onSessionClosed(id);
   ssh.disconnect(id);
   return true;
 });
@@ -141,18 +154,11 @@ ipcMain.handle('ssh:readFile', (_e, { id, path: p }) => ssh.readFile(id, p));
 ipcMain.handle('ssh:writeFile', (_e, { id, path: p, content }) =>
   ssh.writeFile(id, p, content));
 
-ipcMain.handle('ssh:import', async (_e, { id, destDir }) => {
-  const res = await dialog.showOpenDialog(mainWindow, {
-    title: 'Importa',
-    properties: ['openFile', 'openDirectory', 'multiSelections'],
-  });
-  if (res.canceled || !res.filePaths.length) return null;
-  const names = [];
-  for (const p of res.filePaths) names.push(await ssh.importPath(id, p, destDir));
-  return names;
-});
+// --- Trasferimenti file (upload + download) ---------------------------------
 
-ipcMain.handle('ssh:download', async (_e, { id, remotePath, filename, isDir }) => {
+/** Chiede dove salvare e accoda il download; ritorna la voce creata (o null). */
+ipcMain.handle('transfer:download', async (_e, { id, remotePath, filename, isDir, size }) => {
+  let localPath;
   if (isDir) {
     // per le cartelle si sceglie una directory locale di destinazione
     const res = await dialog.showOpenDialog(mainWindow, {
@@ -160,18 +166,37 @@ ipcMain.handle('ssh:download', async (_e, { id, remotePath, filename, isDir }) =
       properties: ['openDirectory', 'createDirectory'],
     });
     if (res.canceled || !res.filePaths.length) return null;
-    const dest = path.join(res.filePaths[0], filename);
-    await ssh.downloadDir(id, remotePath, dest);
-    return dest;
+    localPath = path.join(res.filePaths[0], filename);
+  } else {
+    const res = await dialog.showSaveDialog(mainWindow, {
+      title: 'Scarica file',
+      defaultPath: filename,
+    });
+    if (res.canceled || !res.filePath) return null;
+    localPath = res.filePath;
   }
-  const res = await dialog.showSaveDialog(mainWindow, {
-    title: 'Scarica file',
-    defaultPath: filename,
-  });
-  if (res.canceled) return null;
-  await ssh.download(id, remotePath, res.filePath);
-  return res.filePath;
+  return transfers.addDownload({ sessionId: id, remotePath, name: filename, isDir, localPath, size });
 });
+
+/** Chiede quali file/cartelle caricare e li accoda; ritorna le voci create. */
+ipcMain.handle('transfer:upload', async (_e, { id, destDir }) => {
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Carica sul server',
+    properties: ['openFile', 'openDirectory', 'multiSelections'],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  return res.filePaths.map((p) => transfers.addUpload({ sessionId: id, localPath: p, destDir }));
+});
+
+ipcMain.handle('transfer:list', () => transfers.list());
+ipcMain.handle('transfer:pause', (_e, id) => { transfers.pause(id); return true; });
+ipcMain.handle('transfer:resume', (_e, id) => transfers.resume(id));
+ipcMain.handle('transfer:remove', (_e, id) => { transfers.remove(id); return true; });
+ipcMain.handle('transfer:clearDone', () => { transfers.clearDone(); return true; });
+
+// --- Monitor di sistema -----------------------------------------------------
+
+ipcMain.handle('sys:stats', (_e, id) => ssh.sysStats(id));
 
 // --- Docker -----------------------------------------------------------------
 

@@ -17,6 +17,11 @@
         <h1><img src="logo.png" class="app-logo" alt="" /> Remote Guru</h1>
         <p>Gestisci le tue connessioni SSH. Seleziona un server per connetterti.</p>
         <button id="btn-back" class="btn btn-primary hidden"><i class="fa-solid fa-arrow-left"></i> Torna alle sessioni attive</button>
+        <!-- scorciatoia al pannello trasferimenti: visibile solo se la coda non è vuota
+             (utile al riavvio, quando i trasferimenti sospesi vanno ripresi) -->
+        <button id="btn-transfers-home" class="btn tf-toggle hidden" title="Trasferimenti file">
+          <i class="fa-solid fa-right-left"></i> Trasferimenti <span class="tf-badge">0</span>
+        </button>
       </header>
 
       <div class="config-body">
@@ -156,8 +161,23 @@
     <div class="tabbar">
       <button id="btn-home" class="btn-home" title="Torna alla configurazione"><i class="fa-solid fa-house"></i></button>
       <div id="tabs" class="tabs"></div>
+      <button id="btn-transfers" class="btn-transfers" title="Trasferimenti file">
+        <i class="fa-solid fa-right-left"></i><span class="tf-badge">0</span>
+      </button>
     </div>
     <div id="panes" class="panes"></div>
+  </div>
+
+  <!-- ============ TRASFERIMENTI FILE (unico per upload e download) ============ -->
+  <div id="transfers-panel" class="transfers-panel hidden">
+    <div class="tf-head">
+      <span class="tf-title"><i class="fa-solid fa-right-left"></i> Trasferimenti file</span>
+      <span class="tf-head-actions">
+        <button id="tf-clear" title="Rimuovi i completati"><i class="fa-solid fa-broom"></i></button>
+        <button id="tf-close" title="Chiudi"><i class="fa-solid fa-xmark"></i></button>
+      </span>
+    </div>
+    <div id="tf-list" class="tf-list"></div>
   </div>
 
   <!-- menu contestuale -->

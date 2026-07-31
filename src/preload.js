@@ -23,9 +23,21 @@ contextBridge.exposeInMainWorld('api', {
   createFile: (id, p) => ipcRenderer.invoke('ssh:createFile', { id, path: p }),
   readFile: (id, p) => ipcRenderer.invoke('ssh:readFile', { id, path: p }),
   writeFile: (id, p, content) => ipcRenderer.invoke('ssh:writeFile', { id, path: p, content }),
-  importLocal: (id, destDir) => ipcRenderer.invoke('ssh:import', { id, destDir }),
-  download: (id, remotePath, filename, isDir) =>
-    ipcRenderer.invoke('ssh:download', { id, remotePath, filename, isDir }),
+
+  // trasferimenti file (upload + download, coda unica con pausa/ripresa)
+  queueUpload: (id, destDir) => ipcRenderer.invoke('transfer:upload', { id, destDir }),
+  queueDownload: (id, remotePath, filename, isDir, size) =>
+    ipcRenderer.invoke('transfer:download', { id, remotePath, filename, isDir, size }),
+  transferList: () => ipcRenderer.invoke('transfer:list'),
+  transferPause: (tid) => ipcRenderer.invoke('transfer:pause', tid),
+  transferResume: (tid) => ipcRenderer.invoke('transfer:resume', tid),
+  transferRemove: (tid) => ipcRenderer.invoke('transfer:remove', tid),
+  transferClearDone: () => ipcRenderer.invoke('transfer:clearDone'),
+  onTransferUpdate: (cb) => ipcRenderer.on('transfer:update', (_e, p) => cb(p)),
+  onTransferRemoved: (cb) => ipcRenderer.on('transfer:removed', (_e, p) => cb(p)),
+
+  // monitor di sistema (dischi, cpu, ram)
+  sysStats: (id) => ipcRenderer.invoke('sys:stats', id),
 
   // docker
   dockerPs: (id) => ipcRenderer.invoke('docker:ps', id),

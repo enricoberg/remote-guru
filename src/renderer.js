@@ -565,6 +565,10 @@ function buildPane(tab) {
   cronBtn.title = i18n.t('cron_button_title');
   cronBtn.innerHTML = '<i class="fa-solid fa-clock"></i>';
   cronBtn.addEventListener('click', () => showCrontab(tab));
+  const monBtn = el('button', 'btn-ll');
+  monBtn.title = i18n.t('monitor_button_title');
+  monBtn.innerHTML = '<i class="fa-solid fa-gauge-high"></i>';
+  monBtn.addEventListener('click', () => showMonitor(tab));
   const srv = el('span', 'srv-name');
   srv.textContent = tab.server.nickname || tab.server.name;
   const cwd = el('span', 'cwd');
@@ -582,6 +586,7 @@ function buildPane(tab) {
   toolbar.appendChild(dbBtn);
   toolbar.appendChild(screensBtn);
   toolbar.appendChild(cronBtn);
+  toolbar.appendChild(monBtn);
   toolbar.appendChild(srv);
   toolbar.appendChild(cwd);
   toolbar.appendChild(splitBtn);
@@ -2445,6 +2450,406 @@ function makeCronForm(tab, lines, job) {
   return box;
 }
 
+// ============================================================================
+// MONITOR DI SISTEMA (dischi + CPU/RAM in tempo reale)
+// ============================================================================
+
+const MON_INTERVAL = 1000; // frequenza di aggiornamento
+const MON_HIST = 60;       // punti di storico nei grafici (~2 minuti)
+const SVG_NS = 'http://www.w3.org/2000/svg';
+
+/** Soglie di colore condivise da barre, percentuali e grafici. */
+function levelClass(v) {
+  return v >= 90 ? 'crit' : v >= 75 ? 'warn' : 'ok';
+}
+
+/**
+ * Dashboard di sistema: unisce `df` (dischi) e le metriche in stile htop
+ * (CPU per core, memoria, swap, load, processi) in un pannello che si aggiorna
+ * ogni 2 secondi finché resta aperto e la scheda è visibile.
+ */
+async function showMonitor(tab) {
+  // chiudi eventuali overlay già aperti (listing / docker / monitor precedente)
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  if (old) old.remove();
+
+  const overlay = el('div', 'll-overlay mon-overlay');
+  const grip = el('div', 'll-resize');
+  overlay.appendChild(grip);
+  setupOverlayResize(grip, overlay, tab);
+  if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+
+  const head = el('div', 'll-head');
+  const info = el('span', 'mon-head');
+  const title = el('span', 'mon-head-title');
+  title.innerHTML = `<i class="fa-solid fa-gauge-high"></i> ${i18n.t('monitor_title')}`;
+  const headInfo = el('span', 'mon-head-info');
+  info.appendChild(title);
+  info.appendChild(headInfo);
+  const actions = el('span', 'll-head-actions');
+  const closeBtn = el('button');
+  closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+  closeBtn.title = i18n.t('tf_close');
+  closeBtn.addEventListener('click', () => overlay.remove());
+  actions.appendChild(closeBtn);
+  head.appendChild(info);
+  head.appendChild(actions);
+  overlay.appendChild(head);
+
+  const notice = el('div', 'mon-notice');
+  notice.textContent = i18n.t('monitor_loading');
+  overlay.appendChild(notice);
+
+  const body = el('div', 'mon-body hidden');
+
+  // ---- riquadro CPU ----
+  const cpuCard = el('div', 'mon-card');
+  const cpuBig = el('span', 'mon-big');
+  cpuBig.textContent = '—';
+  const cpuSub = el('span', 'mon-sub');
+  cpuCard.appendChild(makeCardHead('fa-solid fa-microchip', i18n.t('monitor_cpu'), cpuSub, cpuBig));
+  const cpuSpark = makeSpark('cpu');
+  cpuCard.appendChild(cpuSpark.svg);
+  const cores = el('div', 'mon-cores');
+  cpuCard.appendChild(cores);
+  const cpuKv = el('div', 'mon-kv');
+  cpuCard.appendChild(cpuKv);
+
+  // ---- riquadro memoria ----
+  const memCard = el('div', 'mon-card');
+  const memBig = el('span', 'mon-big');
+  memBig.textContent = '—';
+  const memSub = el('span', 'mon-sub');
+  memCard.appendChild(makeCardHead('fa-solid fa-memory', i18n.t('monitor_ram'), memSub, memBig));
+  const memSpark = makeSpark('mem');
+  memCard.appendChild(memSpark.svg);
+  // barra a segmenti: in uso | cache/buffer | libera (spazio residuo)
+  const stack = el('div', 'mon-stack');
+  const segUsed = el('div', 'mon-seg used');
+  const segCache = el('div', 'mon-seg cache');
+  stack.appendChild(segUsed);
+  stack.appendChild(segCache);
+  memCard.appendChild(stack);
+  const legend = el('div', 'mon-legend');
+  legend.innerHTML =
+    `<span><i class="dot used"></i>${i18n.t('monitor_used')}</span>` +
+    `<span><i class="dot cache"></i>${i18n.t('monitor_cache')}</span>` +
+    `<span><i class="dot free"></i>${i18n.t('monitor_free')}</span>`;
+  memCard.appendChild(legend);
+  const memKv = el('div', 'mon-kv');
+  memCard.appendChild(memKv);
+
+  const grid = el('div', 'mon-grid');
+  grid.appendChild(cpuCard);
+  grid.appendChild(memCard);
+  body.appendChild(grid);
+
+  // ---- dischi ----
+  const diskSection = el('div', 'mon-section');
+  diskSection.appendChild(makeSectionTitle('fa-solid fa-hard-drive', i18n.t('monitor_disks')));
+  const diskBox = el('div', 'mon-disks');
+  diskSection.appendChild(diskBox);
+  body.appendChild(diskSection);
+
+  // ---- processi ----
+  const procSection = el('div', 'mon-section');
+  procSection.appendChild(makeSectionTitle('fa-solid fa-list-ol', i18n.t('monitor_procs')));
+  const procBox = el('div', 'mon-procs');
+  procSection.appendChild(procBox);
+  body.appendChild(procSection);
+
+  overlay.appendChild(body);
+  tab.hostEl.appendChild(overlay);
+
+  tab.monitor = {
+    overlay, notice, body, headInfo,
+    cpuBig, cpuSub, cpuKv, cpuSpark, cores,
+    memBig, memSub, memKv, memSpark, segUsed, segCache,
+    diskBox, procBox, diskSig: null, diskRefs: new Map(),
+    hist: { cpu: [], mem: [] },
+  };
+
+  let busy = false;
+  const tick = async () => {
+    // il pannello è stato chiuso (o sostituito da un altro): ferma il polling
+    if (!overlay.isConnected) {
+      clearInterval(tab.monitor && tab.monitor.timer);
+      if (tab.monitor && tab.monitor.overlay === overlay) tab.monitor = null;
+      return;
+    }
+    // scheda non visibile o connessione caduta: niente interrogazioni inutili
+    if (busy || tab.dead || !tab.paneEl.classList.contains('visible')) return;
+    busy = true;
+    try {
+      updateMonitor(tab, await window.api.sysStats(tab.id));
+    } catch (e) {
+      notice.textContent = i18n.t('monitor_error', { error: e.message });
+      notice.classList.remove('hidden');
+    } finally {
+      busy = false;
+    }
+  };
+  tab.monitor.timer = setInterval(tick, MON_INTERVAL);
+  tick();
+}
+
+/** Intestazione di un riquadro: icona, titolo, sottotitolo e valore grande. */
+function makeCardHead(icon, label, subEl, bigEl) {
+  const h = el('div', 'mon-card-head');
+  const i = el('i', icon);
+  const t = el('span', 'mon-card-title');
+  t.textContent = label;
+  h.appendChild(i);
+  h.appendChild(t);
+  h.appendChild(subEl);
+  h.appendChild(bigEl);
+  return h;
+}
+
+function makeSectionTitle(icon, label) {
+  const d = el('div', 'mon-section-title');
+  d.innerHTML = `<i class="${icon}"></i> ${escapeHtml(label)}`;
+  return d;
+}
+
+/**
+ * Grafico sparkline in SVG (area + linea + linee guida), disegnato a percentuali
+ * 0-100. Usa `currentColor` così il colore arriva dal tema via CSS.
+ */
+function makeSpark(cls) {
+  const svg = document.createElementNS(SVG_NS, 'svg');
+  svg.setAttribute('class', 'mon-spark ' + cls);
+  svg.setAttribute('viewBox', '0 0 100 34');
+  svg.setAttribute('preserveAspectRatio', 'none');
+  [25, 50, 75].forEach((p) => {
+    const ln = document.createElementNS(SVG_NS, 'line');
+    const y = (34 - (p / 100) * 34).toFixed(2);
+    ln.setAttribute('x1', '0');
+    ln.setAttribute('x2', '100');
+    ln.setAttribute('y1', y);
+    ln.setAttribute('y2', y);
+    ln.setAttribute('class', 'mon-spark-grid');
+    svg.appendChild(ln);
+  });
+  const area = document.createElementNS(SVG_NS, 'path');
+  area.setAttribute('class', 'mon-spark-area');
+  const line = document.createElementNS(SVG_NS, 'path');
+  line.setAttribute('class', 'mon-spark-line');
+  svg.appendChild(area);
+  svg.appendChild(line);
+  return {
+    svg,
+    draw(values) {
+      const { l, a } = sparkPaths(values, 100, 34);
+      line.setAttribute('d', l);
+      area.setAttribute('d', a);
+    },
+  };
+}
+
+/** Percorsi SVG di linea e area: la serie scorre da destra verso sinistra. */
+function sparkPaths(values, w, h) {
+  if (!values.length) return { l: '', a: '' };
+  const step = w / (MON_HIST - 1);
+  const pts = values.map((v, i) => {
+    const x = w - (values.length - 1 - i) * step;
+    const y = h - 1 - (Math.max(0, Math.min(100, v)) / 100) * (h - 2);
+    return [x.toFixed(2), y.toFixed(2)];
+  });
+  const l = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x},${y}`).join(' ');
+  const a = `${l} L${pts[pts.length - 1][0]},${h} L${pts[0][0]},${h} Z`;
+  return { l, a };
+}
+
+/** Applica al pannello lo snapshot arrivato dal server. */
+function updateMonitor(tab, s) {
+  const m = tab.monitor;
+  if (!m) return;
+
+  if (!s.cpu && !s.mem) {
+    m.notice.textContent = i18n.t('monitor_no_data');
+    m.notice.classList.remove('hidden');
+    m.body.classList.add('hidden');
+    return;
+  }
+  m.notice.classList.add('hidden');
+  m.body.classList.remove('hidden');
+
+  const headBits = [];
+  if (s.uptime != null) headBits.push(`${i18n.t('monitor_uptime')} ${formatUptime(s.uptime)}`);
+  if (s.procsRunning) headBits.push(`${i18n.t('monitor_tasks')} ${s.procsRunning}`);
+  m.headInfo.textContent = headBits.join('  ·  ');
+
+  // ---- CPU ----
+  if (s.cpu && s.cpu.all != null) {
+    push(m.hist.cpu, s.cpu.all);
+    m.cpuBig.textContent = Math.round(s.cpu.all) + '%';
+    m.cpuBig.className = 'mon-big ' + levelClass(s.cpu.all);
+    m.cpuSpark.draw(m.hist.cpu);
+    m.cpuSub.textContent = [
+      s.cpuModel,
+      s.cpu.cores.length ? i18n.t('monitor_cores', { n: s.cpu.cores.length }) : '',
+    ].filter(Boolean).join(' · ');
+    m.cpuSub.title = s.cpuModel || '';
+    renderCores(m.cores, s.cpu.cores);
+    const kv = [];
+    if (s.load) kv.push(`${i18n.t('monitor_load')} ${s.load.map((v) => v.toFixed(2)).join('  ')}`);
+    if (s.cpu.iowait != null) kv.push(`${i18n.t('monitor_iowait')} ${s.cpu.iowait.toFixed(1)}%`);
+    m.cpuKv.textContent = kv.join('  ·  ');
+  }
+
+  // ---- memoria ----
+  if (s.mem) {
+    const pct = (s.mem.used / s.mem.total) * 100;
+    const cache = s.mem.buffers + s.mem.cached;
+    push(m.hist.mem, pct);
+    m.memBig.textContent = Math.round(pct) + '%';
+    m.memBig.className = 'mon-big ' + levelClass(pct);
+    m.memSpark.draw(m.hist.mem);
+    m.memSub.textContent = humanSize(s.mem.total);
+    m.segUsed.style.width = pct.toFixed(1) + '%';
+    m.segCache.style.width = Math.min(100 - pct, (cache / s.mem.total) * 100).toFixed(1) + '%';
+    const kv = [
+      i18n.t('monitor_used_of', { used: humanSize(s.mem.used), total: humanSize(s.mem.total) }),
+      `${i18n.t('monitor_cache')} ${humanSize(cache)}`,
+    ];
+    if (s.mem.swapTotal) {
+      kv.push(`${i18n.t('monitor_swap')} ${humanSize(s.mem.swapUsed)} / ${humanSize(s.mem.swapTotal)}`);
+    }
+    m.memKv.textContent = kv.join('  ·  ');
+  }
+
+  renderDisks(m, s.disks || []);
+  renderProcs(m.procBox, s.procs || []);
+}
+
+function push(arr, v) {
+  arr.push(v);
+  if (arr.length > MON_HIST) arr.shift();
+}
+
+/** Barrette verticali, una per core (stile htop). */
+function renderCores(box, cores) {
+  if (box.childElementCount !== cores.length) {
+    box.innerHTML = '';
+    cores.forEach((_, i) => {
+      const c = el('div', 'mon-core');
+      const f = el('div', 'mon-core-fill');
+      c.appendChild(f);
+      c.dataset.i = i;
+      box.appendChild(c);
+    });
+  }
+  cores.forEach((v, i) => {
+    const c = box.children[i];
+    const f = c.firstChild;
+    f.style.height = Math.max(2, Math.min(100, v)).toFixed(1) + '%';
+    f.className = 'mon-core-fill ' + levelClass(v);
+    c.title = `core ${i}: ${Math.round(v)}%`;
+  });
+}
+
+/**
+ * Barre di occupazione dei filesystem. Le righe vengono ricostruite solo se
+ * l'elenco dei mount cambia, altrimenti si aggiornano in place (transizioni fluide).
+ */
+function renderDisks(m, disks) {
+  const sig = disks.map((d) => d.mount).join('|');
+  if (m.diskSig !== sig) {
+    m.diskSig = sig;
+    m.diskRefs = new Map();
+    m.diskBox.innerHTML = '';
+    if (!disks.length) {
+      const empty = el('div', 'mon-empty');
+      empty.textContent = i18n.t('monitor_no_disks');
+      m.diskBox.appendChild(empty);
+    }
+    disks.forEach((d) => {
+      const row = el('div', 'mon-disk');
+      const top = el('div', 'mon-disk-top');
+      const mount = el('span', 'mon-disk-mount');
+      mount.textContent = d.mount;
+      mount.title = d.fs;
+      const val = el('span', 'mon-disk-val');
+      const pct = el('span', 'mon-disk-pct');
+      top.appendChild(mount);
+      top.appendChild(val);
+      top.appendChild(pct);
+      const bar = el('div', 'mon-bar');
+      const fill = el('div', 'mon-bar-fill');
+      bar.appendChild(fill);
+      row.appendChild(top);
+      row.appendChild(bar);
+      m.diskBox.appendChild(row);
+      m.diskRefs.set(d.mount, { val, pct, fill });
+    });
+  }
+  disks.forEach((d) => {
+    const r = m.diskRefs.get(d.mount);
+    if (!r) return;
+    r.val.textContent = `${humanSize(d.used)} / ${humanSize(d.size)}` +
+      `  ·  ${i18n.t('monitor_free')} ${humanSize(d.avail)}`;
+    r.pct.textContent = Math.round(d.pct) + '%';
+    r.pct.className = 'mon-disk-pct ' + levelClass(d.pct);
+    r.fill.style.width = d.pct.toFixed(1) + '%';
+    r.fill.className = 'mon-bar-fill ' + levelClass(d.pct);
+  });
+}
+
+/** Tabella dei processi più esosi (ordinati per CPU, come htop). */
+function renderProcs(box, procs) {
+  box.innerHTML = '';
+  const head = el('div', 'mon-proc head');
+  const cols = [
+    ['p-pid', 'PID'],
+    ['p-user', i18n.t('monitor_col_user')],
+    ['p-cmd', i18n.t('monitor_col_cmd')],
+    ['p-cpu', 'CPU%'],
+    ['p-mem', 'RAM%'],
+  ];
+  cols.forEach(([cls, label]) => {
+    const c = el('span', cls);
+    c.textContent = label;
+    head.appendChild(c);
+  });
+  box.appendChild(head);
+
+  if (!procs.length) {
+    const empty = el('div', 'mon-empty');
+    empty.textContent = i18n.t('monitor_no_procs');
+    box.appendChild(empty);
+    return;
+  }
+  procs.forEach((p) => {
+    const row = el('div', 'mon-proc');
+    const vals = [
+      ['p-pid', p.pid],
+      ['p-user', p.user],
+      ['p-cmd', p.cmd],
+      ['p-cpu ' + levelClass(p.cpu), p.cpu.toFixed(1)],
+      ['p-mem ' + levelClass(p.mem), p.mem.toFixed(1)],
+    ];
+    vals.forEach(([cls, v]) => {
+      const c = el('span', cls);
+      c.textContent = v;
+      row.appendChild(c);
+    });
+    row.title = `${p.cmd} (pid ${p.pid})`;
+    box.appendChild(row);
+  });
+}
+
+/** Uptime in forma compatta: "3g 4h", "5h 12m", "42m". */
+function formatUptime(sec) {
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const mi = Math.floor((sec % 3600) / 60);
+  const u = { d: i18n.t('monitor_unit_d'), h: i18n.t('monitor_unit_h'), m: i18n.t('monitor_unit_m') };
+  if (d) return `${d}${u.d} ${h}${u.h}`;
+  if (h) return `${h}${u.h} ${mi}${u.m}`;
+  return `${mi}${u.m}`;
+}
+
 // --- Manual Pull ------------------------------------------------------------
 
 let mpOpSeq = 0;
@@ -2761,20 +3166,239 @@ async function pasteEntry(tab, destDir) {
 
 async function downloadEntry(tab, entry, fullPath) {
   try {
-    if (entry.isDir) toast(i18n.t('download_folder_loading'));
-    const saved = await window.api.download(tab.id, fullPath, entry.name, entry.isDir);
-    if (saved) toast(i18n.t('download_saved', { path: saved }));
+    const item = await window.api.queueDownload(tab.id, fullPath, entry.name, entry.isDir, entry.size);
+    if (!item) return; // scelta della destinazione annullata
+    toast(i18n.t('tf_queued_download', { name: entry.name }));
+    openTransfers();
   } catch (e) { toast(i18n.t('download_error', { error: e.message }), true); }
 }
 
 async function importLocal(tab, destDir) {
   try {
-    toast(i18n.t('importing'));
-    const names = await window.api.importLocal(tab.id, destDir);
-    if (!names) return; // annullato
-    toast(`Importato: ${names.join(', ')}`);
-    showListing(tab, destDir);
+    const items = await window.api.queueUpload(tab.id, destDir);
+    if (!items || !items.length) return; // annullato
+    toast(i18n.t('tf_queued_upload', { name: items.map((i) => i.name).join(', ') }));
+    openTransfers();
   } catch (e) { toast(i18n.t('import_error', { error: e.message }), true); }
+}
+
+// ============================================================================
+// TRASFERIMENTI FILE (pannello unico: upload + download)
+// ============================================================================
+
+/** Stato locale della coda: id -> voce ricevuta dal main. */
+const transferItems = new Map();
+
+function transfersPanel() { return $('#transfers-panel'); }
+
+function toggleTransfers() {
+  transfersPanel().classList.toggle('hidden');
+}
+
+function openTransfers() {
+  transfersPanel().classList.remove('hidden');
+}
+
+/** Ordina i trasferimenti: prima gli attivi, poi i più recenti. */
+function sortedTransfers() {
+  const rank = { running: 0, queued: 1, paused: 2, error: 3, done: 4 };
+  return [...transferItems.values()].sort((a, b) => {
+    const d = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
+    return d !== 0 ? d : b.createdAt - a.createdAt;
+  });
+}
+
+/** Ridisegna l'elenco completo (usato all'avvio e quando una voce viene rimossa). */
+function renderTransfers() {
+  const list = $('#tf-list');
+  if (!list) return;
+  list.innerHTML = '';
+  const items = sortedTransfers();
+  if (!items.length) {
+    const empty = el('div', 'tf-empty');
+    empty.textContent = i18n.t('tf_empty');
+    list.appendChild(empty);
+  } else {
+    items.forEach((it) => list.appendChild(buildTransferRow(it)));
+  }
+  updateTransferBadges();
+}
+
+/** Aggiorna i contatori sui due pulsanti di apertura del pannello. */
+function updateTransferBadges() {
+  const active = [...transferItems.values()].filter(
+    (it) => it.status === 'running' || it.status === 'queued'
+  ).length;
+  const pending = [...transferItems.values()].filter((it) => it.status !== 'done').length;
+  [$('#btn-transfers'), $('#btn-transfers-home')].forEach((btn) => {
+    if (!btn) return;
+    const badge = btn.querySelector('.tf-badge');
+    if (badge) {
+      badge.textContent = active || pending;
+      badge.classList.toggle('hidden', !(active || pending));
+      badge.classList.toggle('idle', !active);
+    }
+    btn.title = i18n.t('tf_button_title');
+  });
+  // in home il pulsante compare solo se c'è qualcosa da mostrare
+  const homeBtn = $('#btn-transfers-home');
+  if (homeBtn) homeBtn.classList.toggle('hidden', transferItems.size === 0);
+}
+
+function buildTransferRow(it) {
+  const row = el('div', 'tf-item ' + it.status);
+  row.dataset.id = it.id;
+
+  // riga 1: direzione, nome, server
+  const r1 = el('div', 'tf-r1');
+  const dir = el('i', it.type === 'download' ? 'fa-solid fa-arrow-down tf-dir dl' : 'fa-solid fa-arrow-up tf-dir up');
+  const name = el('span', 'tf-name');
+  name.textContent = it.name;
+  name.title = it.type === 'download'
+    ? `${it.remotePath} → ${it.localPath}`
+    : `${it.localPath} → ${it.destDir}`;
+  const srv = el('span', 'tf-srv');
+  srv.textContent = it.serverLabel || '';
+  r1.appendChild(dir);
+  r1.appendChild(name);
+  r1.appendChild(srv);
+
+  // riga 2: barra, percentuale, comandi
+  const r2 = el('div', 'tf-r2');
+  const bar = el('div', 'tf-bar');
+  const fill = el('div', 'tf-fill');
+  bar.appendChild(fill);
+  const pct = el('span', 'tf-pct');
+  const btns = el('span', 'tf-btns');
+
+  const playPause = el('button', 'tf-btn');
+  playPause.addEventListener('click', () => {
+    if (it.status === 'running' || it.status === 'queued') window.api.transferPause(it.id);
+    else resumeTransfer(it.id);
+  });
+  const del = el('button', 'tf-btn tf-del');
+  del.innerHTML = '<i class="fa-solid fa-trash"></i>';
+  del.title = i18n.t('tf_remove');
+  del.addEventListener('click', () => window.api.transferRemove(it.id));
+  btns.appendChild(playPause);
+  btns.appendChild(del);
+
+  r2.appendChild(bar);
+  r2.appendChild(pct);
+  r2.appendChild(btns);
+
+  // riga 3: byte trasferiti / totale, stato, velocità
+  const r3 = el('div', 'tf-r3');
+  const size = el('span', 'tf-size');
+  const state = el('span', 'tf-state');
+  r3.appendChild(size);
+  r3.appendChild(state);
+
+  row.appendChild(r1);
+  row.appendChild(r2);
+  row.appendChild(r3);
+
+  row._refs = { fill, pct, size, state, playPause, bar };
+  fillTransferRow(row, it);
+  return row;
+}
+
+/** Aggiorna in place i valori di una riga (evita di ricostruire il DOM ad ogni tick). */
+function fillTransferRow(row, it) {
+  const { fill, pct, size, state, playPause } = row._refs;
+  row.className = 'tf-item ' + it.status;
+
+  const known = typeof it.total === 'number' && it.total > 0;
+  const done = it.status === 'done';
+  const percent = done ? 100 : known ? Math.min(100, Math.floor((it.transferred / it.total) * 100)) : 0;
+
+  // totale non ancora noto (calcolo dimensioni cartella): barra indeterminata
+  const indet = it.status === 'running' && !known && !done;
+  row.classList.toggle('indeterminate', indet);
+  fill.style.width = indet ? '' : percent + '%';
+  pct.textContent = known || done ? percent + '%' : '—';
+
+  size.textContent = known
+    ? `${humanSize(it.transferred)} / ${humanSize(it.total)}`
+    : it.transferred
+      ? humanSize(it.transferred)
+      : '';
+
+  const parts = [i18n.t('tf_status_' + it.status)];
+  if (it.status === 'running' && !known) parts[0] = i18n.t('tf_preparing');
+  if (it.status === 'running' && it.speed > 0) parts.push(`${humanSize(it.speed)}/s`);
+  if (it.kind === 'dir' && it.fileCount) parts.push(i18n.t('tf_files_progress', { done: it.fileDone, total: it.fileCount }));
+  if (it.status === 'running' && it.currentFile) parts.push(it.currentFile);
+  if (it.status === 'error' && it.error) parts.push(it.error);
+  state.textContent = parts.join(' · ');
+  state.classList.toggle('err', it.status === 'error');
+
+  const running = it.status === 'running' || it.status === 'queued';
+  playPause.innerHTML = running ? '<i class="fa-solid fa-pause"></i>' : '<i class="fa-solid fa-play"></i>';
+  playPause.title = running ? i18n.t('tf_pause') : i18n.t('tf_resume');
+  playPause.classList.toggle('hidden', done); // completato: resta solo il cestino
+}
+
+/** Riprende un trasferimento; se il server non è connesso lo segnala. */
+async function resumeTransfer(id) {
+  const res = await window.api.transferResume(id);
+  if (res && res.ok === false && res.reason === 'no_session') {
+    toast(i18n.t('tf_no_session', { server: res.server || '' }), true);
+  }
+}
+
+/** Applica un aggiornamento arrivato dal main a una singola riga. */
+function applyTransferUpdate(it) {
+  const existed = transferItems.has(it.id);
+  const prev = transferItems.get(it.id);
+  transferItems.set(it.id, it);
+
+  const list = $('#tf-list');
+  const row = list && list.querySelector(`.tf-item[data-id="${it.id}"]`);
+  // nuova voce, o cambio di stato che altera l'ordinamento: ridisegna tutto
+  if (!existed || !row || (prev && prev.status !== it.status)) renderTransfers();
+  else { fillTransferRow(row, it); updateTransferBadges(); }
+
+  if (!prev || prev.status === it.status) return;
+  if (it.status === 'done') {
+    toast(i18n.t('tf_done', { name: it.name }));
+    // se il file browser mostra la cartella coinvolta, aggiornalo
+    if (it.type === 'upload') refreshListingFor(it.destDir);
+  } else if (it.status === 'error') {
+    toast(i18n.t('tf_failed', { name: it.name, error: it.error || '' }), true);
+  }
+}
+
+/** Ricarica il listing delle schede che stanno mostrando la cartella indicata. */
+function refreshListingFor(dir) {
+  if (!dir) return;
+  tabs.forEach((tab) => {
+    if (tab.cwd === dir && tab.hostEl && tab.hostEl.querySelector('.ll-overlay')) {
+      showListing(tab, dir);
+    }
+  });
+}
+
+/** Carica la coda esistente all'avvio (comprese le voci sospese da una sessione precedente). */
+async function initTransfers() {
+  $('#btn-transfers').addEventListener('click', toggleTransfers);
+  $('#btn-transfers-home').addEventListener('click', toggleTransfers);
+  $('#tf-close').addEventListener('click', () => transfersPanel().classList.add('hidden'));
+  $('#tf-clear').addEventListener('click', () => window.api.transferClearDone());
+
+  window.api.onTransferUpdate(applyTransferUpdate);
+  window.api.onTransferRemoved(({ id }) => {
+    transferItems.delete(id);
+    renderTransfers();
+  });
+
+  try {
+    const list = await window.api.transferList();
+    list.forEach((it) => transferItems.set(it.id, it));
+  } catch (_) { /* nessuna coda salvata */ }
+  renderTransfers();
+  const pending = [...transferItems.values()].filter((it) => it.status !== 'done').length;
+  if (pending) toast(i18n.t('tf_pending_on_start', { count: pending }));
 }
 
 // ============================================================================
@@ -3015,6 +3639,20 @@ function applyUITexts() {
   // Search placeholder
   const searchInput = $('#server-search');
   if (searchInput) searchInput.placeholder = i18n.t('search_placeholder');
+
+  // Pannello trasferimenti file
+  const tfTitle = document.querySelector('#transfers-panel .tf-title');
+  if (tfTitle) tfTitle.innerHTML = `<i class="fa-solid fa-right-left"></i> ${i18n.t('tf_title')}`;
+  const tfClearBtn = $('#tf-clear');
+  if (tfClearBtn) tfClearBtn.title = i18n.t('tf_clear_done');
+  const tfCloseBtn = $('#tf-close');
+  if (tfCloseBtn) tfCloseBtn.title = i18n.t('tf_close');
+  const tfHomeBtn = $('#btn-transfers-home');
+  if (tfHomeBtn) {
+    tfHomeBtn.innerHTML =
+      `<i class="fa-solid fa-right-left"></i> ${i18n.t('tf_title')} <span class="tf-badge">0</span>`;
+  }
+  renderTransfers(); // ricostruisce le righe con la nuova lingua e i badge
 }
 
 // ============================================================================
@@ -3079,6 +3717,9 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('#btn-back').addEventListener('click', () => {
     if (tabs.size > 0) { showView('terminal'); layout(); }
   });
+
+  // coda trasferimenti: eventi, elenco iniziale (anche voci sospese da sessioni precedenti)
+  await initTransfers();
 
   document.addEventListener('click', hideContextMenu);
   window.addEventListener('resize', fitAll);

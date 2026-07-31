@@ -156,6 +156,33 @@ class SshManager {
     });
   }
 
+  /** Canale SFTP della sessione (usato dal gestore dei trasferimenti). */
+  sftp(id) {
+    return this._sftp(id);
+  }
+
+  /** True se la sessione è ancora aperta (senza lanciare eccezioni). */
+  hasSession(id) {
+    return this.sessions.has(id);
+  }
+
+  /** Chiave ed etichetta del server di una sessione (per la lista trasferimenti). */
+  serverInfo(id) {
+    const srv = this.get(id).server;
+    return { key: serverKey(srv), label: srv.nickname || srv.name || srv.host || '' };
+  }
+
+  /**
+   * Prima sessione aperta sullo stesso server (stesso utente/host/porta).
+   * Serve per riprendere un trasferimento dopo una riconnessione o un riavvio.
+   */
+  findSessionByServerKey(key) {
+    for (const [id, s] of this.sessions) {
+      if (serverKey(s.server) === key) return id;
+    }
+    return null;
+  }
+
   /** Elenca il contenuto di una cartella (per il bottone "ll" / cartelle cliccabili). */
   async listDir(id, dir) {
     const sftp = await this._sftp(id);
@@ -230,46 +257,6 @@ class SshManager {
       return true;
     } catch (_) {
       return false;
-    }
-  }
-
-  /**
-   * Importa un file o cartella locale nel server, dentro `destDir`.
-   * Carica prima in /tmp via SFTP (scrivibile dall'utente), poi copia nella
-   * destinazione con sudo per gestire eventuali permessi (es. /opt).
-   */
-  async importPath(id, localPath, destDir) {
-    const sftp = await this._sftp(id);
-    const base = path.basename(localPath);
-    const tmpRoot = `/tmp/rg-import-${Date.now()}-${Math.floor(Math.random() * 1e6)}`;
-    await this._sftpMkdir(sftp, tmpRoot);
-    try {
-      await this._sftpPut(sftp, localPath, `${tmpRoot}/${base}`);
-      await this.sudoExec(id, `cp -r ${shellQuote(tmpRoot + '/' + base)} ${shellQuote(destDir)}/`);
-    } finally {
-      // pulizia del temporaneo (best-effort)
-      await this.exec(id, `rm -rf ${shellQuote(tmpRoot)}`).catch(() => {});
-    }
-    return base;
-  }
-
-  _sftpMkdir(sftp, dir) {
-    return new Promise((resolve, reject) => {
-      sftp.mkdir(dir, (err) => (err ? reject(err) : resolve()));
-    });
-  }
-
-  async _sftpPut(sftp, local, remote) {
-    const st = fs.statSync(local);
-    if (st.isDirectory()) {
-      await this._sftpMkdir(sftp, remote);
-      for (const name of fs.readdirSync(local)) {
-        await this._sftpPut(sftp, path.join(local, name), remote + '/' + name);
-      }
-    } else {
-      await new Promise((resolve, reject) => {
-        sftp.fastPut(local, remote, (err) => (err ? reject(err) : resolve()));
-      });
     }
   }
 
@@ -762,35 +749,36 @@ class SshManager {
     return true;
   }
 
-  /** Scarica un file remoto in locale. */
-  async download(id, remotePath, localPath) {
-    const sftp = await this._sftp(id);
-    return new Promise((resolve, reject) => {
-      sftp.fastGet(remotePath, localPath, (err) => (err ? reject(err) : resolve(localPath)));
-    });
-  }
+  // ---- Monitor di sistema ----------------------------------------------------
 
-  /** Scarica ricorsivamente una cartella remota in locale (`localPath`). */
-  async downloadDir(id, remotePath, localPath) {
-    const sftp = await this._sftp(id);
-    fs.mkdirSync(localPath, { recursive: true });
-    const entries = await new Promise((resolve, reject) => {
-      sftp.readdir(remotePath, (err, l) => (err ? reject(err) : resolve(l)));
-    });
-    for (const e of entries) {
-      const rem = remotePath.replace(/\/+$/, '') + '/' + e.filename;
-      const loc = path.join(localPath, e.filename);
-      const isDir = (e.attrs.mode & 0o170000) === 0o040000;
-      const isLink = (e.attrs.mode & 0o170000) === 0o120000;
-      if (isLink) continue; // salta i symlink per evitare loop
-      if (isDir) await this.downloadDir(id, rem, loc);
-      else {
-        await new Promise((resolve, reject) => {
-          sftp.fastGet(rem, loc, (err) => (err ? reject(err) : resolve()));
-        });
-      }
-    }
-    return localPath;
+  /**
+   * Fotografia dello stato del sistema per la dashboard: CPU (totale e per core),
+   * memoria, swap, load average, uptime, dischi (`df`) e processi più esosi.
+   *
+   * Tutto in una sola exec per non moltiplicare i round trip. /proc/stat viene
+   * campionato due volte a 0,5 s di distanza: così l'uso istantaneo di CPU si
+   * calcola sul posto, senza conservare stato tra una chiamata e l'altra (e il
+   * primo aggiornamento mostra già valori sensati).
+   */
+  async sysStats(id) {
+    const cmd = [
+      'export LC_ALL=C',
+      'echo @S1', "grep '^cpu' /proc/stat 2>/dev/null",
+      'sleep 0.5',
+      'echo @S2', "grep '^cpu' /proc/stat 2>/dev/null",
+      'echo @MEM', 'cat /proc/meminfo 2>/dev/null',
+      'echo @LOAD', 'cat /proc/loadavg 2>/dev/null',
+      'echo @UP', 'cat /proc/uptime 2>/dev/null',
+      'echo @MODEL', "grep -m1 '^model name' /proc/cpuinfo 2>/dev/null",
+      // -x esclude i filesystem virtuali (non su tutte le df: fallback senza -x)
+      'echo @DF',
+      '{ df -P -B1 -x tmpfs -x devtmpfs -x squashfs -x overlay 2>/dev/null' +
+        ' || df -P -B1 2>/dev/null; }',
+      'echo @PS',
+      'ps -eo pid=,user=,pcpu=,pmem=,comm= --sort=-pcpu 2>/dev/null | head -n 12',
+      'echo @END',
+    ].join('; ');
+    return parseSysStats(await this.exec(id, cmd));
   }
 
   // ---- PostgreSQL ------------------------------------------------------------
@@ -1045,11 +1033,163 @@ function shellQuote(s) {
   return `'${String(s).replace(/'/g, `'\\''`)}'`;
 }
 
+/** Identifica un server a prescindere dalla sessione: utente@host:porta. */
+function serverKey(srv) {
+  return `${srv.username || ''}@${srv.host || ''}:${srv.port || 22}`;
+}
+
 // SQL per elencare i database (escludendo i template): nome, proprietario, dimensione.
 const PG_LIST_SQL =
   'SELECT datname, pg_catalog.pg_get_userbyid(datdba), ' +
   'pg_size_pretty(pg_database_size(datname)) ' +
   'FROM pg_database WHERE datistemplate = false ORDER BY datname;';
+
+// ---- Parsing dello stato di sistema ---------------------------------------
+
+/**
+ * Analizza l'output a sezioni (@S1, @MEM, …) del comando di `sysStats`.
+ * Ritorna null nei campi non disponibili (es. sistemi senza /proc), così la
+ * dashboard può segnalarlo senza rompersi.
+ */
+function parseSysStats(out) {
+  const sec = {};
+  let cur = null;
+  for (const raw of String(out).split('\n')) {
+    const line = raw.replace(/\r$/, '');
+    const m = line.match(/^@([A-Z0-9]+)$/);
+    if (m) { cur = m[1]; sec[cur] = []; continue; }
+    if (cur) sec[cur].push(line);
+  }
+
+  const mem = parseMeminfo(sec.MEM || []);
+  const load = (sec.LOAD || [])[0] ? String(sec.LOAD[0]).trim().split(/\s+/) : [];
+  const upFields = (sec.UP || [])[0] ? String(sec.UP[0]).trim().split(/\s+/) : [];
+  const modelLine = (sec.MODEL || [])[0] || '';
+
+  return {
+    cpu: parseCpu(sec.S1 || [], sec.S2 || []),
+    cpuModel: modelLine.includes(':') ? modelLine.split(':').slice(1).join(':').trim() : '',
+    mem,
+    load: load.length >= 3 ? load.slice(0, 3).map(Number) : null,
+    procsRunning: load[3] || '',
+    uptime: upFields.length ? Math.floor(Number(upFields[0])) : null,
+    disks: parseDf(sec.DF || []),
+    procs: parsePs(sec.PS || []),
+  };
+}
+
+/**
+ * Uso di CPU in percentuale dalla differenza fra due campionamenti di /proc/stat.
+ * Ritorna { all, iowait, cores: [] } oppure null se i dati non sono utilizzabili.
+ */
+function parseCpu(first, second) {
+  const read = (lines) => {
+    const map = new Map();
+    for (const l of lines) {
+      const f = l.trim().split(/\s+/);
+      if (!f[0] || !/^cpu/.test(f[0])) continue;
+      const n = f.slice(1).map((x) => Number(x) || 0);
+      // idle = idle + iowait: entrambi tempo non speso a calcolare
+      map.set(f[0], {
+        total: n.reduce((s, v) => s + v, 0),
+        idle: (n[3] || 0) + (n[4] || 0),
+        iowait: n[4] || 0,
+      });
+    }
+    return map;
+  };
+  const a = read(first);
+  const b = read(second);
+  if (!a.size || !b.size) return null;
+
+  const pct = (key) => {
+    const x = a.get(key);
+    const y = b.get(key);
+    if (!x || !y) return null;
+    const dt = y.total - x.total;
+    if (dt <= 0) return null;
+    return {
+      busy: Math.max(0, Math.min(100, ((dt - (y.idle - x.idle)) / dt) * 100)),
+      iowait: Math.max(0, Math.min(100, ((y.iowait - x.iowait) / dt) * 100)),
+    };
+  };
+
+  const all = pct('cpu');
+  const cores = [];
+  for (let i = 0; b.has('cpu' + i); i++) {
+    const c = pct('cpu' + i);
+    cores.push(c ? c.busy : 0);
+  }
+  return { all: all ? all.busy : null, iowait: all ? all.iowait : null, cores };
+}
+
+/** Memoria e swap in byte da /proc/meminfo. */
+function parseMeminfo(lines) {
+  const kv = {};
+  for (const l of lines) {
+    const m = l.match(/^(\w+):\s+(\d+)/);
+    if (m) kv[m[1]] = Number(m[2]) * 1024; // i valori sono in kB
+  }
+  if (!kv.MemTotal) return null;
+  const cached = (kv.Cached || 0) + (kv.SReclaimable || 0);
+  // "available" è la stima del kernel di memoria realmente allocabile: più
+  // affidabile di free+cache per dire quanta RAM è davvero occupata
+  const available = kv.MemAvailable != null ? kv.MemAvailable : (kv.MemFree || 0) + cached;
+  return {
+    total: kv.MemTotal,
+    free: kv.MemFree || 0,
+    available,
+    buffers: kv.Buffers || 0,
+    cached,
+    used: Math.max(0, kv.MemTotal - available),
+    swapTotal: kv.SwapTotal || 0,
+    swapUsed: Math.max(0, (kv.SwapTotal || 0) - (kv.SwapFree || 0)),
+  };
+}
+
+/** Righe di `df -P -B1` (byte) in oggetti, scartando i filesystem virtuali. */
+function parseDf(lines) {
+  const skipFs = /^(tmpfs|devtmpfs|udev|overlay|shm|none|squashfs|efivarfs)$/i;
+  const skipMount = /^\/(dev|proc|sys|run)(\/|$)/;
+  const out = [];
+  for (const l of lines.slice(1)) { // la prima riga è l'intestazione
+    if (!l.trim()) continue;
+    const f = l.trim().split(/\s+/);
+    if (f.length < 6) continue;
+    const [fs, size, used, avail] = f;
+    const mount = f.slice(5).join(' '); // i mount point possono contenere spazi
+    if (skipFs.test(fs) || skipMount.test(mount)) continue;
+    const total = Number(size);
+    if (!total) continue;
+    out.push({
+      fs,
+      mount,
+      size: total,
+      used: Number(used),
+      avail: Number(avail),
+      pct: Math.min(100, (Number(used) / total) * 100),
+    });
+  }
+  out.sort((a, b) => b.pct - a.pct);
+  return out;
+}
+
+/** Righe di `ps -eo pid,user,pcpu,pmem,comm` in oggetti. */
+function parsePs(lines) {
+  const out = [];
+  for (const l of lines) {
+    const f = l.trim().split(/\s+/);
+    if (f.length < 5 || !/^\d+$/.test(f[0])) continue;
+    out.push({
+      pid: f[0],
+      user: f[1],
+      cpu: Number(f[2]) || 0,
+      mem: Number(f[3]) || 0,
+      cmd: f.slice(4).join(' '),
+    });
+  }
+  return out;
+}
 
 /** Converte l'output `nome|proprietario|dimensione` di psql in oggetti. */
 function parsePgList(out) {
