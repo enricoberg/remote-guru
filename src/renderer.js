@@ -567,17 +567,12 @@ function buildPane(tab) {
     const item = el('button', 'actions-item');
     item.innerHTML = `<i class="${a.icon}"></i> <span></span>`;
     item.querySelector('span').textContent = a.label;
-    item.addEventListener('click', () => {
-      actionsWrap.classList.remove('open');
-      a.run();
-    });
+    item.addEventListener('click', () => a.run());
     actionsList.appendChild(item);
   }
   actionsWrap.appendChild(actionsBtn);
   actionsWrap.appendChild(actionsList);
-  // il click funziona come toggle (utile su touch / dopo aver spostato il mouse)
-  actionsBtn.addEventListener('click', () => actionsWrap.classList.toggle('open'));
-  actionsWrap.addEventListener('mouseleave', () => actionsWrap.classList.remove('open'));
+  setupHoverMenu(actionsWrap, actionsBtn);
 
   const srv = el('span', 'srv-name');
   srv.textContent = tab.server.nickname || tab.server.name;
@@ -646,6 +641,41 @@ function buildPane(tab) {
   host.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     openTermContextMenu(e, tab);
+  });
+}
+
+/**
+ * Menu a tendina che si apre in hover ma non si chiude al primo movimento
+ * "sbagliato" del mouse: la chiusura è ritardata (e annullata se si rientra),
+ * così passare dal pulsante alle voci non lo fa sparire.
+ */
+function setupHoverMenu(wrap, btn) {
+  const CLOSE_DELAY = 300;
+  let closeTimer = null;
+  const cancelClose = () => { clearTimeout(closeTimer); closeTimer = null; };
+  const open = () => { cancelClose(); wrap.classList.add('open'); };
+  const close = () => { cancelClose(); wrap.classList.remove('open'); };
+  const scheduleClose = () => {
+    cancelClose();
+    closeTimer = setTimeout(close, CLOSE_DELAY);
+  };
+
+  wrap.addEventListener('mouseenter', open);
+  wrap.addEventListener('mouseleave', scheduleClose);
+  // riapre/mantiene aperto anche muovendosi dentro il menu
+  wrap.addEventListener('mousemove', cancelClose);
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    wrap.classList.contains('open') ? close() : open();
+  });
+  // scelta una voce, il menu si chiude
+  wrap.querySelector('.actions-list').addEventListener('click', close);
+  // click fuori o Esc chiudono
+  document.addEventListener('mousedown', (e) => {
+    if (!wrap.contains(e.target)) close();
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') close();
   });
 }
 
