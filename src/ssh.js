@@ -343,6 +343,7 @@ class SshManager {
           state, // running | exited | created | paused | ...
           status,
           ports: parsePublishedPorts(ports), // porte host pubblicate
+          portDetails: parsePortDetails(ports), // mappature host->container + porte esposte
           running: state === 'running',
           workdir: workdir || '',
         };
@@ -1214,6 +1215,39 @@ function parsePublishedPorts(str) {
     if (m) ports.add(parseInt(m[1], 10));
   });
   return [...ports].sort((a, b) => a - b);
+}
+
+/**
+ * Dettaglio delle porte dal campo `.Ports` di docker ps: mappature pubblicate
+ * (host -> container) e porte solo esposte.
+ * Es: "0.0.0.0:5000->5000/tcp, :::5000->5000/tcp, 8080/tcp"
+ *  -> [{ host: 5000, container: 5000, proto: 'tcp' }, { container: 8080, proto: 'tcp' }]
+ */
+function parsePortDetails(str) {
+  const seen = new Set();
+  const list = [];
+  String(str || '').split(',').forEach((seg) => {
+    const s = seg.trim();
+    if (!s) return;
+    const pub = s.match(/(?::|^)(\d+)->(\d+)\/(\w+)$/);
+    if (pub) {
+      const item = { host: parseInt(pub[1], 10), container: parseInt(pub[2], 10), proto: pub[3] };
+      const key = `${item.host}->${item.container}/${item.proto}`;
+      if (!seen.has(key)) { seen.add(key); list.push(item); }
+      return;
+    }
+    const exp = s.match(/^(\d+)\/(\w+)$/);
+    if (exp) {
+      const item = { container: parseInt(exp[1], 10), proto: exp[2] };
+      const key = `exp:${item.container}/${item.proto}`;
+      if (!seen.has(key)) { seen.add(key); list.push(item); }
+    }
+  });
+  // prima le porte pubblicate, ordinate per porta host
+  return list.sort((a, b) => {
+    if ((a.host == null) !== (b.host == null)) return a.host == null ? 1 : -1;
+    return (a.host ?? a.container) - (b.host ?? b.container);
+  });
 }
 
 function humanBytes(bytes) {

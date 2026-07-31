@@ -264,6 +264,28 @@ html, body {
 }
 .btn-ll:hover { background: var(--accent); color: #11111b; }
 
+/* pulsante Actions + menu a tendina */
+.actions-menu { position: relative; flex: 0 0 auto; }
+.actions-menu .btn-actions {
+  width: auto; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; font-weight: 600;
+}
+.actions-menu .actions-list {
+  display: none; position: absolute; top: calc(100% + 4px); left: 0; z-index: 60;
+  min-width: 210px; padding: 4px; flex-direction: column;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
+}
+.actions-menu:hover .actions-list,
+.actions-menu.open .actions-list { display: flex; }
+.actions-menu .actions-item {
+  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
+  background: none; border: none; color: var(--text); border-radius: 5px;
+  padding: 6px 8px; cursor: pointer; font-size: 13px; white-space: nowrap;
+}
+.actions-menu .actions-item i { width: 16px; text-align: center; }
+.actions-menu .actions-item:hover { background: var(--accent); color: #11111b; }
+
 /* intestazione mostrata quando si è dentro uno screen */
 .screen-bar {
   display: flex; align-items: center; gap: 8px; padding: 5px 10px; flex: 0 0 auto;
@@ -343,6 +365,14 @@ html, body {
 .docker-meta { display: flex; flex-direction: column; min-width: 0; flex: 1; }
 .docker-name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .docker-name i { color: var(--accent); margin-right: 4px; }
+/* chip con il dettaglio delle porte accanto al nome del container */
+.docker-ports { display: inline-flex; gap: 4px; margin-left: 6px; vertical-align: baseline; }
+.docker-ports .port-chip {
+  font-size: 10px; font-weight: 600; line-height: 1.5; padding: 0 5px; border-radius: 4px;
+  background: var(--border); color: var(--muted); white-space: nowrap;
+}
+.docker-ports .port-chip.published { background: var(--accent); color: #11111b; }
+.docker-row.stopped .docker-ports .port-chip.published { background: var(--border); color: var(--muted); }
 .docker-img { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .docker-actions { display: flex; gap: 6px; flex: 0 0 auto; }
 .docker-btn {

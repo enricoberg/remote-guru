@@ -533,63 +533,54 @@ function buildPane(tab) {
   pane.dataset.id = tab.id;
 
   const toolbar = el('div', 'pane-toolbar');
-  const llBtn = el('button', 'btn-ll');
-  llBtn.title = i18n.t('ll_button_title');
-  llBtn.innerHTML = '<i class="fa-solid fa-list"></i>';
-  llBtn.addEventListener('click', () => showListing(tab));
-  const clearBtn = el('button', 'btn-ll');
-  clearBtn.title = i18n.t('clear_button_title');
-  clearBtn.innerHTML = '<i class="fa-solid fa-broom"></i>';
-  clearBtn.addEventListener('click', () => {
-    tab.term.clear();
-    window.api.write(tab.id, 'clear\r');
-    tab.term.focus();
-  });
-  const dockerBtn = el('button', 'btn-ll');
-  dockerBtn.title = i18n.t('docker_containers_button_title');
-  dockerBtn.innerHTML = '<i class="fa-brands fa-docker"></i>';
-  dockerBtn.addEventListener('click', () => showDocker(tab));
-  const imagesBtn = el('button', 'btn-ll');
-  imagesBtn.title = i18n.t('docker_images_button_title');
-  imagesBtn.innerHTML = '<i class="fa-solid fa-hard-drive"></i>';
-  imagesBtn.addEventListener('click', () => showImages(tab));
-  const dbBtn = el('button', 'btn-ll');
-  dbBtn.title = i18n.t('db_databases_button_title');
-  dbBtn.innerHTML = '<i class="fa-solid fa-database"></i>';
-  dbBtn.addEventListener('click', () => showDatabases(tab));
-  const screensBtn = el('button', 'btn-ll');
-  screensBtn.title = i18n.t('screen_sessions_button_title');
-  screensBtn.innerHTML = '<i class="fa-brands fa-buffer"></i>';
-  screensBtn.addEventListener('click', () => showScreens(tab));
-  const cronBtn = el('button', 'btn-ll');
-  cronBtn.title = i18n.t('cron_button_title');
-  cronBtn.innerHTML = '<i class="fa-solid fa-clock"></i>';
-  cronBtn.addEventListener('click', () => showCrontab(tab));
-  const monBtn = el('button', 'btn-ll');
-  monBtn.title = i18n.t('monitor_button_title');
-  monBtn.innerHTML = '<i class="fa-solid fa-gauge-high"></i>';
-  monBtn.addEventListener('click', () => showMonitor(tab));
+
+  // unico pulsante "Actions" con menu a tendina (si apre in hover)
+  const actions = [
+    { icon: 'fa-solid fa-list',        label: i18n.t('ll_button_title'),                 run: () => showListing(tab) },
+    { icon: 'fa-solid fa-broom',       label: i18n.t('clear_button_title'),              run: () => {
+        tab.term.clear();
+        window.api.write(tab.id, 'clear\r');
+        tab.term.focus();
+      } },
+    { icon: 'fa-brands fa-docker',     label: i18n.t('docker_containers_button_title'),  run: () => showDocker(tab) },
+    { icon: 'fa-solid fa-hard-drive',  label: i18n.t('docker_images_button_title'),      run: () => showImages(tab) },
+    { icon: 'fa-solid fa-database',    label: i18n.t('db_databases_button_title'),       run: () => showDatabases(tab) },
+    { icon: 'fa-brands fa-buffer',     label: i18n.t('screen_sessions_button_title'),    run: () => showScreens(tab) },
+    { icon: 'fa-solid fa-clock',       label: i18n.t('cron_button_title'),               run: () => showCrontab(tab) },
+    { icon: 'fa-solid fa-gauge-high',  label: i18n.t('monitor_button_title'),            run: () => showMonitor(tab) },
+    { icon: 'fa-solid fa-table-columns', label: i18n.t('split_view_button_title'),       run: () => toggleSplit(tab.id) },
+  ];
+
+  const actionsWrap = el('div', 'actions-menu');
+  const actionsBtn = el('button', 'btn-ll btn-actions');
+  actionsBtn.title = i18n.t('actions_button_title');
+  actionsBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> <span></span>';
+  actionsBtn.querySelector('span').textContent = i18n.t('actions_button');
+  const actionsList = el('div', 'actions-list');
+  for (const a of actions) {
+    const item = el('button', 'actions-item');
+    item.innerHTML = `<i class="${a.icon}"></i> <span></span>`;
+    item.querySelector('span').textContent = a.label;
+    item.addEventListener('click', () => {
+      actionsWrap.classList.remove('open');
+      a.run();
+    });
+    actionsList.appendChild(item);
+  }
+  actionsWrap.appendChild(actionsBtn);
+  actionsWrap.appendChild(actionsList);
+  // il click funziona come toggle (utile su touch / dopo aver spostato il mouse)
+  actionsBtn.addEventListener('click', () => actionsWrap.classList.toggle('open'));
+  actionsWrap.addEventListener('mouseleave', () => actionsWrap.classList.remove('open'));
+
   const srv = el('span', 'srv-name');
   srv.textContent = tab.server.nickname || tab.server.name;
   const cwd = el('span', 'cwd');
   cwd.textContent = tab.cwd;
   tab.cwdEl = cwd;
-  const splitBtn = el('button', 'btn-ll');
-  splitBtn.title = i18n.t('split_view_button_title');
-  splitBtn.innerHTML = '<i class="fa-solid fa-table-columns"></i>';
-  splitBtn.style.marginLeft = 'auto';
-  splitBtn.addEventListener('click', () => toggleSplit(tab.id));
-  toolbar.appendChild(llBtn);
-  toolbar.appendChild(clearBtn);
-  toolbar.appendChild(dockerBtn);
-  toolbar.appendChild(imagesBtn);
-  toolbar.appendChild(dbBtn);
-  toolbar.appendChild(screensBtn);
-  toolbar.appendChild(cronBtn);
-  toolbar.appendChild(monBtn);
+  toolbar.appendChild(actionsWrap);
   toolbar.appendChild(srv);
   toolbar.appendChild(cwd);
-  toolbar.appendChild(splitBtn);
 
   // intestazione visibile solo quando si è dentro uno screen
   const screenBar = el('div', 'screen-bar hidden');
@@ -1080,7 +1071,10 @@ async function showDocker(tab) {
     const items = groups.get(key).map((c) => {
       const row = makeDockerRow(tab, c);
       overlay.appendChild(row);
-      return { text: `${c.name} ${c.image} ${c.status || ''}`.toLowerCase(), row };
+      const portsText = (c.portDetails || [])
+        .map((p) => (p.host != null ? `${p.host} ${p.container}` : `${p.container}`))
+        .join(' ');
+      return { text: `${c.name} ${c.image} ${c.status || ''} ${portsText}`.toLowerCase(), row };
     });
     blocks.push({ header, items });
   });
@@ -1124,6 +1118,20 @@ function makeDockerRow(tab, c) {
   const name = el('span', 'docker-name');
   name.innerHTML = `<i class="fa-solid fa-cube"></i> ${escapeHtml(c.name)}`;
   name.title = c.name + (c.status ? ` — ${c.status}` : '');
+  // dettaglio porte accanto al nome: host→container (pubblicate) e solo esposte
+  const pd = c.portDetails || [];
+  if (pd.length) {
+    const wrap = el('span', 'docker-ports');
+    pd.forEach((p) => {
+      const chip = el('span', 'port-chip' + (p.host != null ? ' published' : ''));
+      chip.textContent = p.host != null ? `${p.host}→${p.container}` : `${p.container}`;
+      chip.title = p.host != null
+        ? i18n.t('docker_port_published', { host: p.host, container: p.container, proto: p.proto })
+        : i18n.t('docker_port_exposed', { container: p.container, proto: p.proto });
+      wrap.appendChild(chip);
+    });
+    name.appendChild(wrap);
+  }
   const img = el('span', 'docker-img');
   img.textContent = c.status ? `${c.image} · ${c.status}` : c.image;
   img.title = `${c.image}${c.status ? ` — ${c.status}` : ''}`;

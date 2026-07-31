@@ -87,6 +87,22 @@
     "de": "Zurück zu aktiven Sitzungen",
     "pt": "Voltar para sessões ativas"
   },
+  "actions_button": {
+    "it": "Azioni",
+    "en": "Actions",
+    "es": "Acciones",
+    "fr": "Actions",
+    "de": "Aktionen",
+    "pt": "Ações"
+  },
+  "actions_button_title": {
+    "it": "Apri il menu delle azioni",
+    "en": "Open the actions menu",
+    "es": "Abrir el menú de acciones",
+    "fr": "Ouvrir le menu des actions",
+    "de": "Aktionsmenü öffnen",
+    "pt": "Abrir o menu de ações"
+  },
   "ll_button_title": {
     "it": "Elenca contenuto cartella (ll)",
     "en": "List folder contents (ll)",
@@ -718,6 +734,22 @@
     "fr": "Port {port}",
     "de": "Port {port}",
     "pt": "Porta {port}"
+  },
+  "docker_port_published": {
+    "it": "Porta host {host} → porta container {container}/{proto}",
+    "en": "Host port {host} → container port {container}/{proto}",
+    "es": "Puerto host {host} → puerto contenedor {container}/{proto}",
+    "fr": "Port hôte {host} → port conteneur {container}/{proto}",
+    "de": "Host-Port {host} → Container-Port {container}/{proto}",
+    "pt": "Porta host {host} → porta contêiner {container}/{proto}"
+  },
+  "docker_port_exposed": {
+    "it": "Porta {container}/{proto} esposta ma non pubblicata sull'host",
+    "en": "Port {container}/{proto} exposed but not published on the host",
+    "es": "Puerto {container}/{proto} expuesto pero no publicado en el host",
+    "fr": "Port {container}/{proto} exposé mais non publié sur l'hôte",
+    "de": "Port {container}/{proto} freigegeben, aber nicht auf dem Host veröffentlicht",
+    "pt": "Porta {container}/{proto} exposta mas não publicada no host"
   },
   "docker_no_images": {
     "it": "Nessuna immagine trovata nei compose.",
