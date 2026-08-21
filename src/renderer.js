@@ -2,6 +2,7 @@
 
 const { Terminal } = window;
 const FitAddon = window.FitAddon.FitAddon;
+const SearchAddon = window.SearchAddon.SearchAddon;
 
 // ----------------------------------------------------------------------------
 // Stato globale
@@ -467,18 +468,25 @@ async function openConnection(server) {
 
   const term = new Terminal({
     fontFamily: 'SFMono-Regular, Menlo, monospace',
-    fontSize: 13,
+    fontSize: TERM_FONT_DEFAULT,
     cursorBlink: true,
+    // marker e decorazioni sono API "proposed" di xterm: senza questa opzione
+    // l'addon di ricerca solleva un'eccezione appena evidenzia i risultati
+    allowProposedApi: true,
     theme: buildTerminalTheme(),
   });
   const fit = new FitAddon();
   term.loadAddon(fit);
+  // ricerca nel buffer (barra Cmd+F): l'addon vive quanto la sessione
+  const search = new SearchAddon();
+  term.loadAddon(search);
 
   const tab = {
-    id, server, term, fit,
+    id, server, term, fit, search,
     cwd: res.cwd || '~',
     paneEl: null, tabEl: null, hostEl: null, cwdEl: null,
     dead: false, inputBuffer: '',
+    fontSize: TERM_FONT_DEFAULT, // zoom del carattere, per singola sessione
     termState: 'host', // 'host' | 'logs' | 'shell': stato del terminale per i comandi docker
   };
   tabs.set(id, tab);
@@ -535,8 +543,183 @@ function buildTabButton(tab) {
 /** Pulisce il terminale (schermo locale + `clear` remoto). */
 function clearTerminal(tab) {
   tab.term.clear();
+  // le evidenziazioni della ricerca puntano a righe che non esistono più
+  if (tab.search) tab.search.clearDecorations();
   window.api.write(tab.id, 'clear\r');
   tab.term.focus();
+}
+
+// ============================================================================
+// RICERCA NEL BUFFER DEL TERMINALE
+// ============================================================================
+//
+// Ogni scheda ha il proprio addon di ricerca e la propria barra, agganciata in
+// alto a destra sopra il terminale. Le evidenziazioni sono ridisegnate a ogni
+// ricerca con i colori del tema attivo.
+
+/** Colori delle evidenziazioni dei risultati, presi dal tema attivo. */
+function searchDecorations() {
+  const cs = getComputedStyle(document.documentElement);
+  const v = (name, fallback) => (cs.getPropertyValue(name).trim() || fallback);
+  const border = v('--border', '#313244');
+  const accent = v('--accent', '#89b4fa');
+  const yellow = v('--yellow', '#f9e2af');
+  // sfondo tenue per tutti i risultati, bordo giallo su quello corrente: così
+  // il testo resta leggibile (il colore del carattere non cambia)
+  return {
+    matchBackground: border,
+    matchBorder: accent,
+    matchOverviewRuler: accent,
+    activeMatchBackground: border,
+    activeMatchBorder: yellow,
+    activeMatchColorOverviewRuler: yellow,
+  };
+}
+
+/** Cmd+F: apre la barra di ricerca, o le ridà il fuoco se è già aperta. */
+function toggleTermFind(tab) {
+  if (tab.findEl) {
+    tab.findInput.focus();
+    tab.findInput.select();
+    return;
+  }
+  openTermFind(tab);
+}
+
+function openTermFind(tab) {
+  const bar = el('div', 'term-find');
+  const icon = el('i', 'fa-solid fa-magnifying-glass');
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'tf-find-input';
+  input.placeholder = i18n.t('find_placeholder');
+  // testo selezionato nel terminale = ricerca proposta, altrimenti l'ultima fatta
+  const sel = (tab.term.getSelection() || '').trim();
+  input.value = (sel && !sel.includes('\n') ? sel : tab.findQuery) || '';
+  const count = el('span', 'tf-find-count');
+
+  const mkBtn = (cls, html, titleKey, fn) => {
+    const b = el('button', cls);
+    b.innerHTML = html;
+    b.title = i18n.t(titleKey);
+    b.addEventListener('click', fn);
+    return b;
+  };
+  const caseBtn = mkBtn('tf-flag' + (tab.findCase ? ' on' : ''), 'Aa', 'find_case', () => {
+    tab.findCase = !tab.findCase;
+    caseBtn.classList.toggle('on', tab.findCase);
+    runFind(tab, 'next', true);
+    input.focus();
+  });
+  const reBtn = mkBtn('tf-flag' + (tab.findRegex ? ' on' : ''), '.*', 'find_regex', () => {
+    tab.findRegex = !tab.findRegex;
+    reBtn.classList.toggle('on', tab.findRegex);
+    runFind(tab, 'next', true);
+    input.focus();
+  });
+  const prev = mkBtn('', '<i class="fa-solid fa-chevron-up"></i>', 'find_prev',
+    () => { runFind(tab, 'prev'); input.focus(); });
+  const next = mkBtn('', '<i class="fa-solid fa-chevron-down"></i>', 'find_next',
+    () => { runFind(tab, 'next'); input.focus(); });
+  const close = mkBtn('', '<i class="fa-solid fa-xmark"></i>', 'find_close',
+    () => closeTermFind(tab));
+
+  [icon, input, count, caseBtn, reBtn, prev, next, close].forEach((n) => bar.appendChild(n));
+  tab.hostEl.appendChild(bar);
+  tab.findEl = bar;
+  tab.findInput = input;
+  tab.findCountEl = count;
+  // il conteggio arriva dall'addon solo quando le evidenziazioni sono attive
+  tab.findSub = tab.search.onDidChangeResults((r) => updateFindCount(tab, r));
+
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') { e.preventDefault(); closeTermFind(tab); }
+    else if (e.key === 'Enter') { e.preventDefault(); runFind(tab, e.shiftKey ? 'prev' : 'next'); }
+  });
+  input.addEventListener('input', () => runFind(tab, 'next', true));
+
+  input.focus();
+  input.select();
+  if (input.value) runFind(tab, 'next', true);
+}
+
+function closeTermFind(tab) {
+  if (tab.findSub) { tab.findSub.dispose(); tab.findSub = null; }
+  if (tab.search) tab.search.clearDecorations();
+  if (tab.findEl) tab.findEl.remove();
+  tab.findEl = null;
+  tab.findInput = null;
+  tab.findCountEl = null;
+  tab.term.focus();
+}
+
+/** Esegue la ricerca. `dir` è 'next' o 'prev'; `incremental` mentre si digita. */
+function runFind(tab, dir, incremental = false) {
+  if (!tab.findInput) return;
+  const term = tab.findInput.value;
+  tab.findQuery = term;
+  if (!term) {
+    tab.search.clearDecorations();
+    tab.findEl.classList.remove('no-match');
+    tab.findCountEl.textContent = '';
+    return;
+  }
+  const opts = {
+    caseSensitive: !!tab.findCase,
+    regex: !!tab.findRegex,
+    decorations: searchDecorations(),
+  };
+  if (dir === 'next' && incremental) opts.incremental = true;
+  let found;
+  try {
+    found = dir === 'prev'
+      ? tab.search.findPrevious(term, opts)
+      : tab.search.findNext(term, opts);
+  } catch (e) {
+    // un'espressione regolare incompleta mentre si scrive è normale; qualsiasi
+    // altro errore va in console, così non si traveste da "nessun risultato"
+    if (!(e instanceof SyntaxError)) console.error('Ricerca nel terminale:', e);
+    found = false;
+  }
+  tab.findEl.classList.toggle('no-match', !found);
+  if (!found) tab.findCountEl.textContent = i18n.t('find_no_results');
+}
+
+/** Aggiorna il contatore "3/12" con i dati emessi dall'addon. */
+function updateFindCount(tab, res) {
+  if (!tab.findCountEl || !tab.findInput) return;
+  if (!tab.findInput.value) { tab.findCountEl.textContent = ''; return; }
+  const total = res ? res.resultCount : 0;
+  const index = res ? res.resultIndex : -1;
+  if (!total) { tab.findCountEl.textContent = i18n.t('find_no_results'); return; }
+  // resultIndex -1 = risultati oltre il limite di evidenziazione: solo il totale
+  tab.findCountEl.textContent = index >= 0
+    ? i18n.t('find_count', { index: index + 1, total: total })
+    : i18n.t('find_count_total', { total: total });
+}
+
+// ============================================================================
+// ZOOM DEL CARATTERE DEL TERMINALE (per sessione)
+// ============================================================================
+
+const TERM_FONT_DEFAULT = 13;
+const TERM_FONT_MIN = 8;
+const TERM_FONT_MAX = 28;
+
+/** Ingrandisce/riduce il carattere della scheda; `delta` 0 torna al valore base. */
+function zoomTerm(tab, delta) {
+  const current = tab.term.options.fontSize || TERM_FONT_DEFAULT;
+  const size = delta === 0
+    ? TERM_FONT_DEFAULT
+    : Math.max(TERM_FONT_MIN, Math.min(TERM_FONT_MAX, current + delta));
+  tab.fontSize = size;
+  if (size !== current) {
+    tab.term.options.fontSize = size;
+    // righe e colonne cambiano: il fit avvisa il server tramite onResize
+    try { tab.fit.fit(); } catch (_) {}
+  }
+  toast(i18n.t('zoom_level', { size: size }));
 }
 
 /**
@@ -547,6 +730,7 @@ function clearTerminal(tab) {
 const TAB_ACTIONS = [
   { id: 'files',     icon: 'fa-solid fa-list',       labelKey: 'll_button_title',                run: (tab) => showListing(tab) },
   { id: 'clear',     icon: 'fa-solid fa-broom',      labelKey: 'clear_button_title',             run: (tab) => clearTerminal(tab) },
+  { id: 'find',      icon: 'fa-solid fa-magnifying-glass', labelKey: 'find_button_title',         run: (tab) => toggleTermFind(tab) },
   { id: 'docker',    icon: 'fa-brands fa-docker',    labelKey: 'docker_containers_button_title', run: (tab) => showDocker(tab) },
   { id: 'images',    icon: 'fa-solid fa-hard-drive', labelKey: 'docker_images_button_title',     run: (tab) => showImages(tab) },
   { id: 'databases', icon: 'fa-solid fa-database',   labelKey: 'db_databases_button_title',      run: (tab) => showDatabases(tab) },
@@ -5044,6 +5228,9 @@ const TAB_EXTRA_ACTIONS = [
   { id: 'nextTab',   icon: 'fa-solid fa-arrow-right',   labelKey: 'shortcut_next_tab',  run: () => cycleTab(1) },
   { id: 'prevTab',   icon: 'fa-solid fa-arrow-left',    labelKey: 'shortcut_prev_tab',  run: () => cycleTab(-1) },
   { id: 'closeTab',  icon: 'fa-solid fa-xmark',         labelKey: 'shortcut_close_tab', run: (tab) => closeTab(tab.id) },
+  { id: 'zoomIn',    icon: 'fa-solid fa-magnifying-glass-plus',  labelKey: 'shortcut_zoom_in',    run: (tab) => zoomTerm(tab, 1) },
+  { id: 'zoomOut',   icon: 'fa-solid fa-magnifying-glass-minus', labelKey: 'shortcut_zoom_out',   run: (tab) => zoomTerm(tab, -1) },
+  { id: 'zoomReset', icon: 'fa-solid fa-arrows-rotate',          labelKey: 'shortcut_zoom_reset', run: (tab) => zoomTerm(tab, 0) },
 ];
 
 /** Elenco completo delle azioni associabili a una scorciatoia. */
@@ -5052,6 +5239,7 @@ const SHORTCUT_ACTIONS = [...TAB_ACTIONS, ...TAB_EXTRA_ACTIONS];
 const DEFAULT_SHORTCUTS = {
   files: 'Double+Shift', // richiesta esplicita: doppio tap su Shift apre il file explorer
   clear: `${MOD}+K`,
+  find: `${MOD}+F`,
   docker: `${MOD}+D`,
   images: `${MOD}+I`,
   databases: `${MOD}+B`,
@@ -5063,6 +5251,9 @@ const DEFAULT_SHORTCUTS = {
   nextTab: 'Ctrl+Tab',
   prevTab: 'Ctrl+Shift+Tab',
   closeTab: `${MOD}+Backspace`,
+  zoomIn: `${MOD}+=`,
+  zoomOut: `${MOD}+-`,
+  zoomReset: `${MOD}+0`,
 };
 
 const SHORTCUTS_KEY = 'shortcuts';
@@ -5136,7 +5327,11 @@ function normalizeKeyName(key, code) {
   if (key === ' ' || code === 'Space') return 'Space';
   if (key.length === 1) {
     const m = /^(?:Key([A-Z])|Digit(\d))$/.exec(code || '');
-    return m ? (m[1] || m[2]) : key.toUpperCase();
+    if (m) return m[1] || m[2];
+    // tasti dello zoom: il tasto fisico non cambia con Shift (Shift+= -> "+")
+    if (code === 'Equal') return '=';
+    if (code === 'Minus') return '-';
+    return key.toUpperCase();
   }
   return key; // Tab, Enter, Backspace, Escape, ArrowLeft, F5, …
 }
@@ -5252,7 +5447,12 @@ function setupShortcuts() {
   window.addEventListener('keydown', (e) => {
     trackTapKeyDown(e);
     if (e.repeat || MODIFIER_KEYS.has(e.key)) return;
-    const binding = bindingFromEvent(e);
+    let binding = bindingFromEvent(e);
+    // "+" si digita con Shift+=: se la combinazione con Shift non è assegnata
+    // si riprova senza, così Cmd+Shift+= vale come Cmd+= (solo per = e -)
+    if (binding && !activeBindings.has(binding) && /^(Equal|Minus)$/.test(e.code || '')) {
+      binding = binding.replace('Shift+', '');
+    }
     if (!binding || !activeBindings.has(binding) || !shortcutsAllowed(e)) return;
     e.preventDefault();
     e.stopPropagation();
@@ -5396,6 +5596,7 @@ window.addEventListener('DOMContentLoaded', async () => {
     i18n.setLanguage(e.target.value);
     applyUITexts();
     renderServerList();
+    renderShortcutsSettings();
   });
 
   setupEdgeSnap();

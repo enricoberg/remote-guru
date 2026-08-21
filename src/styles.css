@@ -328,6 +328,34 @@ html, body {
 .term-host { flex: 1; min-height: 0; position: relative; }
 .term-host .terminal { padding: 6px; height: 100%; }
 
+/* barra di ricerca nel buffer del terminale (Cmd+F): sta sopra il terminale,
+   in alto a destra, come nei browser */
+.term-find {
+  position: absolute; top: 6px; right: 14px; z-index: 6;
+  display: flex; align-items: center; gap: 6px;
+  padding: 4px 6px; border-radius: 6px;
+  background: var(--panel); border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  font-family: "SFMono-Regular", Menlo, monospace; font-size: 12px;
+}
+.term-find > i { color: var(--accent); margin-left: 2px; }
+.term-find .tf-find-input {
+  width: 190px; background: var(--bg); border: 1px solid var(--border); color: var(--text);
+  border-radius: 4px; padding: 3px 7px; font-family: inherit; font-size: 12px; outline: none;
+}
+.term-find .tf-find-input:focus { border-color: var(--accent); }
+.term-find.no-match .tf-find-input { border-color: var(--red); }
+.term-find .tf-find-count { color: var(--muted); min-width: 52px; text-align: center; }
+.term-find.no-match .tf-find-count { color: var(--red); }
+.term-find button {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  padding: 2px 5px; border-radius: 4px; font-family: inherit; font-size: 12px;
+}
+.term-find button:hover { color: var(--accent); background: var(--border); }
+/* interruttori "Aa" (maiuscole/minuscole) e ".*" (espressione regolare) */
+.term-find .tf-flag { border: 1px solid transparent; font-weight: 600; }
+.term-find .tf-flag.on { color: var(--accent); border-color: var(--accent); }
+
 /* listing strutturato (ll cliccabile) */
 .ll-overlay {
   position: absolute; left: 0; right: 0; bottom: 0; max-height: 55%; overflow: auto;

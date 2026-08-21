@@ -26,6 +26,13 @@ npm run build:mac
 - **Split view**: trascina una scheda dentro l'area del terminale per affiancare
   due sessioni a metà schermo; il divisore centrale è ridimensionabile.
 - **Terminale reale** (xterm.js + shell PTY) → compatibile con vim, htop, sudo, ecc.
+- **Ricerca nel buffer del terminale** (`Cmd`/`Ctrl+Shift`+`F`): barra in alto a destra
+  con contatore dei risultati, evidenziazione di tutte le occorrenze, `Invio` /
+  `Maiusc+Invio` per scorrerle e interruttori per maiuscole/minuscole ed espressioni
+  regolari. `Esc` chiude.
+- **Zoom del carattere per sessione** (`Cmd`/`Ctrl+Shift` con `+`, `-` e `0` per
+  tornare al valore base): ogni scheda tiene la propria dimensione e il terminale
+  remoto viene avvisato della nuova geometria.
 - **Pulsante elenco `☰`** accanto al nome server: mostra il contenuto della cartella
   corrente (come `ll`). Le **cartelle sono cliccabili** (fanno `cd` automatico).
 - **Menu tasto destro su file/cartelle** (nell'elenco): nuovo file, nuova cartella,
@@ -80,6 +87,11 @@ chiaro, quindi `servers.json` è escluso dal versionamento (`.gitignore`).
 - `src/transfers.js` — coda dei trasferimenti file (download, upload e copie
   server → server), con avanzamento, pausa/ripresa e stato persistito su disco.
 - `src/index.html` / `src/styles.css` / `src/renderer.js` — interfaccia (config, schede, terminale).
+
+Il menu dell'applicazione è quello predefinito di Electron senza le voci di zoom
+della pagina: i loro acceleratori (`Cmd`/`Ctrl` con `+`, `-`, `0`) servono allo
+zoom del carattere del terminale, e un acceleratore di menu scavalcherebbe il
+renderer.
 
 La cwd corrente viene tracciata in modo affidabile tramite un marker invisibile
 (`OSC 1337;CWD=...`) emesso dalla shell dopo ogni prompt e rimosso dal flusso prima

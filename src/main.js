@@ -1,6 +1,6 @@
 'use strict';
 
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, Menu } = require('electron');
 const fs = require('fs');
 const path = require('path');
 const ssh = require('./ssh');
@@ -36,6 +36,34 @@ function createWindow() {
   mainWindow.on('closed', () => (mainWindow = null));
 }
 
+/**
+ * Menu dell'applicazione: è quello predefinito di Electron senza le voci di
+ * zoom della pagina. I loro acceleratori (Cmd/Ctrl con +, - e 0) servono allo
+ * zoom del carattere del terminale, che agisce sulla singola sessione: un
+ * acceleratore di menu verrebbe eseguito comunque, scavalcando il renderer.
+ * Le voci di modifica (copia/incolla) restano, perché su macOS il terminale
+ * dipende da quelle per Cmd+C / Cmd+V.
+ */
+function buildAppMenu() {
+  const isMac = process.platform === 'darwin';
+  Menu.setApplicationMenu(Menu.buildFromTemplate([
+    ...(isMac ? [{ role: 'appMenu' }] : []),
+    { role: 'fileMenu' },
+    { role: 'editMenu' },
+    {
+      label: 'View',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
+    { role: 'windowMenu' },
+  ]));
+}
+
 app.whenReady().then(() => {
   // coda trasferimenti: stato persistito nella cartella dati utente, così i
   // download/upload incompleti sopravvivono alla chiusura dell'app
@@ -46,6 +74,7 @@ app.whenReady().then(() => {
     // area di transito delle copie server -> server (drag&drop fra due schede)
     tmpRoot: path.join(app.getPath('temp'), 'remote-guru'),
   });
+  buildAppMenu();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();

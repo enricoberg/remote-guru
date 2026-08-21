@@ -2822,5 +2822,117 @@
     "fr": "{count} éléments",
     "de": "{count} Elemente",
     "pt": "{count} itens"
+  },
+  "find_button_title": {
+    "it": "Cerca nel terminale",
+    "en": "Search in terminal",
+    "es": "Buscar en el terminal",
+    "fr": "Rechercher dans le terminal",
+    "de": "Im Terminal suchen",
+    "pt": "Pesquisar no terminal"
+  },
+  "find_placeholder": {
+    "it": "Cerca nel terminale…",
+    "en": "Search in terminal…",
+    "es": "Buscar en el terminal…",
+    "fr": "Rechercher dans le terminal…",
+    "de": "Im Terminal suchen…",
+    "pt": "Pesquisar no terminal…"
+  },
+  "find_next": {
+    "it": "Risultato successivo (Invio)",
+    "en": "Next match (Enter)",
+    "es": "Siguiente resultado (Intro)",
+    "fr": "Résultat suivant (Entrée)",
+    "de": "Nächster Treffer (Enter)",
+    "pt": "Próximo resultado (Enter)"
+  },
+  "find_prev": {
+    "it": "Risultato precedente (Maiusc+Invio)",
+    "en": "Previous match (Shift+Enter)",
+    "es": "Resultado anterior (Mayús+Intro)",
+    "fr": "Résultat précédent (Maj+Entrée)",
+    "de": "Vorheriger Treffer (Shift+Enter)",
+    "pt": "Resultado anterior (Shift+Enter)"
+  },
+  "find_close": {
+    "it": "Chiudi la ricerca (Esc)",
+    "en": "Close search (Esc)",
+    "es": "Cerrar la búsqueda (Esc)",
+    "fr": "Fermer la recherche (Échap)",
+    "de": "Suche schließen (Esc)",
+    "pt": "Fechar a pesquisa (Esc)"
+  },
+  "find_case": {
+    "it": "Distingui maiuscole e minuscole",
+    "en": "Match case",
+    "es": "Distinguir mayúsculas",
+    "fr": "Respecter la casse",
+    "de": "Groß-/Kleinschreibung beachten",
+    "pt": "Diferenciar maiúsculas"
+  },
+  "find_regex": {
+    "it": "Espressione regolare",
+    "en": "Regular expression",
+    "es": "Expresión regular",
+    "fr": "Expression régulière",
+    "de": "Regulärer Ausdruck",
+    "pt": "Expressão regular"
+  },
+  "find_no_results": {
+    "it": "nessuno",
+    "en": "none",
+    "es": "ninguno",
+    "fr": "aucun",
+    "de": "keine",
+    "pt": "nenhum"
+  },
+  "find_count": {
+    "it": "{index}/{total}",
+    "en": "{index}/{total}",
+    "es": "{index}/{total}",
+    "fr": "{index}/{total}",
+    "de": "{index}/{total}",
+    "pt": "{index}/{total}"
+  },
+  "find_count_total": {
+    "it": "{total} risultati",
+    "en": "{total} matches",
+    "es": "{total} resultados",
+    "fr": "{total} résultats",
+    "de": "{total} Treffer",
+    "pt": "{total} resultados"
+  },
+  "shortcut_zoom_in": {
+    "it": "Ingrandisci il carattere",
+    "en": "Increase font size",
+    "es": "Aumentar la fuente",
+    "fr": "Agrandir la police",
+    "de": "Schrift vergrößern",
+    "pt": "Aumentar a fonte"
+  },
+  "shortcut_zoom_out": {
+    "it": "Riduci il carattere",
+    "en": "Decrease font size",
+    "es": "Reducir la fuente",
+    "fr": "Réduire la police",
+    "de": "Schrift verkleinern",
+    "pt": "Reduzir a fonte"
+  },
+  "shortcut_zoom_reset": {
+    "it": "Ripristina il carattere",
+    "en": "Reset font size",
+    "es": "Restablecer la fuente",
+    "fr": "Réinitialiser la police",
+    "de": "Schriftgröße zurücksetzen",
+    "pt": "Redefinir a fonte"
+  },
+  "zoom_level": {
+    "it": "Carattere: {size}px",
+    "en": "Font size: {size}px",
+    "es": "Fuente: {size}px",
+    "fr": "Police : {size}px",
+    "de": "Schrift: {size}px",
+    "pt": "Fonte: {size}px"
   }
 }
