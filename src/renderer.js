@@ -540,7 +540,7 @@ function buildPane(tab) {
 
   const toolbar = el('div', 'pane-toolbar');
 
-  // unico pulsante "Actions" con menu a tendina (si apre in hover)
+  // barra fissa di azioni: solo icone, con tooltip sotto al passaggio del mouse
   const actions = [
     { icon: 'fa-solid fa-list',        label: i18n.t('ll_button_title'),                 run: () => showListing(tab) },
     { icon: 'fa-solid fa-broom',       label: i18n.t('clear_button_title'),              run: () => {
@@ -554,32 +554,24 @@ function buildPane(tab) {
     { icon: 'fa-brands fa-buffer',     label: i18n.t('screen_sessions_button_title'),    run: () => showScreens(tab) },
     { icon: 'fa-solid fa-clock',       label: i18n.t('cron_button_title'),               run: () => showCrontab(tab) },
     { icon: 'fa-solid fa-gauge-high',  label: i18n.t('monitor_button_title'),            run: () => showMonitor(tab) },
-    { icon: 'fa-solid fa-table-columns', label: i18n.t('split_view_button_title'),       run: () => toggleSplit(tab.id) },
   ];
 
-  const actionsWrap = el('div', 'actions-menu');
-  const actionsBtn = el('button', 'btn-ll btn-actions');
-  actionsBtn.title = i18n.t('actions_button_title');
-  actionsBtn.innerHTML = '<i class="fa-solid fa-bolt"></i> <span></span>';
-  actionsBtn.querySelector('span').textContent = i18n.t('actions_button');
-  const actionsList = el('div', 'actions-list');
+  const actionsBar = el('div', 'pane-actions');
   for (const a of actions) {
-    const item = el('button', 'actions-item');
-    item.innerHTML = `<i class="${a.icon}"></i> <span></span>`;
-    item.querySelector('span').textContent = a.label;
-    item.addEventListener('click', () => a.run());
-    actionsList.appendChild(item);
+    const btn = el('button', 'btn-ll tip');
+    btn.innerHTML = `<i class="${a.icon}"></i>`;
+    btn.dataset.tip = a.label;
+    btn.setAttribute('aria-label', a.label);
+    btn.addEventListener('click', () => a.run());
+    actionsBar.appendChild(btn);
   }
-  actionsWrap.appendChild(actionsBtn);
-  actionsWrap.appendChild(actionsList);
-  setupHoverMenu(actionsWrap, actionsBtn);
 
   const srv = el('span', 'srv-name');
   srv.textContent = tab.server.nickname || tab.server.name;
   const cwd = el('span', 'cwd');
   cwd.textContent = tab.cwd;
   tab.cwdEl = cwd;
-  toolbar.appendChild(actionsWrap);
+  toolbar.appendChild(actionsBar);
   toolbar.appendChild(srv);
   toolbar.appendChild(cwd);
 
@@ -645,38 +637,53 @@ function buildPane(tab) {
 }
 
 /**
- * Menu a tendina che si apre in hover ma non si chiude al primo movimento
- * "sbagliato" del mouse: la chiusura è ritardata (e annullata se si rientra),
- * così passare dal pulsante alle voci non lo fa sparire.
+ * Tooltip unico per tutti gli elementi con `data-tip`: appare subito sotto
+ * l'elemento ed è agganciato al body, così non viene tagliato dai contenitori
+ * e resta sempre dentro la finestra (posizione limitata ai bordi).
  */
-function setupHoverMenu(wrap, btn) {
-  const CLOSE_DELAY = 300;
-  let closeTimer = null;
-  const cancelClose = () => { clearTimeout(closeTimer); closeTimer = null; };
-  const open = () => { cancelClose(); wrap.classList.add('open'); };
-  const close = () => { cancelClose(); wrap.classList.remove('open'); };
-  const scheduleClose = () => {
-    cancelClose();
-    closeTimer = setTimeout(close, CLOSE_DELAY);
+function setupTooltips() {
+  const MARGIN = 6;
+  const bubble = el('div', 'tip-bubble hidden');
+  document.body.appendChild(bubble);
+  let current = null;
+
+  const hide = () => {
+    current = null;
+    bubble.classList.add('hidden');
   };
 
-  wrap.addEventListener('mouseenter', open);
-  wrap.addEventListener('mouseleave', scheduleClose);
-  // riapre/mantiene aperto anche muovendosi dentro il menu
-  wrap.addEventListener('mousemove', cancelClose);
-  btn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    wrap.classList.contains('open') ? close() : open();
+  const show = (target) => {
+    const text = target.dataset.tip;
+    if (!text) return hide();
+    current = target;
+    bubble.textContent = text;
+    bubble.classList.remove('hidden', 'above');
+
+    const r = target.getBoundingClientRect();
+    const w = bubble.offsetWidth;
+    const h = bubble.offsetHeight;
+    // centrato sull'elemento, ma rientrato se sborderebbe a destra/sinistra
+    const left = Math.max(MARGIN, Math.min(r.left + r.width / 2 - w / 2, window.innerWidth - w - MARGIN));
+    // sotto l'elemento; se non c'è spazio, sopra
+    const below = r.bottom + MARGIN;
+    const above = below + h > window.innerHeight - MARGIN;
+    bubble.classList.toggle('above', above);
+    bubble.style.left = `${left}px`;
+    bubble.style.top = `${above ? Math.max(MARGIN, r.top - h - MARGIN) : below}px`;
+    // la freccia resta puntata al centro dell'elemento anche col tooltip rientrato
+    const arrow = Math.min(Math.max(r.left + r.width / 2 - left, 10), w - 10);
+    bubble.style.setProperty('--tip-arrow', `${arrow}px`);
+  };
+
+  document.addEventListener('mouseover', (e) => {
+    const t = e.target.closest ? e.target.closest('[data-tip]') : null;
+    if (t === current) return;
+    t ? show(t) : hide();
   });
-  // scelta una voce, il menu si chiude
-  wrap.querySelector('.actions-list').addEventListener('click', close);
-  // click fuori o Esc chiudono
-  document.addEventListener('mousedown', (e) => {
-    if (!wrap.contains(e.target)) close();
-  });
-  document.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') close();
-  });
+  document.addEventListener('mousedown', hide);
+  document.addEventListener('scroll', hide, true);
+  window.addEventListener('resize', hide);
+  window.addEventListener('blur', hide);
 }
 
 function renameTab(id) {
@@ -755,6 +762,9 @@ function layout() {
 
   const order = splitOrder();
   splitIds = order; // normalizza (scarta le schede chiuse)
+  // il pulsante nella barra resta evidenziato mentre lo split è attivo
+  const splitBtn = $('#btn-split');
+  if (splitBtn) splitBtn.classList.toggle('active', order.length > 1);
   const shown = order.length ? order : (activeTabId ? [activeTabId] : []);
   // lo split deve includere la scheda attiva: altrimenti l'attiva diventa la prima mostrata
   if (order.length && !order.includes(activeTabId)) activeTabId = order[0];
@@ -3800,6 +3810,10 @@ function applyUITexts() {
     toggleBtn.title = anyExpanded ? i18n.t('btn_toggle_groups_collapse') : i18n.t('btn_toggle_groups_expand');
   }
 
+  // Bottone split view nella barra delle schede
+  const splitBtn = $('#btn-split');
+  if (splitBtn) splitBtn.dataset.tip = i18n.t('split_view_button_title');
+
   // Bottone settings
   const settingsBtn = $('#btn-settings');
   if (settingsBtn) settingsBtn.title = i18n.t('settings_title');
@@ -3970,6 +3984,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   });
 
   setupEdgeSnap();
+  setupTooltips();
 
   $('#btn-settings').addEventListener('click', () => showView('settings'));
   $('#btn-settings-back').addEventListener('click', () => showView('config'));
@@ -4002,6 +4017,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   $('#server-form').querySelectorAll('input[name=authMode]').forEach((r) =>
     r.addEventListener('change', applyAuthMode)
   );
+  $('#btn-split').addEventListener('click', () => toggleSplit(activeTabId));
   $('#btn-home').addEventListener('click', () => showView('config'));
   $('#btn-back').addEventListener('click', () => {
     if (tabs.size > 0) { showView('terminal'); layout(); }

@@ -272,38 +272,44 @@ html, body {
   display: flex; align-items: center; gap: 8px; padding: 4px 10px;
   background: var(--bg2); border-bottom: 1px solid var(--border); font-size: 13px; flex: 0 0 auto;
 }
-.pane-toolbar .srv-name { font-weight: 600; color: var(--accent); }
-.pane-toolbar .cwd { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pane-toolbar .srv-name {
+  font-weight: 600; color: var(--accent);
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pane-toolbar .cwd {
+  color: var(--muted); font-size: 12px;
+  flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
 .btn-ll {
   background: var(--border); border: none; color: var(--text); border-radius: 5px;
   width: 26px; height: 24px; cursor: pointer; font-size: 14px; flex: 0 0 auto;
 }
 .btn-ll:hover { background: var(--accent); color: #11111b; }
 
-/* pulsante Actions + menu a tendina */
-.actions-menu { position: relative; flex: 0 0 auto; }
-.actions-menu .btn-actions {
-  width: auto; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; font-weight: 600;
+/* barra fissa delle azioni del pane: solo icone, tooltip in hover */
+.pane-actions { display: flex; align-items: center; gap: 4px; flex: 0 0 auto; }
+
+/* tooltip: un unico elemento posizionato via JS (vedi setupTooltips),
+   ancorato sotto l'elemento con data-tip e sempre dentro la finestra.
+   Usa il colore accento, lo stesso del pulsante selezionato. */
+.tip-bubble {
+  position: fixed; z-index: 300; pointer-events: none;
+  padding: 6px 11px; border-radius: 6px;
+  background: var(--accent); color: #11111b;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, .45);
+  font-size: 13px; font-weight: 600; line-height: 1.4; white-space: nowrap;
 }
-/* il menu parte attaccato al pulsante (nessun buco che interrompa l'hover):
-   lo stacco visivo è dato dal padding-top trasparente, che resta area hover */
-.actions-menu .actions-list {
-  display: none; position: absolute; top: 100%; left: 0; z-index: 60;
-  min-width: 210px; padding: 4px; flex-direction: column;
-  background: var(--bg2); border: 1px solid var(--border); border-radius: 6px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, .45);
-  /* margine cliccabile sopra il pannello, per il passaggio pulsante → voci */
-  background-clip: padding-box; border-top-width: 5px; border-top-color: transparent;
+.tip-bubble::before {
+  content: ""; position: absolute; bottom: 100%; left: var(--tip-arrow, 50%);
+  transform: translateX(-50%);
+  border: 6px solid transparent; border-bottom-color: var(--accent);
 }
-.actions-menu.open .actions-list { display: flex; }
-.actions-menu .actions-item {
-  display: flex; align-items: center; gap: 8px; width: 100%; text-align: left;
-  background: none; border: none; color: var(--text); border-radius: 5px;
-  padding: 6px 8px; cursor: pointer; font-size: 13px; white-space: nowrap;
+/* quando non c'è spazio sotto, il tooltip va sopra e la freccia si gira */
+.tip-bubble.above::before {
+  bottom: auto; top: 100%;
+  border-bottom-color: transparent; border-top-color: var(--accent);
 }
-.actions-menu .actions-item i { width: 16px; text-align: center; }
-.actions-menu .actions-item:hover { background: var(--accent); color: #11111b; }
+.tip-bubble.hidden { display: none; }
 
 /* intestazione mostrata quando si è dentro uno screen */
 .screen-bar {
@@ -680,6 +686,15 @@ html, body {
   border-left: 1px solid var(--border);
 }
 .btn-transfers:hover { background: var(--border); }
+
+/* pulsanti icona nella barra delle schede (es. split view) */
+.btn-bar {
+  background: none; border: none; color: var(--text); font-size: 15px;
+  padding: 0 12px; height: 100%; cursor: pointer; flex: 0 0 auto;
+  display: flex; align-items: center; border-left: 1px solid var(--border);
+}
+.btn-bar:hover { background: var(--border); }
+.btn-bar.active { color: var(--accent); }
 .tf-toggle { display: inline-flex; align-items: center; gap: 8px; margin-left: 10px; }
 .tf-badge {
   background: var(--accent); color: #11111b; border-radius: 9px; font-size: 10px;

@@ -87,22 +87,6 @@
     "de": "Zurück zu aktiven Sitzungen",
     "pt": "Voltar para sessões ativas"
   },
-  "actions_button": {
-    "it": "Azioni",
-    "en": "Actions",
-    "es": "Acciones",
-    "fr": "Actions",
-    "de": "Aktionen",
-    "pt": "Ações"
-  },
-  "actions_button_title": {
-    "it": "Apri il menu delle azioni",
-    "en": "Open the actions menu",
-    "es": "Abrir el menú de acciones",
-    "fr": "Ouvrir le menu des actions",
-    "de": "Aktionsmenü öffnen",
-    "pt": "Abrir o menu de ações"
-  },
   "ll_button_title": {
     "it": "Elenca contenuto cartella (ll)",
     "en": "List folder contents (ll)",
