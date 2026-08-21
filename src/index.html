@@ -146,12 +146,27 @@
         </div>
       </div>
 
-      <div class="settings-card">
+      <div class="settings-card" id="settings-card-config">
         <div class="settings-row">
           <label>Configurazione server</label>
           <div class="settings-actions">
             <button id="btn-import" class="btn"><i class="fa-solid fa-upload"></i> Importa configurazione</button>
             <button id="btn-export" class="btn"><i class="fa-solid fa-download"></i> Esporta configurazione</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- scorciatoie da tastiera: una combinazione per ogni funzione delle schede;
+           si clicca sul tasto e si premono i tasti desiderati (Esc annulla) -->
+      <div class="settings-card" id="settings-card-shortcuts">
+        <div class="settings-row">
+          <label>Scorciatoie da tastiera</label>
+          <p class="settings-hint" id="shortcuts-hint">
+            Clicca su una scorciatoia e premi la nuova combinazione (Esc per annullare).
+          </p>
+          <div id="shortcuts-list" class="sc-list"></div>
+          <div class="settings-actions">
+            <button id="btn-shortcuts-reset" class="btn btn-sm"><i class="fa-solid fa-rotate-left"></i> Ripristina predefiniti</button>
           </div>
         </div>
       </div>

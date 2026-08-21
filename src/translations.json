@@ -2270,5 +2270,141 @@
     "fr": "min",
     "de": "Min",
     "pt": "m"
+  },
+  "settings_shortcuts_label": {
+    "it": "Scorciatoie da tastiera",
+    "en": "Keyboard shortcuts",
+    "es": "Atajos de teclado",
+    "fr": "Raccourcis clavier",
+    "de": "Tastenkürzel",
+    "pt": "Atalhos de teclado"
+  },
+  "settings_shortcuts_hint": {
+    "it": "Clicca su una scorciatoia e premi la nuova combinazione (Esc per annullare).",
+    "en": "Click a shortcut and press the new key combination (Esc to cancel).",
+    "es": "Haz clic en un atajo y pulsa la nueva combinación (Esc para cancelar).",
+    "fr": "Cliquez sur un raccourci et appuyez sur la nouvelle combinaison (Échap pour annuler).",
+    "de": "Auf ein Tastenkürzel klicken und die neue Kombination drücken (Esc zum Abbrechen).",
+    "pt": "Clique num atalho e pressione a nova combinação (Esc para cancelar)."
+  },
+  "shortcut_none": {
+    "it": "Nessuna",
+    "en": "None",
+    "es": "Ninguno",
+    "fr": "Aucun",
+    "de": "Keines",
+    "pt": "Nenhum"
+  },
+  "shortcut_double_tap": {
+    "it": "Doppio {key}",
+    "en": "Double {key}",
+    "es": "Doble {key}",
+    "fr": "Double {key}",
+    "de": "Doppelt {key}",
+    "pt": "Duplo {key}"
+  },
+  "shortcut_press_keys": {
+    "it": "Premi i tasti…",
+    "en": "Press the keys…",
+    "es": "Pulsa las teclas…",
+    "fr": "Appuyez sur les touches…",
+    "de": "Tasten drücken…",
+    "pt": "Pressione as teclas…"
+  },
+  "shortcut_click_to_record": {
+    "it": "Clicca per cambiare la scorciatoia",
+    "en": "Click to change the shortcut",
+    "es": "Haz clic para cambiar el atajo",
+    "fr": "Cliquez pour modifier le raccourci",
+    "de": "Klicken, um das Tastenkürzel zu ändern",
+    "pt": "Clique para alterar o atalho"
+  },
+  "shortcut_clear": {
+    "it": "Rimuovi la scorciatoia",
+    "en": "Remove the shortcut",
+    "es": "Quitar el atajo",
+    "fr": "Supprimer le raccourci",
+    "de": "Tastenkürzel entfernen",
+    "pt": "Remover o atalho"
+  },
+  "shortcut_need_modifier": {
+    "it": "Usa almeno un modificatore (Ctrl, Alt, Shift, Cmd), un tasto funzione oppure il doppio tap su un modificatore.",
+    "en": "Use at least one modifier (Ctrl, Alt, Shift, Cmd), a function key, or a double tap on a modifier.",
+    "es": "Usa al menos un modificador (Ctrl, Alt, Shift, Cmd), una tecla de función o un doble toque en un modificador.",
+    "fr": "Utilisez au moins un modificateur (Ctrl, Alt, Maj, Cmd), une touche de fonction ou un double appui sur un modificateur.",
+    "de": "Verwende mindestens einen Modifikator (Ctrl, Alt, Shift, Cmd), eine Funktionstaste oder einen Doppeltipp auf einen Modifikator.",
+    "pt": "Use pelo menos um modificador (Ctrl, Alt, Shift, Cmd), uma tecla de função ou um toque duplo num modificador."
+  },
+  "shortcut_saved": {
+    "it": "«{action}»: {keys}",
+    "en": "“{action}”: {keys}",
+    "es": "«{action}»: {keys}",
+    "fr": "« {action} » : {keys}",
+    "de": "„{action}“: {keys}",
+    "pt": "«{action}»: {keys}"
+  },
+  "shortcut_conflict": {
+    "it": "Scorciatoia rimossa da «{action}»",
+    "en": "Shortcut removed from “{action}”",
+    "es": "Atajo quitado de «{action}»",
+    "fr": "Raccourci retiré de « {action} »",
+    "de": "Tastenkürzel von „{action}“ entfernt",
+    "pt": "Atalho removido de «{action}»"
+  },
+  "shortcut_reset": {
+    "it": "Ripristina predefiniti",
+    "en": "Restore defaults",
+    "es": "Restaurar predeterminados",
+    "fr": "Rétablir les valeurs par défaut",
+    "de": "Standardwerte wiederherstellen",
+    "pt": "Restaurar padrões"
+  },
+  "shortcut_reset_done": {
+    "it": "Scorciatoie ripristinate ai valori predefiniti.",
+    "en": "Shortcuts restored to their defaults.",
+    "es": "Atajos restaurados a los valores predeterminados.",
+    "fr": "Raccourcis rétablis à leurs valeurs par défaut.",
+    "de": "Tastenkürzel auf die Standardwerte zurückgesetzt.",
+    "pt": "Atalhos restaurados para os valores padrão."
+  },
+  "shortcut_split": {
+    "it": "Vista affiancata (split)",
+    "en": "Side-by-side view (split)",
+    "es": "Vista en paralelo (split)",
+    "fr": "Vue côte à côte (split)",
+    "de": "Geteilte Ansicht (Split)",
+    "pt": "Vista lado a lado (split)"
+  },
+  "shortcut_transfers": {
+    "it": "Pannello trasferimenti",
+    "en": "Transfers panel",
+    "es": "Panel de transferencias",
+    "fr": "Panneau des transferts",
+    "de": "Übertragungsfenster",
+    "pt": "Painel de transferências"
+  },
+  "shortcut_next_tab": {
+    "it": "Scheda successiva",
+    "en": "Next tab",
+    "es": "Pestaña siguiente",
+    "fr": "Onglet suivant",
+    "de": "Nächster Tab",
+    "pt": "Aba seguinte"
+  },
+  "shortcut_prev_tab": {
+    "it": "Scheda precedente",
+    "en": "Previous tab",
+    "es": "Pestaña anterior",
+    "fr": "Onglet précédent",
+    "de": "Vorheriger Tab",
+    "pt": "Aba anterior"
+  },
+  "shortcut_close_tab": {
+    "it": "Chiudi la scheda attiva",
+    "en": "Close the active tab",
+    "es": "Cerrar la pestaña activa",
+    "fr": "Fermer l'onglet actif",
+    "de": "Aktiven Tab schließen",
+    "pt": "Fechar a aba ativa"
   }
 }

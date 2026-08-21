@@ -405,6 +405,7 @@ async function connectFromForm() {
 // ============================================================================
 
 function showView(name) {
+  if (name !== 'settings') stopRecording();
   $('#config-view').classList.toggle('active', name === 'config');
   $('#settings-view').classList.toggle('active', name === 'settings');
   $('#terminal-view').classList.toggle('active', name === 'terminal');
@@ -530,6 +531,29 @@ function buildTabButton(tab) {
   $('#tabs').appendChild(t);
 }
 
+/** Pulisce il terminale (schermo locale + `clear` remoto). */
+function clearTerminal(tab) {
+  tab.term.clear();
+  window.api.write(tab.id, 'clear\r');
+  tab.term.focus();
+}
+
+/**
+ * Azioni della barra di una scheda: usate sia per costruire i pulsanti del pane
+ * sia dal motore delle scorciatoie da tastiera (vedi SCORCIATOIE DA TASTIERA),
+ * così i due percorsi restano sempre allineati.
+ */
+const TAB_ACTIONS = [
+  { id: 'files',     icon: 'fa-solid fa-list',       labelKey: 'll_button_title',                run: (tab) => showListing(tab) },
+  { id: 'clear',     icon: 'fa-solid fa-broom',      labelKey: 'clear_button_title',             run: (tab) => clearTerminal(tab) },
+  { id: 'docker',    icon: 'fa-brands fa-docker',    labelKey: 'docker_containers_button_title', run: (tab) => showDocker(tab) },
+  { id: 'images',    icon: 'fa-solid fa-hard-drive', labelKey: 'docker_images_button_title',     run: (tab) => showImages(tab) },
+  { id: 'databases', icon: 'fa-solid fa-database',   labelKey: 'db_databases_button_title',      run: (tab) => showDatabases(tab) },
+  { id: 'screens',   icon: 'fa-brands fa-buffer',    labelKey: 'screen_sessions_button_title',   run: (tab) => showScreens(tab) },
+  { id: 'cron',      icon: 'fa-solid fa-clock',      labelKey: 'cron_button_title',              run: (tab) => showCrontab(tab) },
+  { id: 'monitor',   icon: 'fa-solid fa-gauge-high', labelKey: 'monitor_button_title',           run: (tab) => showMonitor(tab) },
+];
+
 function buildPane(tab) {
   const pane = el('div', 'pane');
   pane.dataset.id = tab.id;
@@ -541,28 +565,16 @@ function buildPane(tab) {
   const toolbar = el('div', 'pane-toolbar');
 
   // barra fissa di azioni: solo icone, con tooltip sotto al passaggio del mouse
-  const actions = [
-    { icon: 'fa-solid fa-list',        label: i18n.t('ll_button_title'),                 run: () => showListing(tab) },
-    { icon: 'fa-solid fa-broom',       label: i18n.t('clear_button_title'),              run: () => {
-        tab.term.clear();
-        window.api.write(tab.id, 'clear\r');
-        tab.term.focus();
-      } },
-    { icon: 'fa-brands fa-docker',     label: i18n.t('docker_containers_button_title'),  run: () => showDocker(tab) },
-    { icon: 'fa-solid fa-hard-drive',  label: i18n.t('docker_images_button_title'),      run: () => showImages(tab) },
-    { icon: 'fa-solid fa-database',    label: i18n.t('db_databases_button_title'),       run: () => showDatabases(tab) },
-    { icon: 'fa-brands fa-buffer',     label: i18n.t('screen_sessions_button_title'),    run: () => showScreens(tab) },
-    { icon: 'fa-solid fa-clock',       label: i18n.t('cron_button_title'),               run: () => showCrontab(tab) },
-    { icon: 'fa-solid fa-gauge-high',  label: i18n.t('monitor_button_title'),            run: () => showMonitor(tab) },
-  ];
-
+  // (il tooltip riporta anche la scorciatoia da tastiera associata, se c'è)
   const actionsBar = el('div', 'pane-actions');
-  for (const a of actions) {
+  for (const a of TAB_ACTIONS) {
+    const label = i18n.t(a.labelKey);
+    const keys = shortcutFor(a.id);
     const btn = el('button', 'btn-ll tip');
     btn.innerHTML = `<i class="${a.icon}"></i>`;
-    btn.dataset.tip = a.label;
-    btn.setAttribute('aria-label', a.label);
-    btn.addEventListener('click', () => a.run());
+    btn.dataset.tip = keys ? `${label}  ·  ${formatBinding(keys)}` : label;
+    btn.setAttribute('aria-label', label);
+    btn.addEventListener('click', () => a.run(tab));
     actionsBar.appendChild(btn);
   }
 
@@ -739,6 +751,23 @@ function setActive(id) {
   layout();
   const tab = tabs.get(id);
   if (tab) setTimeout(() => { tab.fit.fit(); tab.term.focus(); }, 30);
+}
+
+/**
+ * Passa alla scheda successiva/precedente (scorciatoie da tastiera).
+ * In split view il ciclo resta fra i pane affiancati e sposta solo il focus.
+ */
+function cycleTab(delta) {
+  const order = splitOrder();
+  const ids = order.length ? order : [...tabs.keys()];
+  if (ids.length < 2) return;
+  const cur = ids.indexOf(activeTabId);
+  const next = ids[((cur < 0 ? 0 : cur) + delta + ids.length) % ids.length];
+  if (!order.length) return setActive(next);
+  activeTabId = next;
+  layout();
+  const tab = tabs.get(next);
+  if (tab) setTimeout(() => tab.term.focus(), 30);
 }
 
 /** Schede realmente affiancate: quelle ancora aperte presenti in splitIds (>= 2). */
@@ -4065,7 +4094,7 @@ function applyUITexts() {
     });
   }
 
-  const configLabel = document.querySelector('.settings-card:last-child .settings-row label');
+  const configLabel = document.querySelector('#settings-card-config .settings-row label');
   if (configLabel) configLabel.textContent = i18n.t('settings_config_label');
 
   const importBtn = $('#btn-import');
@@ -4073,6 +4102,15 @@ function applyUITexts() {
 
   const exportBtn = $('#btn-export');
   if (exportBtn) exportBtn.innerHTML = `<i class="fa-solid fa-download"></i> ${i18n.t('settings_btn_export')}`;
+
+  // Card scorciatoie da tastiera
+  const scLabel = document.querySelector('#settings-card-shortcuts .settings-row > label');
+  if (scLabel) scLabel.textContent = i18n.t('settings_shortcuts_label');
+  const scHint = $('#shortcuts-hint');
+  if (scHint) scHint.textContent = i18n.t('settings_shortcuts_hint');
+  const scReset = $('#btn-shortcuts-reset');
+  if (scReset) scReset.innerHTML = `<i class="fa-solid fa-rotate-left"></i> ${i18n.t('shortcut_reset')}`;
+  renderShortcutsSettings(); // etichette e nomi dei tasti nella nuova lingua
 
   const backBtn = $('#btn-settings-back');
   if (backBtn) backBtn.innerHTML = `<i class="fa-solid fa-arrow-left"></i> ${i18n.t('settings_title')}`;
@@ -4097,6 +4135,359 @@ function applyUITexts() {
       `<i class="fa-solid fa-right-left"></i> ${i18n.t('tf_title')} <span class="tf-badge">0</span>`;
   }
   renderTransfers(); // ricostruisce le righe con la nuova lingua e i badge
+}
+
+// ============================================================================
+// SCORCIATOIE DA TASTIERA
+// ============================================================================
+//
+// Ogni funzione della scheda (barra azioni del pane + gestione schede) può
+// essere richiamata da tastiera. Una scorciatoia è una stringa canonica:
+//
+//   "Meta+K", "Ctrl+Shift+D", "Ctrl+Tab", "Alt+F5"   -> combinazione
+//   "Double+Shift"                                    -> doppio tap sul modificatore
+//
+// Le combinazioni personalizzate sono salvate in localStorage solo come
+// differenze rispetto ai valori predefiniti (stringa vuota = disattivata),
+// così i default possono cambiare senza rompere le scelte dell'utente.
+
+const IS_MAC = /mac/i.test(navigator.platform || navigator.userAgent);
+// modificatore "di sistema": Cmd su macOS, Ctrl+Shift altrove (Ctrl+lettera
+// da solo servirebbe alla shell remota, es. Ctrl+C)
+const MOD = IS_MAC ? 'Meta' : 'Ctrl+Shift';
+
+/** Azioni di gestione schede, in aggiunta a quelle della barra (TAB_ACTIONS). */
+const TAB_EXTRA_ACTIONS = [
+  { id: 'split',     icon: 'fa-solid fa-table-columns', labelKey: 'shortcut_split',     run: () => toggleSplit(activeTabId) },
+  { id: 'transfers', icon: 'fa-solid fa-right-left',    labelKey: 'shortcut_transfers', run: () => toggleTransfers() },
+  { id: 'nextTab',   icon: 'fa-solid fa-arrow-right',   labelKey: 'shortcut_next_tab',  run: () => cycleTab(1) },
+  { id: 'prevTab',   icon: 'fa-solid fa-arrow-left',    labelKey: 'shortcut_prev_tab',  run: () => cycleTab(-1) },
+  { id: 'closeTab',  icon: 'fa-solid fa-xmark',         labelKey: 'shortcut_close_tab', run: (tab) => closeTab(tab.id) },
+];
+
+/** Elenco completo delle azioni associabili a una scorciatoia. */
+const SHORTCUT_ACTIONS = [...TAB_ACTIONS, ...TAB_EXTRA_ACTIONS];
+
+const DEFAULT_SHORTCUTS = {
+  files: 'Double+Shift', // richiesta esplicita: doppio tap su Shift apre il file explorer
+  clear: `${MOD}+K`,
+  docker: `${MOD}+D`,
+  images: `${MOD}+I`,
+  databases: `${MOD}+B`,
+  screens: `${MOD}+E`,
+  cron: `${MOD}+J`,
+  monitor: `${MOD}+G`,
+  split: `${MOD}+L`,
+  transfers: `${MOD}+U`,
+  nextTab: 'Ctrl+Tab',
+  prevTab: 'Ctrl+Shift+Tab',
+  closeTab: `${MOD}+Backspace`,
+};
+
+const SHORTCUTS_KEY = 'shortcuts';
+const MODIFIER_KEYS = new Set(['Shift', 'Control', 'Alt', 'Meta']);
+const MOD_NAMES = { Shift: 'Shift', Control: 'Ctrl', Alt: 'Alt', Meta: 'Meta' };
+const DOUBLE_TAP_MS = 400; // finestra massima fra i due tap
+const MAX_HOLD_MS = 600;   // oltre questa durata la pressione non è più un "tap"
+
+let shortcutOverrides = {}; // id azione -> combinazione ('' = nessuna)
+let activeBindings = new Map(); // combinazione -> azione
+
+// ---------- lettura/scrittura delle preferenze ----------
+
+function loadShortcuts() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SHORTCUTS_KEY) || '{}');
+    shortcutOverrides = raw && typeof raw === 'object' ? raw : {};
+  } catch (_) {
+    shortcutOverrides = {};
+  }
+  refreshBindings();
+}
+
+/** Combinazione attiva per un'azione ('' se disattivata). */
+function shortcutFor(id) {
+  return Object.prototype.hasOwnProperty.call(shortcutOverrides, id)
+    ? shortcutOverrides[id] || ''
+    : DEFAULT_SHORTCUTS[id] || '';
+}
+
+/** Ricostruisce la mappa combinazione -> azione usata dal dispatcher. */
+function refreshBindings() {
+  activeBindings = new Map();
+  SHORTCUT_ACTIONS.forEach((a) => {
+    const b = shortcutFor(a.id);
+    if (b) activeBindings.set(b, a);
+  });
+}
+
+function persistShortcuts() {
+  localStorage.setItem(SHORTCUTS_KEY, JSON.stringify(shortcutOverrides));
+  refreshBindings();
+}
+
+/** Assegna una combinazione a un'azione; se era di un'altra azione, la libera. */
+function setShortcut(id, binding) {
+  let stolenFrom = null;
+  if (binding) {
+    const owner = SHORTCUT_ACTIONS.find((a) => a.id !== id && shortcutFor(a.id) === binding);
+    if (owner) {
+      shortcutOverrides[owner.id] = '';
+      stolenFrom = owner;
+    }
+  }
+  shortcutOverrides[id] = binding;
+  persistShortcuts();
+  return stolenFrom;
+}
+
+function resetShortcuts() {
+  shortcutOverrides = {};
+  persistShortcuts();
+}
+
+// ---------- combinazioni: lettura dall'evento e formattazione ----------
+
+/** Nome canonico del tasto: usa il tasto fisico per lettere e cifre, così
+ *  Shift/Alt non cambiano la combinazione (su macOS Alt+e -> "´"). */
+function normalizeKeyName(key, code) {
+  if (!key) return '';
+  if (key === ' ' || code === 'Space') return 'Space';
+  if (key.length === 1) {
+    const m = /^(?:Key([A-Z])|Digit(\d))$/.exec(code || '');
+    return m ? (m[1] || m[2]) : key.toUpperCase();
+  }
+  return key; // Tab, Enter, Backspace, Escape, ArrowLeft, F5, …
+}
+
+/** Combinazione canonica da un keydown, oppure '' se non è valida. */
+function bindingFromEvent(e) {
+  if (MODIFIER_KEYS.has(e.key)) return '';
+  const name = normalizeKeyName(e.key, e.code);
+  if (!name) return '';
+  const mods = [];
+  if (e.ctrlKey) mods.push('Ctrl');
+  if (e.altKey) mods.push('Alt');
+  if (e.shiftKey) mods.push('Shift');
+  if (e.metaKey) mods.push('Meta');
+  // senza modificatori il tasto servirebbe alla shell: si accettano solo i tasti funzione
+  if (!mods.length && !/^F\d{1,2}$/.test(name)) return '';
+  return [...mods, name].join('+');
+}
+
+/** Simbolo leggibile di un singolo tasto (⌘, ⇧, ⌫ … su macOS). */
+function keySymbol(k) {
+  const common = { Space: '␣', Backspace: '⌫', Enter: '⏎', Tab: '⇥', Escape: 'Esc',
+    ArrowUp: '↑', ArrowDown: '↓', ArrowLeft: '←', ArrowRight: '→' };
+  const mac = { Ctrl: '⌃', Alt: '⌥', Shift: '⇧', Meta: '⌘' };
+  const other = { Ctrl: 'Ctrl', Alt: 'Alt', Shift: 'Shift', Meta: 'Win' };
+  return (IS_MAC ? mac[k] : other[k]) || common[k] || k;
+}
+
+/** Testo mostrato all'utente per una combinazione. */
+function formatBinding(binding) {
+  if (!binding) return i18n.t('shortcut_none');
+  const dbl = /^Double\+(.+)$/.exec(binding);
+  if (dbl) return i18n.t('shortcut_double_tap', { key: keySymbol(dbl[1]) });
+  return binding.split('+').map(keySymbol).join(IS_MAC ? ' ' : ' + ');
+}
+
+// ---------- doppio tap su un modificatore ----------
+//
+// Un tap è valido solo se il modificatore viene premuto e rilasciato da solo,
+// senza altri tasti nel mezzo e senza restare premuto: così scrivere lettere
+// maiuscole nel terminale non fa scattare il doppio Shift.
+
+let tapKey = null;      // modificatore attualmente premuto
+let tapDownAt = 0;      // istante della pressione
+let tapDirty = false;   // durante la pressione è stato premuto altro
+let lastTapKey = null;  // primo tap in attesa del secondo
+let lastTapAt = 0;
+
+function resetTapState() {
+  tapKey = null;
+  tapDirty = false;
+  lastTapKey = null;
+}
+
+function trackTapKeyDown(e) {
+  if (MODIFIER_KEYS.has(e.key)) {
+    if (e.repeat) { tapDirty = true; return; } // tenuto premuto: non è un tap
+    if (tapKey && tapKey !== e.key) tapDirty = true; // due modificatori insieme
+    else { tapDownAt = performance.now(); tapDirty = false; }
+    tapKey = e.key;
+    return;
+  }
+  tapDirty = true; // un tasto normale annulla la sequenza in corso
+  lastTapKey = null;
+}
+
+/** Restituisce "Double+X" se il keyup completa un doppio tap, altrimenti ''. */
+function trackTapKeyUp(e) {
+  if (!MODIFIER_KEYS.has(e.key)) return '';
+  const now = performance.now();
+  const clean = !tapDirty && tapKey === e.key && now - tapDownAt < MAX_HOLD_MS
+    && !e.ctrlKey && !e.altKey && !e.shiftKey && !e.metaKey;
+  tapKey = null;
+  tapDirty = false;
+  if (!clean) { lastTapKey = null; return ''; }
+  if (lastTapKey === e.key && now - lastTapAt < DOUBLE_TAP_MS) {
+    lastTapKey = null;
+    return 'Double+' + MOD_NAMES[e.key];
+  }
+  lastTapKey = e.key;
+  lastTapAt = now;
+  return '';
+}
+
+// ---------- dispatcher globale ----------
+
+/** Le scorciatoie valgono solo sulla scheda attiva e non mentre si scrive in un campo. */
+function shortcutsAllowed(e) {
+  if (recording) return false;
+  if (!$('#terminal-view').classList.contains('active')) return false;
+  if (!activeTabId || !tabs.has(activeTabId)) return false;
+  const t = e.target;
+  if (t && t.closest) {
+    const field = t.closest('input, textarea, select, [contenteditable="true"]');
+    // il terminale usa una textarea nascosta: lì le scorciatoie devono funzionare
+    if (field && !field.classList.contains('xterm-helper-textarea')) return false;
+  }
+  return true;
+}
+
+function runShortcut(binding) {
+  const action = activeBindings.get(binding);
+  const tab = tabs.get(activeTabId);
+  if (!action || !tab) return false;
+  action.run(tab);
+  return true;
+}
+
+function setupShortcuts() {
+  loadShortcuts();
+
+  // fase di capture: la combinazione non deve arrivare né al terminale né al resto della UI
+  window.addEventListener('keydown', (e) => {
+    trackTapKeyDown(e);
+    if (e.repeat || MODIFIER_KEYS.has(e.key)) return;
+    const binding = bindingFromEvent(e);
+    if (!binding || !activeBindings.has(binding) || !shortcutsAllowed(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    runShortcut(binding);
+  }, true);
+
+  // i doppi tap si riconoscono al rilascio del modificatore
+  window.addEventListener('keyup', (e) => {
+    const binding = trackTapKeyUp(e);
+    if (!binding || !activeBindings.has(binding) || !shortcutsAllowed(e)) return;
+    e.preventDefault();
+    runShortcut(binding);
+  }, true);
+
+  // premere un modificatore, cambiare finestra e tornare non deve valere come tap
+  window.addEventListener('blur', resetTapState);
+}
+
+// ---------- pannello impostazioni: elenco e registrazione ----------
+
+let recording = null; // { action } dell'azione in attesa della nuova combinazione
+
+function renderShortcutsSettings() {
+  const list = $('#shortcuts-list');
+  if (!list) return;
+  list.innerHTML = '';
+  SHORTCUT_ACTIONS.forEach((a) => {
+    const binding = shortcutFor(a.id);
+    const isRec = !!recording && recording.action.id === a.id;
+    const row = el('div', 'sc-row');
+
+    const name = el('span', 'sc-name');
+    name.innerHTML = `<i class="${a.icon}"></i> ${escapeHtml(i18n.t(a.labelKey))}`;
+
+    const btn = el('button', 'sc-key' + (binding ? '' : ' sc-empty') + (isRec ? ' recording' : ''));
+    btn.textContent = isRec ? i18n.t('shortcut_press_keys') : formatBinding(binding);
+    btn.title = i18n.t('shortcut_click_to_record');
+    btn.addEventListener('click', () => startRecording(a));
+
+    const clear = el('button', 'sc-clear');
+    clear.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+    clear.title = i18n.t('shortcut_clear');
+    clear.disabled = !binding;
+    clear.addEventListener('click', () => {
+      stopRecording();
+      setShortcut(a.id, '');
+      renderShortcutsSettings();
+    });
+
+    row.appendChild(name);
+    row.appendChild(btn);
+    row.appendChild(clear);
+    list.appendChild(row);
+  });
+}
+
+/** Mette una riga in attesa della combinazione da premere. */
+function startRecording(action) {
+  const first = !recording;
+  recording = { action };
+  resetTapState();
+  renderShortcutsSettings(); // evidenzia la riga in registrazione
+  if (!first) return;
+  window.addEventListener('keydown', onRecordKeyDown, true);
+  window.addEventListener('keyup', onRecordKeyUp, true);
+  // agganciato dopo il clic corrente, altrimenti annullerebbe subito l'attesa
+  setTimeout(() => document.addEventListener('mousedown', onRecordOutside, true));
+}
+
+function stopRecording() {
+  if (!recording) return;
+  window.removeEventListener('keydown', onRecordKeyDown, true);
+  window.removeEventListener('keyup', onRecordKeyUp, true);
+  document.removeEventListener('mousedown', onRecordOutside, true);
+  recording = null;
+  resetTapState();
+  renderShortcutsSettings();
+}
+
+/** Un clic fuori dalle scorciatoie annulla l'attesa. */
+function onRecordOutside(e) {
+  const t = e.target;
+  if (t && t.closest && t.closest('.sc-key')) return; // si sta scegliendo un'altra riga
+  stopRecording();
+}
+
+function onRecordKeyDown(e) {
+  e.preventDefault();
+  e.stopPropagation();
+  if (e.repeat) return;
+  if (MODIFIER_KEYS.has(e.key)) return trackTapKeyDown(e); // può diventare un doppio tap
+  if (e.key === 'Escape') return stopRecording();
+  const binding = bindingFromEvent(e);
+  if (!binding) return toast(i18n.t('shortcut_need_modifier'), true);
+  commitRecording(binding);
+}
+
+function onRecordKeyUp(e) {
+  const binding = trackTapKeyUp(e);
+  if (!binding) return;
+  e.preventDefault();
+  e.stopPropagation();
+  commitRecording(binding);
+}
+
+function commitRecording(binding) {
+  const action = recording.action;
+  const stolenFrom = setShortcut(action.id, binding);
+  stopRecording();
+  toast(i18n.t('shortcut_saved', {
+    action: i18n.t(action.labelKey),
+    keys: formatBinding(binding),
+  }));
+  if (stolenFrom) {
+    toast(i18n.t('shortcut_conflict', { action: i18n.t(stolenFrom.labelKey) }), true);
+  }
 }
 
 // ============================================================================
@@ -4129,6 +4520,15 @@ window.addEventListener('DOMContentLoaded', async () => {
   setupEdgeSnap();
   setupTooltips();
 
+  // scorciatoie da tastiera: carica le associazioni salvate e disegna l'elenco
+  setupShortcuts();
+  renderShortcutsSettings();
+  $('#btn-shortcuts-reset').addEventListener('click', () => {
+    stopRecording();
+    resetShortcuts();
+    renderShortcutsSettings();
+    toast(i18n.t('shortcut_reset_done'));
+  });
   $('#btn-settings').addEventListener('click', () => showView('settings'));
   $('#btn-settings-back').addEventListener('click', () => showView('config'));
   $('#btn-toggle-groups').addEventListener('click', toggleAllGroups);

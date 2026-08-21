@@ -583,6 +583,41 @@ html, body {
 .settings-row select:focus { border-color: var(--accent); }
 .settings-actions { display: flex; gap: 10px; flex-wrap: wrap; }
 .settings-card + .settings-card { margin-top: 16px; }
+.settings-hint { margin: 0; font-size: 12px; color: var(--muted); }
+
+/* --- Scorciatoie da tastiera --- */
+.sc-list { display: flex; flex-direction: column; gap: 6px; margin: 10px 0 4px; }
+.sc-row {
+  display: flex; align-items: center; gap: 10px;
+  background: var(--bg2); border: 1px solid var(--border); border-radius: 8px;
+  padding: 7px 10px;
+}
+.sc-name {
+  flex: 1; min-width: 0; font-size: 13px; color: var(--text);
+  display: flex; align-items: center; gap: 8px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.sc-name i { color: var(--accent); width: 15px; text-align: center; flex: 0 0 auto; }
+.sc-key {
+  flex: 0 0 auto; min-width: 104px; text-align: center;
+  background: var(--panel); border: 1px solid var(--border); border-radius: 6px;
+  color: var(--text); font-family: SFMono-Regular, Menlo, monospace; font-size: 12px;
+  padding: 5px 10px; cursor: pointer;
+}
+.sc-key:hover { border-color: var(--accent); }
+.sc-key.sc-empty { color: var(--muted); font-style: italic; }
+.sc-key.recording {
+  border-color: var(--accent); color: var(--accent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 25%, transparent);
+  animation: sc-pulse 1.1s ease-in-out infinite;
+}
+@keyframes sc-pulse { 50% { opacity: .55; } }
+.sc-clear {
+  flex: 0 0 auto; width: 26px; height: 26px; border-radius: 6px;
+  background: none; border: 1px solid transparent; color: var(--muted); cursor: pointer;
+}
+.sc-clear:hover:not(:disabled) { color: var(--red); border-color: var(--border); }
+.sc-clear:disabled { opacity: .3; cursor: default; }
 
 /* ---------- Monitor di sistema (df + cpu/ram live) ---------- */
 /* riusa .ll-overlay per posizione e ridimensionamento, ma con il font dell'interfaccia */
