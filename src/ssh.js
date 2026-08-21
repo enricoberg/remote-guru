@@ -161,6 +161,33 @@ class SshManager {
     return this._sftp(id);
   }
 
+  /**
+   * Canale SFTP dedicato alla navigazione (listing / realpath), separato da
+   * quello restituito da `_sftp` — condiviso con trasferimenti, editor e
+   * dump/restore. Senza questa separazione una `readdir` finisce in coda dietro
+   * i pacchetti dati di un upload/download in corso e il file browser diventa
+   * lentissimo proprio mentre serve.
+   */
+  _browseSftp(id) {
+    const s = this.get(id);
+    if (s.sftpBrowse) return Promise.resolve(s.sftpBrowse);
+    // più richieste in volo devono aprire un solo canale
+    if (s.sftpBrowsePending) return s.sftpBrowsePending;
+    s.sftpBrowsePending = new Promise((resolve, reject) => {
+      s.client.sftp((err, sftp) => {
+        s.sftpBrowsePending = null;
+        if (err) return reject(err);
+        s.sftpBrowse = sftp;
+        // se il canale cade, la richiesta successiva ne apre uno nuovo
+        const drop = () => { if (s.sftpBrowse === sftp) s.sftpBrowse = null; };
+        sftp.on('close', drop);
+        sftp.on('error', drop);
+        resolve(sftp);
+      });
+    });
+    return s.sftpBrowsePending;
+  }
+
   /** True se la sessione è ancora aperta (senza lanciare eccezioni). */
   hasSession(id) {
     return this.sessions.has(id);
@@ -185,7 +212,7 @@ class SshManager {
 
   /** Elenca il contenuto di una cartella (per il bottone "ll" / cartelle cliccabili). */
   async listDir(id, dir) {
-    const sftp = await this._sftp(id);
+    const sftp = await this._browseSftp(id);
     const target = dir || this.get(id).cwd || '.';
     const abs = await new Promise((resolve, reject) => {
       sftp.realpath(target, (err, p) => (err ? reject(err) : resolve(p)));
@@ -223,7 +250,7 @@ class SshManager {
 
   /** Risolve un path relativo rispetto alla cwd in path assoluto. */
   async realpath(id, p) {
-    const sftp = await this._sftp(id);
+    const sftp = await this._browseSftp(id);
     return new Promise((resolve, reject) => {
       sftp.realpath(p, (err, rp) => (err ? reject(err) : resolve(rp)));
     });
@@ -1005,6 +1032,8 @@ class Session {
     this.stream = stream;
     this.server = server;
     this.sftp = null;
+    this.sftpBrowse = null; // canale SFTP dedicato al file browser
+    this.sftpBrowsePending = null;
     this.cwd = '~';
     this._cwdBuf = '';
   }

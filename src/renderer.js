@@ -962,6 +962,7 @@ async function closeTab(id) {
   tab.paneEl.remove();
   tab.tabEl.remove();
   tabs.delete(id);
+  invalidateListing(id);
   splitIds = splitIds.filter((s) => s !== id);
   splitWeights.delete(id);
   if (activeTabId === id) {
@@ -977,45 +978,150 @@ async function closeTab(id) {
 // LISTING STRUTTURATO ("ll" cliccabile)
 // ============================================================================
 
-async function showListing(tab, dir) {
+// Cache dei listing, chiave `${tab.id}\u0000${dir}` -> { cwd, entries, sig }.
+// Serve al disegno immediato (stale-while-revalidate): si mostra subito l'ultimo
+// contenuto noto e lo si aggiorna quando arriva la risposta SFTP.
+const listingCache = new Map();
+const LISTING_CACHE_MAX = 80; // cartelle tenute in memoria per tutte le schede
+const listingKey = (tabId, dir) => tabId + '\u0000' + dir;
+
+/** Firma del contenuto di una cartella: se non cambia si evita di ridisegnare. */
+function listingSig(res) {
+  return res.cwd + '\u0002' + res.entries
+    .map((e) => `${e.name}\u0001${e.size}\u0001${e.mtime}\u0001${e.mode}`)
+    .join('\u0002');
+}
+
+function cacheListing(tabId, dir, res) {
+  listingCache.set(listingKey(tabId, dir), res);
+  // tetto alla memoria: la Map conserva l'ordine di inserimento, si scarta la più vecchia
+  while (listingCache.size > LISTING_CACHE_MAX) {
+    listingCache.delete(listingCache.keys().next().value);
+  }
+}
+
+/** Scarta la cache di una scheda: una singola cartella, oppure tutte. */
+function invalidateListing(tabId, dir) {
+  if (dir) return void listingCache.delete(listingKey(tabId, dir));
+  const prefix = tabId + '\u0000';
+  for (const k of [...listingCache.keys()]) {
+    if (k.startsWith(prefix)) listingCache.delete(k);
+  }
+}
+
+/** Spegne l'indicatore di caricamento sul file browser attualmente a schermo. */
+function stopListingSpinner(tab) {
+  const ov = tab.hostEl.querySelector('.ll-overlay.ll-files');
+  if (ov) ov.classList.remove('ll-loading');
+}
+
+/**
+ * Apre o aggiorna il file browser sulla cartella `dir`.
+ *
+ * Mostra subito qualcosa senza aspettare la rete: il contenuto in cache se c'è,
+ * altrimenti uno scheletro; se a schermo c'è già il listing della stessa
+ * cartella lo lascia in piedi e accende solo lo spinner. Il contenuto viene
+ * sostituito quando arriva la risposta SFTP (e non viene ridisegnato affatto se
+ * la cartella è identica a quella già mostrata).
+ *
+ * `opts.fresh` salta la cache: da usare dopo aver modificato la cartella
+ * (creazione, cancellazione, copia, chmod, upload).
+ */
+async function showListing(tab, dir, opts = {}) {
+  const target = dir || tab.cwd;
+  // ogni richiesta ha un numero progressivo: se ne parte una più recente
+  // (navigazione rapida fra cartelle) la risposta arretrata viene scartata
+  const seq = tab.llSeq = (tab.llSeq || 0) + 1;
+
+  if (opts.fresh) invalidateListing(tab.id, target);
+  const cached = listingCache.get(listingKey(tab.id, target));
+  const current = tab.hostEl.querySelector('.ll-overlay.ll-files');
+  let skeleton = false;
+
+  if (cached) renderListing(tab, cached, true);
+  else if (current && tab.llDir === target) current.classList.add('ll-loading');
+  else { renderListingSkeleton(tab, target); skeleton = true; }
+
   let res;
   try {
-    res = await window.api.listDir(tab.id, dir || tab.cwd);
+    res = await window.api.listDir(tab.id, target);
   } catch (e) {
+    if (seq === tab.llSeq) {
+      // se non c'era nulla da mostrare togli lo scheletro, altrimenti resta il contenuto vecchio
+      if (skeleton) { const ov = tab.hostEl.querySelector('.ll-overlay.ll-files'); if (ov) ov.remove(); }
+      else stopListingSpinner(tab);
+    }
     return toast(i18n.t('listing_error', { error: e.message }), true);
   }
+  if (seq !== tab.llSeq) return; // sorpassata da una richiesta più recente
+
+  res.sig = listingSig(res);
+  cacheListing(tab.id, res.cwd, res);
+  if (target !== res.cwd) cacheListing(tab.id, target, res);
+
   tab.cwd = res.cwd;
   if (tab.cwdEl) tab.cwdEl.textContent = res.cwd;
 
-  // rimuovi overlay precedente
-  const old = tab.hostEl.querySelector('.ll-overlay');
-  if (old) old.remove();
+  // già a schermo e identico: niente da ridisegnare, basta spegnere lo spinner
+  if (cached && cached.sig === res.sig && tab.llDir === res.cwd) return stopListingSpinner(tab);
+  renderListing(tab, res);
+}
 
-  const overlay = el('div', 'll-overlay');
+/** Contenitore dell'overlay file browser: maniglia di resize e altezza salvata. */
+function beginListingOverlay(tab, loading) {
+  const overlay = el('div', 'll-overlay ll-files' + (loading ? ' ll-loading' : ''));
   // maniglia di ridimensionamento verticale in cima al pannello
   const grip = el('div', 'll-resize');
   overlay.appendChild(grip);
   setupOverlayResize(grip, overlay, tab);
   // ripristina l'altezza scelta in precedenza (per questa scheda)
   if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+  return overlay;
+}
 
+/** Sostituisce l'overlay a schermo, conservando lo scroll se è la stessa cartella. */
+function endListingOverlay(tab, overlay, dir) {
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  const keepScroll = old && old.classList.contains('ll-files') && tab.llDir === dir;
+  const scroll = keepScroll ? old.scrollTop : 0;
+  if (old) old.remove();
+  tab.hostEl.appendChild(overlay);
+  if (scroll) overlay.scrollTop = scroll;
+  tab.llDir = dir;
+}
+
+/** Intestazione del file browser. `count` a null = cartella non ancora letta. */
+function makeListingHead(tab, cwd, count, overlay) {
   const head = el('div', 'll-head');
   const info = el('span');
-  info.innerHTML = i18n.t('listing_folder_info', { path: escapeHtml(res.cwd), count: res.entries.length });
+  info.innerHTML = count === null
+    ? `<i class="fa-solid fa-folder-open"></i> ${escapeHtml(cwd)}`
+    : i18n.t('listing_folder_info', { path: escapeHtml(cwd), count: count });
   const actions = el('span', 'll-head-actions');
+  // visibile solo mentre l'overlay ha la classe .ll-loading
+  const spin = el('span', 'll-spin');
+  spin.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
   const searchBtn = el('button');
   searchBtn.innerHTML = '<i class="fa-solid fa-magnifying-glass"></i>';
   searchBtn.title = i18n.t('search_folder');
-  searchBtn.addEventListener('click', () => toggleSearch(tab, res.cwd, overlay));
+  searchBtn.addEventListener('click', () => toggleSearch(tab, cwd, overlay));
   const closeBtn = el('button');
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
   closeBtn.title = 'Chiudi';
-  closeBtn.addEventListener('click', () => overlay.remove());
+  // il numero di richiesta avanza: una lettura ancora in volo non riapre il pannello
+  closeBtn.addEventListener('click', () => { tab.llSeq = (tab.llSeq || 0) + 1; overlay.remove(); });
+  actions.appendChild(spin);
   actions.appendChild(searchBtn);
   actions.appendChild(closeBtn);
   head.appendChild(info);
   head.appendChild(actions);
-  overlay.appendChild(head);
+  return head;
+}
+
+/** Disegna il contenuto della cartella. `loading` = dati dalla cache, in attesa di conferma. */
+function renderListing(tab, res, loading = false) {
+  const overlay = beginListingOverlay(tab, loading);
+  overlay.appendChild(makeListingHead(tab, res.cwd, res.entries.length, overlay));
 
   // voce per risalire
   const up = makeEntry(tab, { name: '..', isDir: true, isLink: false, size: 0 }, res.cwd);
@@ -1026,7 +1132,15 @@ async function showListing(tab, dir) {
     overlay.appendChild(makeEntry(tab, entry, res.cwd));
   });
 
-  tab.hostEl.appendChild(overlay);
+  endListingOverlay(tab, overlay, res.cwd);
+}
+
+/** Scheletro mostrato subito quando la cartella non è in cache. */
+function renderListingSkeleton(tab, dir) {
+  const overlay = beginListingOverlay(tab, true);
+  overlay.appendChild(makeListingHead(tab, dir, null, overlay));
+  for (let i = 0; i < 8; i++) overlay.appendChild(el('div', 'll-skeleton'));
+  endListingOverlay(tab, overlay, dir);
 }
 
 /** Permette di ridimensionare verticalmente il pannello file browser trascinando la maniglia in alto. */
@@ -1122,7 +1236,7 @@ function newFilePrompt(tab, cwd) {
         await window.api.createFile(tab.id, target);
         toast(i18n.t('newfile_created', { name: name }));
         cleanup();
-        showListing(tab, cwd);
+        showListing(tab, cwd, { fresh: true });
       } catch (err) { toast(i18n.t('generic_error', { error: err.message }), true); }
     }
   });
@@ -1155,7 +1269,9 @@ function makeEntry(tab, entry, cwd) {
       window.api.write(tab.id, `cd '${target.replace(/'/g, `'\\''`)}'\r`);
       tab.cwd = target;
       if (tab.cwdEl) tab.cwdEl.textContent = target;
-      setTimeout(() => showListing(tab, target), 250);
+      // il listing usa un percorso assoluto via SFTP: non dipende dalla `cd`
+      // sulla shell, quindi parte subito in parallelo senza attese fisse
+      showListing(tab, target);
     });
   } else {
     // doppio clic su file -> cat automatico (il file browser resta aperto)
@@ -3460,7 +3576,7 @@ async function makeExecutable(tab, entry, fullPath) {
   try {
     await window.api.makeExecutable(tab.id, fullPath);
     toast(i18n.t('made_executable', { name: entry.name }));
-    showListing(tab, tab.cwd);
+    showListing(tab, tab.cwd, { fresh: true });
   } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
 }
 
@@ -3470,7 +3586,7 @@ async function deleteEntry(tab, entry, fullPath) {
   try {
     await window.api.deleteEntry(tab.id, fullPath, entry.isDir);
     toast(i18n.t('entry_deleted', { name: entry.name }));
-    showListing(tab, tab.cwd);
+    showListing(tab, tab.cwd, { fresh: true });
   } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
 }
 
@@ -3482,7 +3598,7 @@ async function pasteEntry(tab, destDir) {
   try {
     const newName = await window.api.copyEntry(tab.id, remoteClipboard.path, destDir, remoteClipboard.isDir);
     toast(i18n.t('pasted', { name: newName || remoteClipboard.name }));
-    showListing(tab, tab.cwd);
+    showListing(tab, tab.cwd, { fresh: true });
   } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
 }
 
@@ -3695,8 +3811,10 @@ function applyTransferUpdate(it) {
 function refreshListingFor(dir) {
   if (!dir) return;
   tabs.forEach((tab) => {
-    if (tab.cwd === dir && tab.hostEl && tab.hostEl.querySelector('.ll-overlay')) {
-      showListing(tab, dir);
+    // solo se a schermo c'è davvero il file browser: un editor o un pannello
+    // Docker aperto sulla stessa cartella non va sostituito
+    if (tab.cwd === dir && tab.hostEl && tab.hostEl.querySelector('.ll-overlay.ll-files')) {
+      showListing(tab, dir, { fresh: true });
     }
   });
 }
