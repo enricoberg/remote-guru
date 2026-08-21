@@ -371,6 +371,66 @@ html, body {
 }
 .editor-textarea:focus { border-color: var(--accent); }
 
+/* ---------- Editor CodeMirror (syntax highlighting) ----------
+   Il tema "remote-guru" usa solo le variabili colore del tema attivo,
+   così l'evidenziazione segue il tema scelto dall'utente. */
+.editor-overlay .CodeMirror {
+  flex: 1; min-height: 200px; height: auto;
+  background: var(--bg); color: var(--text);
+  border: 1px solid var(--border); border-radius: 4px;
+  font-family: "SFMono-Regular", Menlo, monospace; font-size: 13px; line-height: 1.45;
+}
+.editor-overlay .CodeMirror-focused { border-color: var(--accent); }
+.editor-overlay .CodeMirror-scroll { padding: 4px 0; }
+
+.cm-s-remote-guru .CodeMirror-gutters { background: var(--bg2); border-right: 1px solid var(--border); }
+.cm-s-remote-guru .CodeMirror-linenumber { color: var(--muted); opacity: 0.7; }
+.cm-s-remote-guru .CodeMirror-cursor { border-left: 2px solid var(--accent); }
+.cm-s-remote-guru .CodeMirror-selected,
+.cm-s-remote-guru.CodeMirror-focused .CodeMirror-selected { background: var(--border); }
+.cm-s-remote-guru .CodeMirror-activeline-background { background: var(--panel); }
+.cm-s-remote-guru .CodeMirror-activeline .CodeMirror-linenumber { color: var(--accent); opacity: 1; }
+.cm-s-remote-guru .CodeMirror-matchingbracket { color: var(--yellow) !important; font-weight: 700; text-decoration: none; }
+.cm-s-remote-guru .CodeMirror-nonmatchingbracket { color: var(--red) !important; }
+.cm-s-remote-guru .CodeMirror-matchingtag { background: var(--border); }
+
+.cm-s-remote-guru .cm-comment { color: var(--muted); font-style: italic; }
+.cm-s-remote-guru .cm-keyword,
+.cm-s-remote-guru .cm-atom { color: var(--red); }
+.cm-s-remote-guru .cm-string,
+.cm-s-remote-guru .cm-string-2 { color: var(--green); }
+.cm-s-remote-guru .cm-number { color: var(--yellow); }
+.cm-s-remote-guru .cm-def,
+.cm-s-remote-guru .cm-property,
+.cm-s-remote-guru .cm-attribute,
+.cm-s-remote-guru .cm-qualifier { color: var(--accent); }
+.cm-s-remote-guru .cm-variable { color: var(--text); }
+.cm-s-remote-guru .cm-variable-2,
+.cm-s-remote-guru .cm-variable-3,
+.cm-s-remote-guru .cm-type { color: var(--accent); }
+.cm-s-remote-guru .cm-operator { color: var(--text); }
+.cm-s-remote-guru .cm-meta,
+.cm-s-remote-guru .cm-builtin { color: var(--yellow); }
+.cm-s-remote-guru .cm-tag { color: var(--red); }
+.cm-s-remote-guru .cm-bracket { color: var(--muted); }
+.cm-s-remote-guru .cm-link { color: var(--accent); text-decoration: underline; }
+.cm-s-remote-guru .cm-header { color: var(--accent); font-weight: 700; }
+.cm-s-remote-guru .cm-quote { color: var(--green); }
+.cm-s-remote-guru .cm-hr { color: var(--muted); }
+.cm-s-remote-guru .cm-error { color: var(--red); }
+.cm-s-remote-guru .cm-negative { color: var(--red); }
+.cm-s-remote-guru .cm-positive { color: var(--green); }
+
+/* dialoghi degli addon di ricerca (Ctrl+F / Alt+G) */
+.editor-overlay .CodeMirror-dialog {
+  background: var(--panel); color: var(--text); border-color: var(--border);
+  font-family: inherit; font-size: 12px;
+}
+.editor-overlay .CodeMirror-dialog input {
+  background: var(--bg); color: var(--text); border: 1px solid var(--accent);
+  border-radius: 3px; padding: 2px 6px; font-family: inherit; outline: none;
+}
+
 /* pannello container Docker (riusa .ll-overlay) */
 .docker-row {
   display: flex; align-items: center; gap: 12px; padding: 8px 4px;

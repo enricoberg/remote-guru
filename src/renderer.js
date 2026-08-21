@@ -3188,6 +3188,71 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
 }
 
 /**
+ * Riconosce il linguaggio di un file (per il syntax highlighting dell'editor)
+ * dall'estensione, dal nome completo o dallo shebang della prima riga.
+ * Restituisce una spec di modo CodeMirror (stringa o oggetto) oppure null.
+ */
+function detectEditorMode(name, content) {
+  const lower = (name || '').toLowerCase();
+  const byName = {
+    dockerfile: 'dockerfile',
+    makefile: 'text/x-sh',
+    'docker-compose.yml': 'yaml',
+    'docker-compose.yaml': 'yaml',
+    '.bashrc': 'text/x-sh',
+    '.bash_profile': 'text/x-sh',
+    '.zshrc': 'text/x-sh',
+    '.profile': 'text/x-sh',
+    '.gitconfig': 'text/x-properties',
+    'nginx.conf': 'nginx',
+    'crontab': 'text/x-sh',
+    'hosts': 'text/x-properties',
+    'fstab': 'text/x-properties',
+  };
+  if (byName[lower]) return byName[lower];
+  if (lower.startsWith('dockerfile')) return 'dockerfile';
+
+  const ext = lower.includes('.') ? lower.split('.').pop() : '';
+  const byExt = {
+    sh: 'text/x-sh', bash: 'text/x-sh', zsh: 'text/x-sh', ksh: 'text/x-sh',
+    ps1: 'powershell',
+    py: 'python', py3: 'python',
+    js: 'javascript', mjs: 'javascript', cjs: 'javascript', jsx: 'javascript',
+    ts: 'text/typescript', tsx: 'text/typescript',
+    json: { name: 'javascript', json: true },
+    yml: 'yaml', yaml: 'yaml',
+    toml: 'toml',
+    ini: 'text/x-properties', cfg: 'text/x-properties', conf: 'text/x-properties',
+    properties: 'text/x-properties', env: 'text/x-properties',
+    xml: 'xml', xsd: 'xml', xsl: 'xml', svg: 'xml', plist: 'xml',
+    html: 'htmlmixed', htm: 'htmlmixed', vue: 'htmlmixed',
+    css: 'css', scss: 'text/x-scss', less: 'text/x-less',
+    sql: 'sql',
+    php: 'application/x-httpd-php', phtml: 'application/x-httpd-php',
+    c: 'text/x-csrc', h: 'text/x-csrc',
+    cpp: 'text/x-c++src', cc: 'text/x-c++src', hpp: 'text/x-c++src', cxx: 'text/x-c++src',
+    java: 'text/x-java', cs: 'text/x-csharp', scala: 'text/x-scala', kt: 'text/x-kotlin',
+    go: 'go', rs: 'rust', lua: 'lua',
+    pl: 'perl', pm: 'perl',
+    rb: 'ruby', erb: 'ruby',
+    md: 'markdown', markdown: 'markdown',
+    diff: 'diff', patch: 'diff',
+    log: null, txt: null,
+  };
+  if (Object.prototype.hasOwnProperty.call(byExt, ext)) return byExt[ext];
+
+  // nessuna estensione utile: prova con lo shebang
+  const first = (content || '').split('\n', 1)[0];
+  if (/^#!.*\b(bash|sh|zsh|ksh|dash)\b/.test(first)) return 'text/x-sh';
+  if (/^#!.*\bpython/.test(first)) return 'python';
+  if (/^#!.*\bnode\b/.test(first)) return 'javascript';
+  if (/^#!.*\bperl\b/.test(first)) return 'perl';
+  if (/^#!.*\bruby\b/.test(first)) return 'ruby';
+  if (/^#!.*\bphp\b/.test(first)) return 'application/x-httpd-php';
+  return null;
+}
+
+/**
  * Apre un editor di testo embeddato (overlay) per modificare un file remoto.
  * Carica il contenuto via SFTP/sudo, mostra una textarea con due pulsanti:
  * "Salva ed esci" e "Esci senza salvare".
@@ -3235,9 +3300,16 @@ async function openEmbeddedEditor(tab, entry, fullPath) {
   overlay.appendChild(ta);
 
   const original = content;
-  const isDirty = () => ta.value !== original;
+
+  // CodeMirror trasforma la textarea in un editor con syntax highlighting;
+  // se la libreria non fosse disponibile si continua con la textarea semplice.
+  let cm = null;
+  let cmResizeObs = null;
+  const getValue = () => (cm ? cm.getValue() : ta.value);
+  const isDirty = () => getValue() !== original;
 
   const close = () => {
+    if (cmResizeObs) cmResizeObs.disconnect();
     overlay.remove();
     tab.term.focus();
   };
@@ -3250,7 +3322,7 @@ async function openEmbeddedEditor(tab, entry, fullPath) {
   const save = async () => {
     saveBtn.disabled = true;
     try {
-      await window.api.writeFile(tab.id, fullPath, ta.value);
+      await window.api.writeFile(tab.id, fullPath, getValue());
       toast(i18n.t('editor_saved', { name: entry.name }));
       close();
     } catch (e) {
@@ -3272,7 +3344,39 @@ async function openEmbeddedEditor(tab, entry, fullPath) {
   });
 
   tab.hostEl.appendChild(overlay);
-  ta.focus();
+
+  if (window.CodeMirror) {
+    const mode = detectEditorMode(entry.name, content);
+    cm = window.CodeMirror.fromTextArea(ta, {
+      mode: mode || null,
+      theme: 'remote-guru',
+      lineNumbers: true,
+      lineWrapping: false,
+      indentUnit: 2,
+      tabSize: 4,
+      matchBrackets: true,
+      autoCloseBrackets: true,
+      styleActiveLine: true,
+      extraKeys: {
+        'Cmd-S': () => save(),
+        'Ctrl-S': () => save(),
+        'Cmd-/': 'toggleComment',
+        'Ctrl-/': 'toggleComment',
+        Esc: () => { if (!isDirty() || confirm(i18n.t('editor_unsaved_confirm'))) close(); },
+        Tab: (editor) => {
+          if (editor.somethingSelected()) editor.indentSelection('add');
+          else editor.replaceSelection(' '.repeat(editor.getOption('indentUnit')), 'end');
+        },
+      },
+    });
+    // l'overlay è ridimensionabile: mantieni l'editor allineato all'altezza corrente
+    cmResizeObs = new ResizeObserver(() => cm.refresh());
+    cmResizeObs.observe(overlay);
+    cm.on('blur', () => cm.refresh());
+    cm.focus();
+  } else {
+    ta.focus();
+  }
 }
 
 function openTermContextMenu(e, tab) {
