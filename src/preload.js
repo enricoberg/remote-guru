@@ -20,6 +20,8 @@ contextBridge.exposeInMainWorld('api', {
   deleteEntry: (id, p, isDir) => ipcRenderer.invoke('ssh:delete', { id, path: p, isDir }),
   copyEntry: (id, src, destDir, isDir) =>
     ipcRenderer.invoke('ssh:copy', { id, src, destDir, isDir }),
+  copyInto: (id, src, destDir, isDir) =>
+    ipcRenderer.invoke('ssh:copyInto', { id, src, destDir, isDir }),
   makeExecutable: (id, p) => ipcRenderer.invoke('ssh:makeExecutable', { id, path: p }),
   createFile: (id, p) => ipcRenderer.invoke('ssh:createFile', { id, path: p }),
   readFile: (id, p) => ipcRenderer.invoke('ssh:readFile', { id, path: p }),
@@ -29,6 +31,8 @@ contextBridge.exposeInMainWorld('api', {
   queueUpload: (id, destDir) => ipcRenderer.invoke('transfer:upload', { id, destDir }),
   queueDownload: (id, remotePath, filename, isDir, size) =>
     ipcRenderer.invoke('transfer:download', { id, remotePath, filename, isDir, size }),
+  queueRelay: (srcId, srcPath, name, isDir, size, dstId, destDir) =>
+    ipcRenderer.invoke('transfer:relay', { srcId, srcPath, name, isDir, size, dstId, destDir }),
   transferList: () => ipcRenderer.invoke('transfer:list'),
   transferPause: (tid) => ipcRenderer.invoke('transfer:pause', tid),
   transferResume: (tid) => ipcRenderer.invoke('transfer:resume', tid),

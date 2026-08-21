@@ -285,6 +285,27 @@ class SshManager {
     return candidate;
   }
 
+  /**
+   * Copia remoto->remoto conservando il nome (usata dal drag&drop fra file
+   * browser sullo stesso server). A differenza di `copyRemote` non aggiunge il
+   * suffisso "_copy": è una copia esatta, quindi sovrascrive un omonimo nella
+   * destinazione, come fa l'upload. Rifiuta la copia di una cartella dentro se
+   * stessa, che con `cp -r` andrebbe in ricorsione.
+   */
+  async copyInto(id, src, destDir, isDir) {
+    const clean = String(src).replace(/\/+$/, '');
+    const dest = String(destDir).replace(/\/+$/, '') || '/';
+    if (dest === clean || dest.startsWith(clean + '/')) {
+      throw new Error('Impossibile copiare una cartella dentro se stessa');
+    }
+    if (dest === path.dirname(clean)) {
+      throw new Error('Origine e destinazione coincidono');
+    }
+    const flag = isDir ? '-r' : '';
+    await this.sudoExec(id, `cp ${flag} ${shellQuote(clean)} ${shellQuote(dest)}/`);
+    return path.basename(clean);
+  }
+
   /** Verifica (con sudo) se un percorso remoto esiste già. */
   async _remoteExists(id, remotePath) {
     try {

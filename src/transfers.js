@@ -20,7 +20,11 @@ const path = require('path');
  *  - upload: i dati vanno prima in una cartella di staging remota deterministica
  *    (/tmp/rg-up-<id>, scrivibile dall'utente) e alla fine vengono copiati nella
  *    destinazione con `sudo cp`, come già fa l'import "classico". Lo staging è
- *    deterministico proprio per poter riprendere l'upload dopo un'interruzione.
+ *    deterministico proprio per poter riprendere l'upload dopo un'interruzione;
+ *  - relay (copia server -> server, drag&drop fra due schede): non è un tipo a
+ *    sé, ma un download verso una cartella temporanea locale seguito da un
+ *    upload sul secondo server. Le due fasi sono due voci di coda con lo stesso
+ *    `groupId`, così pausa/ripresa/avanzamento funzionano già senza casi speciali.
  */
 
 const PART = '.rgpart';
@@ -35,15 +39,18 @@ class TransferManager {
     this.ssh = null;
     this._emitFn = () => {};
     this.storePath = null;
+    /** cartella dove transitano i dati dei relay server -> server */
+    this.tmpRoot = null;
     this._seq = 0;
     this._saveTimer = null;
   }
 
-  /** @param {{ssh:object, emit:(ch:string,p:any)=>void, storePath:string}} opts */
-  init({ ssh, emit, storePath }) {
+  /** @param {{ssh:object, emit:(ch:string,p:any)=>void, storePath:string, tmpRoot:string}} opts */
+  init({ ssh, emit, storePath, tmpRoot }) {
     this.ssh = ssh;
     this._emitFn = emit;
     this.storePath = storePath;
+    this.tmpRoot = tmpRoot;
     this._load();
   }
 
@@ -95,6 +102,63 @@ class TransferManager {
     });
     it.tmpRemote = `/tmp/rg-up-${it.id}`;
     return this._enqueue(it);
+  }
+
+  /**
+   * Accoda la copia di un file/cartella da un server a un altro passando per il
+   * disco locale: qui nasce solo la fase di download (verso una cartella
+   * temporanea); l'upload sul server di destinazione viene accodato da
+   * `_startRelayUpload` quando il download è finito.
+   * @param {{srcSessionId:string, srcPath:string, name:string, isDir:boolean,
+   *          size?:number, dstSessionId:string, destDir:string}} o
+   */
+  addRelay(o) {
+    if (!this.tmpRoot) throw new Error('Cartella temporanea non configurata');
+    const dst = this.ssh.serverInfo(o.dstSessionId);
+    const it = this._make({
+      type: 'download',
+      kind: o.isDir ? 'dir' : 'file',
+      sessionId: o.srcSessionId,
+      name: o.name,
+      remotePath: o.srcPath,
+      total: !o.isDir && typeof o.size === 'number' ? o.size : null,
+    });
+    const stage = path.join(this.tmpRoot, `relay-${it.id}`);
+    fs.mkdirSync(stage, { recursive: true });
+    it.localPath = path.join(stage, o.name);
+    it.groupId = it.id;
+    // `dstServerKey` serve a ritrovare la destinazione se quella sessione cade
+    // mentre il download è in corso (o se l'app viene riavviata a metà)
+    it.relay = { dstSessionId: o.dstSessionId, dstServerKey: dst.key, destDir: o.destDir, stage };
+    it.relayPair = { from: it.serverLabel, to: dst.label, srcPath: o.srcPath, destDir: o.destDir };
+    return this._enqueue(it);
+  }
+
+  /** Seconda fase di un relay: carica sul server di destinazione quanto scaricato. */
+  _startRelayUpload(it) {
+    const r = it.relay;
+    const sessionId = this.ssh.hasSession(r.dstSessionId)
+      ? r.dstSessionId
+      : this.ssh.findSessionByServerKey(r.dstServerKey);
+    const up = this._make({
+      type: 'upload',
+      kind: it.kind,
+      sessionId,
+      serverKey: r.dstServerKey,
+      serverLabel: it.relayPair ? it.relayPair.to : '',
+      name: it.name,
+      localPath: it.localPath,
+      destDir: r.destDir,
+      // per le cartelle la dimensione viene ricalcolata in locale da `_prepare`
+      total: it.kind === 'dir' ? null : it.total,
+    });
+    up.tmpRemote = `/tmp/rg-up-${up.id}`;
+    up.groupId = it.groupId || it.id;
+    up.cleanupLocal = r.stage; // i dati locali erano solo di passaggio
+    up.relayPair = it.relayPair;
+    // destinazione non più connessa: la voce nasce in pausa, pronta a riprendere
+    if (!sessionId) up.status = 'paused';
+    return this._enqueue(up);
   }
 
   /** Sospende un trasferimento (i dati già trasferiti restano su disco). */
@@ -188,7 +252,11 @@ class TransferManager {
 
   _make(fields) {
     const id = 't' + ++this._seq + '_' + Date.now();
-    const info = this.ssh.serverInfo(fields.sessionId);
+    // la sessione può mancare (seconda fase di un relay verso un server che si è
+    // disconnesso): in quel caso chiave ed etichetta arrivano da `fields`
+    const info = fields.sessionId && this.ssh.hasSession(fields.sessionId)
+      ? this.ssh.serverInfo(fields.sessionId)
+      : { key: null, label: '' };
     return {
       id,
       status: 'queued',
@@ -246,7 +314,12 @@ class TransferManager {
       // brutalmente), altrimenti li riprenderemmo come se fossero nostri
       if (!it.started) {
         it.started = true;
-        if (it.type === 'download') this._cleanupPartials(it);
+        // la cartella temporanea di un relay è appena creata e univoca per voce:
+        // non ci sono parziali di altri trasferimenti da ripulire
+        if (it.type === 'download' && !it.relay) this._cleanupPartials(it);
+      }
+      if (it.type === 'upload' && !fs.existsSync(it.localPath)) {
+        throw new Error(`Dati locali non più disponibili: ${it.localPath}`);
       }
       if (!it.prepared) await this._prepare(it);
       if (it.type === 'upload') {
@@ -260,6 +333,8 @@ class TransferManager {
       it.transferred = it.total == null ? it.transferred : it.total;
       it.currentFile = null;
       it.speed = 0;
+      // relay: finito il download parte la fase di upload sull'altro server
+      if (it.relay) this._startRelayUpload(it);
     } catch (e) {
       it.speed = 0;
       it.currentFile = null;
@@ -320,6 +395,9 @@ class TransferManager {
    */
   async _runDir(it) {
     const remoteRoot = it.type === 'download' ? it.remotePath : `${it.tmpRemote}/${it.name}`;
+
+    // download: la cartella di destinazione esiste anche se è vuota
+    if (it.type === 'download') fs.mkdirSync(it.localPath, { recursive: true });
 
     // upload: crea in blocco l'albero di cartelle remoto (poche chiamate invece di una per file)
     if (it.type === 'upload' && !it._dirsMade) {
@@ -474,6 +552,7 @@ class TransferManager {
     const staged = `${it.tmpRemote}/${it.name}`;
     await this.ssh.sudoExec(it.sessionId, `cp -r ${q(staged)} ${q(it.destDir)}/`);
     await this.ssh.exec(it.sessionId, `rm -rf ${q(it.tmpRemote)}`).catch(() => {});
+    if (it.cleanupLocal) rmDirSafe(it.cleanupLocal);
   }
 
   // ---- Utility SFTP ---------------------------------------------------------
@@ -508,7 +587,13 @@ class TransferManager {
 
   /** Elimina i dati parziali di un trasferimento rimosso. */
   _cleanupPartials(it) {
+    // relay: la cartella temporanea locale è tutta nostra e va via intera, ma
+    // solo se l'altra fase non è ancora in lista (starebbe leggendo da lì)
+    const stage = it.relay ? it.relay.stage : it.cleanupLocal;
+    if (stage && !this._hasSibling(it)) rmDirSafe(stage);
+
     if (it.type === 'download') {
+      if (stage) return;
       if (it.kind === 'file') {
         try { fs.unlinkSync(it.localPath + PART); } catch (_) {}
       } else {
@@ -517,6 +602,15 @@ class TransferManager {
     } else if (it.tmpRemote && it.sessionId && this.ssh.hasSession(it.sessionId)) {
       this.ssh.exec(it.sessionId, `rm -rf ${q(it.tmpRemote)}`).catch(() => {});
     }
+  }
+
+  /** True se in lista c'è l'altra fase, non ancora completata, dello stesso relay. */
+  _hasSibling(it) {
+    if (!it.groupId) return false;
+    for (const other of this.items.values()) {
+      if (other.id !== it.id && other.groupId === it.groupId && other.status !== 'done') return true;
+    }
+    return false;
   }
 
   // ---- Avanzamento / eventi -------------------------------------------------
@@ -557,6 +651,8 @@ class TransferManager {
       status: it.status,
       error: it.error,
       currentFile: it.currentFile,
+      groupId: it.groupId || null,
+      relayPair: it.relayPair || null,
       fileCount: it.files ? it.files.filter((f) => !f.dir).length : null,
       fileDone: it.files ? it.files.slice(0, it.doneIdx).filter((f) => !f.dir).length : null,
       createdAt: it.createdAt,
@@ -580,6 +676,8 @@ class TransferManager {
         serverKey: it.serverKey, serverLabel: it.serverLabel,
         remotePath: it.remotePath || null, localPath: it.localPath,
         destDir: it.destDir || null, tmpRemote: it.tmpRemote || null,
+        relay: it.relay || null, relayPair: it.relayPair || null,
+        groupId: it.groupId || null, cleanupLocal: it.cleanupLocal || null,
         total: it.total, transferred: it.transferred, status: it.status,
         error: it.error, prepared: it.prepared, started: it.started, files: it.files,
         doneIdx: it.doneIdx, baseDone: it.baseDone, createdAt: it.createdAt,
@@ -639,6 +737,11 @@ function walkLocal(root, rel, out) {
       out.push({ rel: childRel, size: st.size });
     }
   }
+}
+
+/** Elimina una cartella con tutto il contenuto, ignorando gli errori. */
+function rmDirSafe(dir) {
+  try { fs.rmSync(dir, { recursive: true, force: true }); } catch (_) {}
 }
 
 /** Elimina ricorsivamente i soli file parziali (.rgpart) sotto `dir`. */

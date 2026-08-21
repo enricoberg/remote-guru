@@ -2406,5 +2406,69 @@
     "fr": "Fermer l'onglet actif",
     "de": "Aktiven Tab schließen",
     "pt": "Fechar a aba ativa"
+  },
+  "dnd_confirm_local": {
+    "it": "Copiare {name} in {dest}?\n\nEventuali file con lo stesso nome nella destinazione verranno sovrascritti.",
+    "en": "Copy {name} into {dest}?\n\nAny file with the same name in the destination will be overwritten.",
+    "es": "¿Copiar {name} en {dest}?\n\nSe sobrescribirá cualquier archivo con el mismo nombre en el destino.",
+    "fr": "Copier {name} dans {dest} ?\n\nTout fichier de même nom dans la destination sera écrasé.",
+    "de": "{name} nach {dest} kopieren?\n\nDateien mit gleichem Namen im Ziel werden überschrieben.",
+    "pt": "Copiar {name} para {dest}?\n\nQualquer ficheiro com o mesmo nome no destino será substituído."
+  },
+  "dnd_confirm_relay": {
+    "it": "Copiare {name} da {from} a {to}, in {dest}?\n\nI dati passano dal disco locale: prima il download, poi l'upload sull'altra macchina. Eventuali file con lo stesso nome nella destinazione verranno sovrascritti.",
+    "en": "Copy {name} from {from} to {to}, into {dest}?\n\nThe data goes through the local disk: download first, then upload to the other machine. Any file with the same name in the destination will be overwritten.",
+    "es": "¿Copiar {name} de {from} a {to}, en {dest}?\n\nLos datos pasan por el disco local: primero la descarga, luego la subida a la otra máquina. Se sobrescribirá cualquier archivo con el mismo nombre en el destino.",
+    "fr": "Copier {name} de {from} vers {to}, dans {dest} ?\n\nLes données passent par le disque local : d'abord le téléchargement, puis l'envoi vers l'autre machine. Tout fichier de même nom dans la destination sera écrasé.",
+    "de": "{name} von {from} nach {to} in {dest} kopieren?\n\nDie Daten laufen über die lokale Festplatte: zuerst der Download, dann der Upload auf die andere Maschine. Dateien mit gleichem Namen im Ziel werden überschrieben.",
+    "pt": "Copiar {name} de {from} para {to}, em {dest}?\n\nOs dados passam pelo disco local: primeiro a descarga, depois o envio para a outra máquina. Qualquer ficheiro com o mesmo nome no destino será substituído."
+  },
+  "dnd_copied": {
+    "it": "Copiato {name} in {dest}",
+    "en": "Copied {name} into {dest}",
+    "es": "Copiado {name} en {dest}",
+    "fr": "{name} copié dans {dest}",
+    "de": "{name} nach {dest} kopiert",
+    "pt": "Copiado {name} para {dest}"
+  },
+  "dnd_queued": {
+    "it": "Copia accodata: {name} → {server}",
+    "en": "Copy queued: {name} → {server}",
+    "es": "Copia en cola: {name} → {server}",
+    "fr": "Copie mise en file : {name} → {server}",
+    "de": "Kopie eingereiht: {name} → {server}",
+    "pt": "Cópia na fila: {name} → {server}"
+  },
+  "dnd_source_gone": {
+    "it": "La scheda di origine non è più aperta.",
+    "en": "The source tab is no longer open.",
+    "es": "La pestaña de origen ya no está abierta.",
+    "fr": "L'onglet source n'est plus ouvert.",
+    "de": "Der Quell-Tab ist nicht mehr geöffnet.",
+    "pt": "A aba de origem já não está aberta."
+  },
+  "tf_relay_phase1": {
+    "it": "fase 1/2 · scarico in locale",
+    "en": "step 1/2 · downloading locally",
+    "es": "fase 1/2 · descarga local",
+    "fr": "étape 1/2 · téléchargement local",
+    "de": "Schritt 1/2 · lokaler Download",
+    "pt": "fase 1/2 · descarga local"
+  },
+  "tf_relay_phase2": {
+    "it": "fase 2/2 · carico sul server",
+    "en": "step 2/2 · uploading to server",
+    "es": "fase 2/2 · subida al servidor",
+    "fr": "étape 2/2 · envoi vers le serveur",
+    "de": "Schritt 2/2 · Upload zum Server",
+    "pt": "fase 2/2 · envio para o servidor"
+  },
+  "tf_relay_done": {
+    "it": "Copia completata: {name} su {server}",
+    "en": "Copy completed: {name} on {server}",
+    "es": "Copia completada: {name} en {server}",
+    "fr": "Copie terminée : {name} sur {server}",
+    "de": "Kopie abgeschlossen: {name} auf {server}",
+    "pt": "Cópia concluída: {name} em {server}"
   }
 }

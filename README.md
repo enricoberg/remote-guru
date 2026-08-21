@@ -30,6 +30,13 @@ npm run build:mac
   corrente (come `ll`). Le **cartelle sono cliccabili** (fanno `cd` automatico).
 - **Menu tasto destro su file/cartelle** (nell'elenco): elimina, copia, incolla,
   scarica in locale (chiede la destinazione).
+- **Drag & drop fra file browser**: trascinando un file o una cartella dall'elenco
+  di una scheda a quello di un'altra si ottiene una copia esatta nella cartella di
+  destinazione (quella della riga su cui si lascia il puntatore, o quella mostrata
+  se si lascia sullo sfondo del pannello). Fra due schede dello stesso server la
+  copia avviene lato server (`cp`); fra macchine diverse i dati passano dal disco
+  locale — download in una cartella temporanea, poi upload — e le due fasi sono
+  visibili nel pannello trasferimenti, entrambe sospendibili e riprendibili.
 - **Menu tasto destro sul terminale**: *Incolla password* (inserisce la password
   del server presa da `servers.json`).
 
@@ -58,6 +65,8 @@ chiaro, quindi `servers.json` è escluso dal versionamento (`.gitignore`).
 - `src/main.js` — processo main Electron: finestra, IPC, lettura/scrittura `servers.json`, dialog.
 - `src/ssh.js` — gestione sessioni SSH (`ssh2`): shell PTY + canale SFTP/exec per le funzioni file.
 - `src/preload.js` — bridge sicuro (contextIsolation) tra renderer e main.
+- `src/transfers.js` — coda dei trasferimenti file (download, upload e copie
+  server → server), con avanzamento, pausa/ripresa e stato persistito su disco.
 - `src/index.html` / `src/styles.css` / `src/renderer.js` — interfaccia (config, schede, terminale).
 
 La cwd corrente viene tracciata in modo affidabile tramite un marker invisibile

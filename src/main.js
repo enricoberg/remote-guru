@@ -43,6 +43,8 @@ app.whenReady().then(() => {
     ssh,
     emit: send,
     storePath: path.join(app.getPath('userData'), 'transfers.json'),
+    // area di transito delle copie server -> server (drag&drop fra due schede)
+    tmpRoot: path.join(app.getPath('temp'), 'remote-guru'),
   });
   createWindow();
   app.on('activate', () => {
@@ -148,6 +150,10 @@ ipcMain.handle('ssh:copy', (_e, { id, src, destDir, isDir }) =>
   ssh.copyRemote(id, src, destDir, isDir)
 );
 
+ipcMain.handle('ssh:copyInto', (_e, { id, src, destDir, isDir }) =>
+  ssh.copyInto(id, src, destDir, isDir)
+);
+
 ipcMain.handle('ssh:makeExecutable', (_e, { id, path: p }) => ssh.makeExecutable(id, p));
 
 ipcMain.handle('ssh:createFile', (_e, { id, path: p }) => ssh.createFile(id, p));
@@ -189,6 +195,17 @@ ipcMain.handle('transfer:upload', async (_e, { id, destDir }) => {
   if (res.canceled || !res.filePaths.length) return null;
   return res.filePaths.map((p) => transfers.addUpload({ sessionId: id, localPath: p, destDir }));
 });
+
+/**
+ * Copia un file/cartella da un server a un altro: accoda il download nella
+ * cartella temporanea locale; l'upload sul secondo server parte da solo appena
+ * il download è completo.
+ */
+ipcMain.handle('transfer:relay', (_e, { srcId, srcPath, name, isDir, size, dstId, destDir }) =>
+  transfers.addRelay({
+    srcSessionId: srcId, srcPath, name, isDir, size, dstSessionId: dstId, destDir,
+  })
+);
 
 ipcMain.handle('transfer:list', () => transfers.list());
 ipcMain.handle('transfer:pause', (_e, id) => { transfers.pause(id); return true; });

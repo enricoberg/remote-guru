@@ -615,6 +615,7 @@ function buildPane(tab) {
   // drop zone per split view (con evidenziazione); vicino ai bordi della
   // finestra ha la precedenza lo snap a metà schermo (vedi setupEdgeSnap)
   pane.addEventListener('dragover', (e) => {
+    if (isEntryDrag(e)) return; // voce del file browser: se ne occupa l'overlay
     e.preventDefault();
     const edge = edgeSide(e);
     showEdgeHint(edge);
@@ -622,6 +623,7 @@ function buildPane(tab) {
   });
   pane.addEventListener('dragleave', () => pane.classList.remove('drop-hint'));
   pane.addEventListener('drop', (e) => {
+    if (isEntryDrag(e)) return;
     e.preventDefault();
     pane.classList.remove('drop-hint');
     const edge = edgeSide(e);
@@ -926,11 +928,13 @@ function showEdgeHint(side) {
 function setupEdgeSnap() {
   const view = $('#terminal-view');
   view.addEventListener('dragover', (e) => {
+    if (isEntryDrag(e)) return; // il drag&drop di file non sposta le schede
     const side = edgeSide(e);
     if (side) e.preventDefault();
     showEdgeHint(side);
   });
   view.addEventListener('drop', (e) => {
+    if (isEntryDrag(e)) return;
     const side = edgeSide(e);
     showEdgeHint(null);
     if (!side) return;
@@ -941,7 +945,7 @@ function setupEdgeSnap() {
   view.addEventListener('dragleave', (e) => {
     if (!e.relatedTarget) showEdgeHint(null); // uscita dalla finestra
   });
-  document.addEventListener('dragend', () => showEdgeHint(null));
+  document.addEventListener('dragend', () => { showEdgeHint(null); clearDropHints(); });
 }
 
 /** Trascinamento di un divider: ridistribuisce lo spazio fra i due pane adiacenti. */
@@ -1151,6 +1155,7 @@ function makeListingHead(tab, cwd, count, overlay) {
 function renderListing(tab, res, loading = false) {
   const overlay = beginListingOverlay(tab, loading);
   overlay.appendChild(makeListingHead(tab, res.cwd, res.entries.length, overlay));
+  setupListingDrop(tab, overlay, res.cwd);
 
   // voce per risalire
   const up = makeEntry(tab, { name: '..', isDir: true, isLink: false, size: 0 }, res.cwd);
@@ -1291,6 +1296,11 @@ function makeEntry(tab, entry, cwd) {
 
   const fullPath = joinPath(cwd, entry.name);
 
+  // drag&drop fra file browser: ogni voce si può trascinare (tranne ".."), le
+  // cartelle sono anche bersaglio di drop
+  if (entry.name !== '..') setupEntryDrag(row, tab, entry, fullPath, cwd);
+  if (entry.isDir) row.dataset.dropDir = entry.name === '..' ? parentPath(cwd) : fullPath;
+
   // click su cartella -> cd
   if (entry.isDir) {
     nm.addEventListener('click', () => {
@@ -1317,6 +1327,153 @@ function makeEntry(tab, entry, cwd) {
   });
 
   return row;
+}
+
+// ---------------------------------------------------------------------------
+// DRAG & DROP FRA FILE BROWSER
+// Trascinando una voce dal file browser di una scheda a quello di un'altra si
+// copia il file (o la cartella) nella cartella su cui si lascia il puntatore:
+//  - stesso server, anche in due schede diverse -> copia lato server (`cp`);
+//  - server diversi -> passa dal disco locale (download in una cartella
+//    temporanea + upload sull'altra macchina, vedi addRelay in transfers.js).
+// ---------------------------------------------------------------------------
+
+const RG_MIME = 'text/rg-entry';
+
+/**
+ * Voce attualmente trascinata. Serve tenerla qui perché durante `dragover` il
+ * contenuto del dataTransfer non è leggibile (solo i tipi), ma va deciso subito
+ * se il bersaglio è valido.
+ */
+let dragEntry = null;
+
+/** True se il trascinamento in corso è una voce del file browser. */
+function isEntryDrag(e) {
+  return !!(e.dataTransfer && [...e.dataTransfer.types].includes(RG_MIME));
+}
+
+function clearDropHints() {
+  document.querySelectorAll('.drop-into').forEach((n) => n.classList.remove('drop-into'));
+}
+
+/** Rende trascinabile una riga del file browser. */
+function setupEntryDrag(row, tab, entry, fullPath, cwd) {
+  row.draggable = true;
+  row.addEventListener('dragstart', (e) => {
+    dragEntry = {
+      tabId: tab.id,
+      path: fullPath,
+      name: entry.name,
+      isDir: !!entry.isDir,
+      size: entry.size || 0,
+      parentDir: cwd,
+    };
+    e.dataTransfer.setData(RG_MIME, JSON.stringify(dragEntry));
+    e.dataTransfer.effectAllowed = 'copy';
+    row.classList.add('dragging');
+  });
+  row.addEventListener('dragend', () => {
+    dragEntry = null;
+    row.classList.remove('dragging');
+    clearDropHints();
+  });
+}
+
+/** True se la scheda di destinazione punta allo stesso server dell'origine. */
+function sameMachine(tab, src) {
+  if (src.tabId === tab.id) return true;
+  const from = tabs.get(src.tabId);
+  if (!from) return false;
+  const a = from.server, b = tab.server;
+  return a.host === b.host && a.username === b.username && (a.port || 22) === (b.port || 22);
+}
+
+/** Verifica se la voce trascinata può essere lasciata nella cartella `dir`. */
+function dropAllowed(tab, dir, src = dragEntry) {
+  if (!src || !dir || !tabs.has(src.tabId)) return false;
+  if (!sameMachine(tab, src)) return true;
+  if (dir === src.parentDir) return false; // già lì: niente da fare
+  // una cartella non può essere copiata dentro se stessa
+  const root = src.path.replace(/\/+$/, '');
+  if (src.isDir && (dir === root || dir.startsWith(root + '/'))) return false;
+  return true;
+}
+
+/**
+ * Rende il pannello file browser un bersaglio di drop: la destinazione è la
+ * cartella della riga sotto il puntatore, oppure la cartella mostrata se si
+ * lascia la voce sullo sfondo del pannello.
+ */
+function setupListingDrop(tab, overlay, cwd) {
+  let hot = null;
+  const mark = (node) => {
+    if (hot === node) return;
+    if (hot) hot.classList.remove('drop-into');
+    hot = node;
+    if (hot) hot.classList.add('drop-into');
+  };
+
+  const targetOf = (e) => {
+    const row = e.target && e.target.closest ? e.target.closest('.ll-entry.dir') : null;
+    return row && row.dataset.dropDir
+      ? { dir: row.dataset.dropDir, hint: row }
+      : { dir: cwd, hint: overlay };
+  };
+
+  overlay.addEventListener('dragover', (e) => {
+    if (!isEntryDrag(e)) return; // trascinamento di una scheda: se ne occupa il pane
+    e.stopPropagation();
+    const t = targetOf(e);
+    if (!dropAllowed(tab, t.dir)) return mark(null);
+    e.preventDefault(); // senza preventDefault il drop non viene consegnato
+    e.dataTransfer.dropEffect = 'copy';
+    mark(t.hint);
+  });
+
+  overlay.addEventListener('dragleave', (e) => {
+    if (!overlay.contains(e.relatedTarget)) mark(null);
+  });
+
+  overlay.addEventListener('drop', (e) => {
+    if (!isEntryDrag(e)) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const t = targetOf(e);
+    const src = dragEntry;
+    mark(null);
+    dragEntry = null;
+    if (!dropAllowed(tab, t.dir, src)) return;
+    // il dialog di conferma è bloccante: va aperto fuori dall'handler, così il
+    // trascinamento si chiude prima che compaia
+    setTimeout(() => dropEntryInto(tab, t.dir, src), 0);
+  });
+}
+
+/** Esegue la copia richiesta dal drag&drop, previa conferma. */
+async function dropEntryInto(tab, destDir, src) {
+  const srcTab = tabs.get(src.tabId);
+  if (!srcTab) return toast(i18n.t('dnd_source_gone'), true);
+  const what = src.isDir ? src.name : `${src.name} (${humanSize(src.size)})`;
+
+  // stesso server (anche in schede diverse): copia lato server, senza rete
+  if (sameMachine(tab, src)) {
+    if (!confirm(i18n.t('dnd_confirm_local', { name: what, dest: destDir }))) return;
+    try {
+      await window.api.copyInto(tab.id, src.path, destDir, src.isDir);
+      toast(i18n.t('dnd_copied', { name: src.name, dest: destDir }));
+      refreshListingFor(destDir);
+    } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
+    return;
+  }
+
+  const from = serverLabel(srcTab.server);
+  const to = serverLabel(tab.server);
+  if (!confirm(i18n.t('dnd_confirm_relay', { name: what, from: from, to: to, dest: destDir }))) return;
+  try {
+    await window.api.queueRelay(src.tabId, src.path, src.name, src.isDir, src.size, tab.id, destDir);
+    toast(i18n.t('dnd_queued', { name: src.name, server: to }));
+    openTransfers();
+  } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
 }
 
 // ============================================================================
@@ -3666,12 +3823,31 @@ function openTransfers() {
   transfersPanel().classList.remove('hidden');
 }
 
-/** Ordina i trasferimenti: prima gli attivi, poi i più recenti. */
+/**
+ * Ordina i trasferimenti: prima gli attivi, poi i più recenti. Le due fasi di
+ * una copia server->server (stesso `groupId`) contano come una voce sola — si
+ * ordinano sulla fase più avanzata — e restano adiacenti, nell'ordine
+ * download -> upload.
+ */
 function sortedTransfers() {
   const rank = { running: 0, queued: 1, paused: 2, error: 3, done: 4 };
-  return [...transferItems.values()].sort((a, b) => {
-    const d = (rank[a.status] ?? 9) - (rank[b.status] ?? 9);
-    return d !== 0 ? d : b.createdAt - a.createdAt;
+  const items = [...transferItems.values()];
+  const gRank = new Map();
+  const gTime = new Map();
+  items.forEach((it) => {
+    if (!it.groupId) return;
+    gRank.set(it.groupId, Math.min(gRank.get(it.groupId) ?? 9, rank[it.status] ?? 9));
+    gTime.set(it.groupId, Math.min(gTime.get(it.groupId) ?? Infinity, it.createdAt));
+  });
+  const rankOf = (it) => (it.groupId ? gRank.get(it.groupId) : (rank[it.status] ?? 9));
+  const timeOf = (it) => (it.groupId ? gTime.get(it.groupId) : it.createdAt);
+  return items.sort((a, b) => {
+    const d = rankOf(a) - rankOf(b);
+    if (d !== 0) return d;
+    const t = timeOf(b) - timeOf(a);
+    if (t !== 0) return t;
+    if (a.groupId && a.groupId === b.groupId) return a.type === 'download' ? -1 : 1;
+    return 0;
   });
 }
 
@@ -3718,14 +3894,22 @@ function buildTransferRow(it) {
 
   // riga 1: direzione, nome, server
   const r1 = el('div', 'tf-r1');
-  const dir = el('i', it.type === 'download' ? 'fa-solid fa-arrow-down tf-dir dl' : 'fa-solid fa-arrow-up tf-dir up');
+  // copia server->server: una sola freccia doppia per entrambe le fasi
+  const rl = it.relayPair;
+  const dir = el('i', rl
+    ? 'fa-solid fa-right-left tf-dir relay'
+    : it.type === 'download'
+      ? 'fa-solid fa-arrow-down tf-dir dl'
+      : 'fa-solid fa-arrow-up tf-dir up');
   const name = el('span', 'tf-name');
   name.textContent = it.name;
-  name.title = it.type === 'download'
-    ? `${it.remotePath} → ${it.localPath}`
-    : `${it.localPath} → ${it.destDir}`;
+  name.title = rl
+    ? `${rl.from}:${rl.srcPath} → ${rl.to}:${rl.destDir}`
+    : it.type === 'download'
+      ? `${it.remotePath} → ${it.localPath}`
+      : `${it.localPath} → ${it.destDir}`;
   const srv = el('span', 'tf-srv');
-  srv.textContent = it.serverLabel || '';
+  srv.textContent = rl ? `${rl.from} → ${rl.to}` : (it.serverLabel || '');
   r1.appendChild(dir);
   r1.appendChild(name);
   r1.appendChild(srv);
@@ -3793,6 +3977,8 @@ function fillTransferRow(row, it) {
 
   const parts = [i18n.t('tf_status_' + it.status)];
   if (it.status === 'running' && !known) parts[0] = i18n.t('tf_preparing');
+  // copia server->server: chiarisce se siamo allo scarico o al carico
+  if (it.relayPair) parts.push(i18n.t(it.type === 'download' ? 'tf_relay_phase1' : 'tf_relay_phase2'));
   if (it.status === 'running' && it.speed > 0) parts.push(`${humanSize(it.speed)}/s`);
   if (it.kind === 'dir' && it.fileCount) parts.push(i18n.t('tf_files_progress', { done: it.fileDone, total: it.fileCount }));
   if (it.status === 'running' && it.currentFile) parts.push(it.currentFile);
@@ -3828,7 +4014,11 @@ function applyTransferUpdate(it) {
 
   if (!prev || prev.status === it.status) return;
   if (it.status === 'done') {
-    toast(i18n.t('tf_done', { name: it.name }));
+    // copia server->server: si annuncia solo alla fine della seconda fase
+    if (!it.relayPair) toast(i18n.t('tf_done', { name: it.name }));
+    else if (it.type === 'upload') {
+      toast(i18n.t('tf_relay_done', { name: it.name, server: it.relayPair.to }));
+    }
     // se il file browser mostra la cartella coinvolta, aggiornalo
     if (it.type === 'upload') refreshListingFor(it.destDir);
   } else if (it.status === 'error') {

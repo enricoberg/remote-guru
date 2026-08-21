@@ -375,6 +375,10 @@ html, body {
 .ll-entry.exec .nm { color: var(--green); font-weight: 600; }
 .ll-entry.exec .ico { color: var(--green); }
 .ll-entry .sz { color: var(--muted); margin-left: auto; }
+/* drag&drop fra file browser: voce trascinata e bersaglio del drop */
+.ll-entry.dragging { opacity: 0.45; }
+.ll-entry.drop-into { background: var(--border); outline: 1px dashed var(--accent); }
+.ll-overlay.drop-into { box-shadow: inset 0 0 0 2px var(--accent); }
 .ll-newfile .newfile-input {
   flex: 1; background: var(--bg); border: 1px solid var(--accent); color: var(--text);
   border-radius: 4px; padding: 3px 7px; font-family: inherit; font-size: 13px; outline: none;
@@ -785,6 +789,7 @@ html, body {
 .tf-dir { flex: 0 0 auto; font-size: 11px; }
 .tf-dir.dl { color: var(--accent); }
 .tf-dir.up { color: var(--green); }
+.tf-dir.relay { color: var(--yellow); }
 .tf-name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .tf-srv {
   flex: 0 0 auto; max-width: 120px; color: var(--muted); font-size: 11px;
