@@ -28,8 +28,20 @@ npm run build:mac
 - **Terminale reale** (xterm.js + shell PTY) → compatibile con vim, htop, sudo, ecc.
 - **Pulsante elenco `☰`** accanto al nome server: mostra il contenuto della cartella
   corrente (come `ll`). Le **cartelle sono cliccabili** (fanno `cd` automatico).
-- **Menu tasto destro su file/cartelle** (nell'elenco): elimina, copia, incolla,
-  scarica in locale (chiede la destinazione).
+- **Menu tasto destro su file/cartelle** (nell'elenco): nuovo file, nuova cartella,
+  rinomina, copia, taglia, incolla, elimina, comprimi (`.tar.gz` / `.zip`),
+  estrai (per gli archivi), scarica in locale, calcola dimensione (per le cartelle)
+  e **Proprietà** (tipo, proprietario, permessi, date, target dei link).
+- **Selezione multipla** nell'elenco: clic per selezionare, `cmd`/`ctrl`+clic per
+  aggiungere o togliere una voce, `shift`+clic per un intervallo. Con una selezione
+  attiva compare una barra con le azioni di gruppo (scarica, copia, taglia,
+  comprimi, elimina) e lo stesso vale nel menu contestuale; anche il trascinamento
+  porta con sé tutte le voci selezionate.
+- **Taglia / incolla** per spostare (`mv`): le voci tagliate restano visibili in
+  trasparenza fino all'incollo. Incollando nella stessa cartella una copia prende
+  il suffisso `_copy`, in un'altra cartella conserva il nome.
+- **Upload trascinando dal Finder / Esplora file**: lasciando file o cartelle sul
+  pannello elenco vengono accodati come upload nella cartella su cui si rilascia.
 - **Drag & drop fra file browser**: trascinando un file o una cartella dall'elenco
   di una scheda a quello di un'altra si ottiene una copia esatta nella cartella di
   destinazione (quella della riga su cui si lascia il puntatore, o quella mostrata

@@ -2470,5 +2470,357 @@
     "fr": "Copie terminée : {name} sur {server}",
     "de": "Kopie abgeschlossen: {name} auf {server}",
     "pt": "Cópia concluída: {name} em {server}"
+  },
+  "new_folder": {
+    "it": "Nuova cartella",
+    "en": "New folder",
+    "es": "Nueva carpeta",
+    "fr": "Nouveau dossier",
+    "de": "Neuer Ordner",
+    "pt": "Nova pasta"
+  },
+  "newfolder_placeholder": {
+    "it": "nome della cartella…",
+    "en": "folder name…",
+    "es": "nombre de la carpeta…",
+    "fr": "nom du dossier…",
+    "de": "Ordnername…",
+    "pt": "nome da pasta…"
+  },
+  "newfolder_created": {
+    "it": "Cartella creata: {name}",
+    "en": "Folder created: {name}",
+    "es": "Carpeta creada: {name}",
+    "fr": "Dossier créé : {name}",
+    "de": "Ordner erstellt: {name}",
+    "pt": "Pasta criada: {name}"
+  },
+  "rename": {
+    "it": "Rinomina",
+    "en": "Rename",
+    "es": "Renombrar",
+    "fr": "Renommer",
+    "de": "Umbenennen",
+    "pt": "Renomear"
+  },
+  "renamed": {
+    "it": "Rinominato: {from} → {to}",
+    "en": "Renamed: {from} → {to}",
+    "es": "Renombrado: {from} → {to}",
+    "fr": "Renommé : {from} → {to}",
+    "de": "Umbenannt: {from} → {to}",
+    "pt": "Renomeado: {from} → {to}"
+  },
+  "name_invalid": {
+    "it": "Nome non valido",
+    "en": "Invalid name",
+    "es": "Nombre no válido",
+    "fr": "Nom non valide",
+    "de": "Ungültiger Name",
+    "pt": "Nome inválido"
+  },
+  "cut": {
+    "it": "Taglia",
+    "en": "Cut",
+    "es": "Cortar",
+    "fr": "Couper",
+    "de": "Ausschneiden",
+    "pt": "Cortar"
+  },
+  "cut_ready": {
+    "it": "Da spostare: {name}",
+    "en": "Ready to move: {name}",
+    "es": "Para mover: {name}",
+    "fr": "À déplacer : {name}",
+    "de": "Zum Verschieben: {name}",
+    "pt": "Para mover: {name}"
+  },
+  "paste_move": {
+    "it": "Incolla (sposta)",
+    "en": "Paste (move)",
+    "es": "Pegar (mover)",
+    "fr": "Coller (déplacer)",
+    "de": "Einfügen (verschieben)",
+    "pt": "Colar (mover)"
+  },
+  "moved": {
+    "it": "Spostato: {name}",
+    "en": "Moved: {name}",
+    "es": "Movido: {name}",
+    "fr": "Déplacé : {name}",
+    "de": "Verschoben: {name}",
+    "pt": "Movido: {name}"
+  },
+  "moved_many": {
+    "it": "{count} elementi spostati",
+    "en": "{count} items moved",
+    "es": "{count} elementos movidos",
+    "fr": "{count} éléments déplacés",
+    "de": "{count} Elemente verschoben",
+    "pt": "{count} itens movidos"
+  },
+  "pasted_many": {
+    "it": "{count} elementi incollati",
+    "en": "{count} items pasted",
+    "es": "{count} elementos pegados",
+    "fr": "{count} éléments collés",
+    "de": "{count} Elemente eingefügt",
+    "pt": "{count} itens colados"
+  },
+  "sel_count": {
+    "it": "{count} selezionati",
+    "en": "{count} selected",
+    "es": "{count} seleccionados",
+    "fr": "{count} sélectionnés",
+    "de": "{count} ausgewählt",
+    "pt": "{count} selecionados"
+  },
+  "sel_clear": {
+    "it": "Deseleziona",
+    "en": "Clear selection",
+    "es": "Quitar selección",
+    "fr": "Désélectionner",
+    "de": "Auswahl aufheben",
+    "pt": "Limpar seleção"
+  },
+  "sel_download": {
+    "it": "Scarica {count} elementi",
+    "en": "Download {count} items",
+    "es": "Descargar {count} elementos",
+    "fr": "Télécharger {count} éléments",
+    "de": "{count} Elemente herunterladen",
+    "pt": "Baixar {count} itens"
+  },
+  "sel_copy": {
+    "it": "Copia {count} elementi",
+    "en": "Copy {count} items",
+    "es": "Copiar {count} elementos",
+    "fr": "Copier {count} éléments",
+    "de": "{count} Elemente kopieren",
+    "pt": "Copiar {count} itens"
+  },
+  "sel_cut": {
+    "it": "Taglia {count} elementi",
+    "en": "Cut {count} items",
+    "es": "Cortar {count} elementos",
+    "fr": "Couper {count} éléments",
+    "de": "{count} Elemente ausschneiden",
+    "pt": "Cortar {count} itens"
+  },
+  "sel_delete": {
+    "it": "Elimina {count} elementi",
+    "en": "Delete {count} items",
+    "es": "Eliminar {count} elementos",
+    "fr": "Supprimer {count} éléments",
+    "de": "{count} Elemente löschen",
+    "pt": "Excluir {count} itens"
+  },
+  "confirm_delete_many": {
+    "it": "Eliminare {count} elementi? L'operazione non è annullabile.",
+    "en": "Delete {count} items? This cannot be undone.",
+    "es": "¿Eliminar {count} elementos? No se puede deshacer.",
+    "fr": "Supprimer {count} éléments ? Opération irréversible.",
+    "de": "{count} Elemente löschen? Das kann nicht rückgängig gemacht werden.",
+    "pt": "Excluir {count} itens? A operação não pode ser desfeita."
+  },
+  "deleted_many": {
+    "it": "{count} elementi eliminati",
+    "en": "{count} items deleted",
+    "es": "{count} elementos eliminados",
+    "fr": "{count} éléments supprimés",
+    "de": "{count} Elemente gelöscht",
+    "pt": "{count} itens excluídos"
+  },
+  "compress_targz": {
+    "it": "Comprimi in .tar.gz",
+    "en": "Compress to .tar.gz",
+    "es": "Comprimir en .tar.gz",
+    "fr": "Compresser en .tar.gz",
+    "de": "In .tar.gz komprimieren",
+    "pt": "Compactar em .tar.gz"
+  },
+  "compress_zip": {
+    "it": "Comprimi in .zip",
+    "en": "Compress to .zip",
+    "es": "Comprimir en .zip",
+    "fr": "Compresser en .zip",
+    "de": "In .zip komprimieren",
+    "pt": "Compactar em .zip"
+  },
+  "compressing": {
+    "it": "Compressione di {name}…",
+    "en": "Compressing {name}…",
+    "es": "Comprimiendo {name}…",
+    "fr": "Compression de {name}…",
+    "de": "{name} wird komprimiert…",
+    "pt": "Compactando {name}…"
+  },
+  "compressed": {
+    "it": "Archivio creato: {name}",
+    "en": "Archive created: {name}",
+    "es": "Archivo creado: {name}",
+    "fr": "Archive créée : {name}",
+    "de": "Archiv erstellt: {name}",
+    "pt": "Arquivo criado: {name}"
+  },
+  "extract_here": {
+    "it": "Estrai qui",
+    "en": "Extract here",
+    "es": "Extraer aquí",
+    "fr": "Extraire ici",
+    "de": "Hier entpacken",
+    "pt": "Extrair aqui"
+  },
+  "extracting": {
+    "it": "Estrazione di {name}…",
+    "en": "Extracting {name}…",
+    "es": "Extrayendo {name}…",
+    "fr": "Extraction de {name}…",
+    "de": "{name} wird entpackt…",
+    "pt": "Extraindo {name}…"
+  },
+  "extracted": {
+    "it": "Estratto: {name}",
+    "en": "Extracted: {name}",
+    "es": "Extraído: {name}",
+    "fr": "Extrait : {name}",
+    "de": "Entpackt: {name}",
+    "pt": "Extraído: {name}"
+  },
+  "calc_size": {
+    "it": "Calcola dimensione",
+    "en": "Calculate size",
+    "es": "Calcular tamaño",
+    "fr": "Calculer la taille",
+    "de": "Größe berechnen",
+    "pt": "Calcular tamanho"
+  },
+  "properties": {
+    "it": "Proprietà",
+    "en": "Properties",
+    "es": "Propiedades",
+    "fr": "Propriétés",
+    "de": "Eigenschaften",
+    "pt": "Propriedades"
+  },
+  "prop_name": {
+    "it": "Nome",
+    "en": "Name",
+    "es": "Nombre",
+    "fr": "Nom",
+    "de": "Name",
+    "pt": "Nome"
+  },
+  "prop_path": {
+    "it": "Percorso",
+    "en": "Path",
+    "es": "Ruta",
+    "fr": "Chemin",
+    "de": "Pfad",
+    "pt": "Caminho"
+  },
+  "prop_type": {
+    "it": "Tipo",
+    "en": "Type",
+    "es": "Tipo",
+    "fr": "Type",
+    "de": "Typ",
+    "pt": "Tipo"
+  },
+  "prop_owner": {
+    "it": "Proprietario",
+    "en": "Owner",
+    "es": "Propietario",
+    "fr": "Propriétaire",
+    "de": "Besitzer",
+    "pt": "Proprietário"
+  },
+  "prop_perms": {
+    "it": "Permessi",
+    "en": "Permissions",
+    "es": "Permisos",
+    "fr": "Permissions",
+    "de": "Berechtigungen",
+    "pt": "Permissões"
+  },
+  "prop_size": {
+    "it": "Dimensione",
+    "en": "Size",
+    "es": "Tamaño",
+    "fr": "Taille",
+    "de": "Größe",
+    "pt": "Tamanho"
+  },
+  "prop_modified": {
+    "it": "Ultima modifica",
+    "en": "Modified",
+    "es": "Modificado",
+    "fr": "Modifié",
+    "de": "Geändert",
+    "pt": "Modificado"
+  },
+  "prop_accessed": {
+    "it": "Ultimo accesso",
+    "en": "Accessed",
+    "es": "Último acceso",
+    "fr": "Dernier accès",
+    "de": "Letzter Zugriff",
+    "pt": "Último acesso"
+  },
+  "prop_link_target": {
+    "it": "Punta a",
+    "en": "Points to",
+    "es": "Apunta a",
+    "fr": "Pointe vers",
+    "de": "Zeigt auf",
+    "pt": "Aponta para"
+  },
+  "prop_calc": {
+    "it": "Calcola",
+    "en": "Calculate",
+    "es": "Calcular",
+    "fr": "Calculer",
+    "de": "Berechnen",
+    "pt": "Calcular"
+  },
+  "dnd_copied_many": {
+    "it": "{count} elementi copiati in {dest}",
+    "en": "{count} items copied to {dest}",
+    "es": "{count} elementos copiados en {dest}",
+    "fr": "{count} éléments copiés dans {dest}",
+    "de": "{count} Elemente nach {dest} kopiert",
+    "pt": "{count} itens copiados para {dest}"
+  },
+  "dnd_queued_many": {
+    "it": "{count} elementi in coda verso {server}",
+    "en": "{count} items queued to {server}",
+    "es": "{count} elementos en cola hacia {server}",
+    "fr": "{count} éléments en file vers {server}",
+    "de": "{count} Elemente in Warteschlange für {server}",
+    "pt": "{count} itens na fila para {server}"
+  },
+  "drop_upload_confirm": {
+    "it": "Caricare {name} in {dest}?",
+    "en": "Upload {name} to {dest}?",
+    "es": "¿Subir {name} a {dest}?",
+    "fr": "Envoyer {name} dans {dest} ?",
+    "de": "{name} nach {dest} hochladen?",
+    "pt": "Enviar {name} para {dest}?"
+  },
+  "drop_no_path": {
+    "it": "Impossibile leggere il percorso dei file trascinati",
+    "en": "Cannot read the path of the dropped files",
+    "es": "No se puede leer la ruta de los archivos arrastrados",
+    "fr": "Impossible de lire le chemin des fichiers déposés",
+    "de": "Pfad der abgelegten Dateien nicht lesbar",
+    "pt": "Não foi possível ler o caminho dos arquivos arrastados"
+  },
+  "n_items": {
+    "it": "{count} elementi",
+    "en": "{count} items",
+    "es": "{count} elementos",
+    "fr": "{count} éléments",
+    "de": "{count} Elemente",
+    "pt": "{count} itens"
   }
 }

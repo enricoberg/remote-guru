@@ -383,6 +383,61 @@ html, body {
   flex: 1; background: var(--bg); border: 1px solid var(--accent); color: var(--text);
   border-radius: 4px; padding: 3px 7px; font-family: inherit; font-size: 13px; outline: none;
 }
+/* rinomina in linea: l'input prende il posto del nome nella riga */
+.ll-entry .rename-input {
+  flex: 1; min-width: 80px; background: var(--bg); border: 1px solid var(--accent);
+  color: var(--text); border-radius: 4px; padding: 1px 6px;
+  font-family: inherit; font-size: 13px; outline: none;
+}
+
+/* selezione multipla: voci selezionate, voci "tagliate" e barra delle azioni */
+.ll-entry.selected,
+.ll-entry.selected:hover { background: var(--border); outline: 1px solid var(--accent); }
+.ll-entry.cut { opacity: 0.45; }
+.ll-selbar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 3px 8px; margin-bottom: 6px; border-radius: 4px;
+  background: var(--panel); border: 1px solid var(--accent);
+}
+.ll-selbar .sel-count { color: var(--accent); font-weight: 600; }
+.ll-selbar .sel-actions { display: flex; gap: 2px; }
+.ll-selbar button {
+  background: none; border: none; color: var(--muted); cursor: pointer;
+  font-size: 14px; padding: 2px 6px; border-radius: 4px;
+}
+.ll-selbar button:hover { color: var(--accent); background: var(--border); }
+.ll-selbar button.danger:hover { color: var(--red); }
+
+/* finestra "Proprietà" */
+.rg-modal-back {
+  position: fixed; inset: 0; z-index: 50; display: flex;
+  align-items: center; justify-content: center; background: rgba(0, 0, 0, 0.45);
+}
+.rg-modal {
+  width: min(560px, 90vw); max-height: 80vh; overflow: auto;
+  background: var(--bg2); border: 1px solid var(--border); border-top: 2px solid var(--accent);
+  border-radius: 8px; box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+  font-family: "SFMono-Regular", Menlo, monospace; font-size: 13px;
+}
+.rg-modal-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); color: var(--text);
+}
+.rg-modal-head i { color: var(--accent); margin-right: 6px; }
+.rg-modal-head button { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 16px; }
+.rg-modal-head button:hover { color: var(--accent); }
+.rg-modal-body { padding: 6px 12px 12px; }
+.rg-modal-load { padding: 18px; text-align: center; color: var(--accent); }
+.rg-modal-err { color: var(--red); padding: 8px 0; }
+.rg-row { display: flex; gap: 10px; padding: 5px 0; border-bottom: 1px dashed var(--border); }
+.rg-row:last-child { border-bottom: none; }
+.rg-k { color: var(--muted); min-width: 140px; }
+.rg-v { flex: 1; color: var(--text); word-break: break-all; }
+.rg-calc {
+  background: none; border: 1px solid var(--border); color: var(--muted); cursor: pointer;
+  border-radius: 4px; padding: 1px 7px; font-family: inherit; font-size: 12px;
+}
+.rg-calc:hover { color: var(--accent); border-color: var(--accent); }
 
 /* editor di testo embeddato (riusa .ll-overlay) */
 .editor-overlay { display: flex; flex-direction: column; }
@@ -566,6 +621,8 @@ html, body {
   position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
   background: var(--panel); border: 1px solid var(--border); padding: 10px 18px;
   border-radius: 8px; z-index: 2000; opacity: 0; transition: opacity .25s; pointer-events: none;
+  /* i messaggi d'errore possono essere lunghi: vanno a capo invece di sforare */
+  max-width: min(560px, 90vw); text-align: center; line-height: 1.4;
 }
 #toast.show { opacity: 1; }
 #toast.err { border-color: var(--red); }

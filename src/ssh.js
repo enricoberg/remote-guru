@@ -5,6 +5,24 @@ const path = require('path');
 const { Client } = require('ssh2');
 
 /**
+ * Formati di archivio gestiti da `compress`/`extract`.
+ *  - `kind: 'tar'`  -> tar con il flag di decompressione adatto
+ *  - `kind: 'zip'`  -> unzip
+ *  - `kind: 'single'` -> singolo file compresso (gz/bz2/xz), si decomprime su stdout
+ * L'ordine conta: `.tar.gz` va riconosciuto prima di `.gz`.
+ */
+const ARCHIVE_FORMATS = [
+  { re: /\.tar\.gz$|\.tgz$/i, kind: 'tar', x: '-xzf', t: '-tzf' },
+  { re: /\.tar\.bz2$|\.tbz2?$/i, kind: 'tar', x: '-xjf', t: '-tjf' },
+  { re: /\.tar\.xz$|\.txz$/i, kind: 'tar', x: '-xJf', t: '-tJf' },
+  { re: /\.tar$/i, kind: 'tar', x: '-xf', t: '-tf' },
+  { re: /\.zip$/i, kind: 'zip' },
+  { re: /\.gz$/i, kind: 'single', dec: 'gzip -dc', tool: 'gzip' },
+  { re: /\.bz2$/i, kind: 'single', dec: 'bzip2 -dc', tool: 'bzip2' },
+  { re: /\.xz$/i, kind: 'single', dec: 'xz -dc', tool: 'xz' },
+];
+
+/**
  * Gestisce tutte le sessioni SSH attive.
  * Ogni sessione = 1 connessione ssh2 + 1 shell PTY (canale principale del terminale)
  * + SFTP on-demand (usato per il listing strutturato "ll", download, delete, ecc.).
@@ -306,10 +324,52 @@ class SshManager {
     return path.basename(clean);
   }
 
-  /** Verifica (con sudo) se un percorso remoto esiste già. */
+  /**
+   * Verifica (con sudo) se un percorso remoto è già occupato. Include i link
+   * simbolici rotti (`test -e` da solo li considera inesistenti, ma il nome è
+   * comunque preso e un `mv` li sovrascriverebbe).
+   */
   async _remoteExists(id, remotePath) {
+    const q = shellQuote(remotePath);
     try {
-      await this.sudoExec(id, `test -e ${shellQuote(remotePath)}`);
+      await this.sudoExec(id, `[ -e ${q} ] || [ -L ${q} ]`);
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /**
+   * Primo nome libero in `dir` partendo da `base`: `base`, `base_2`, `base_3`, …
+   * Usato dall'estrazione degli archivi per non sovrascrivere nulla.
+   */
+  async _uniqueName(id, dir, base) {
+    let candidate = base;
+    for (let n = 2; await this._remoteExists(id, `${dir}/${candidate}`); n++) {
+      candidate = `${base}_${n}`;
+    }
+    return candidate;
+  }
+
+  /**
+   * `sudoExec` con messaggio d'errore parlante quando sul server manca il
+   * comando richiesto (tipico di `zip`, che spesso non è installato).
+   */
+  async _execTool(id, cmd, tool, hint) {
+    try {
+      return await this.sudoExec(id, cmd);
+    } catch (e) {
+      if (tool && (e.code === 127 || /command not found|not installed/i.test(e.message))) {
+        throw missingToolError(tool, hint);
+      }
+      throw e;
+    }
+  }
+
+  /** True se il comando esiste sul server (nel PATH usato da sudo). */
+  async _hasTool(id, tool) {
+    try {
+      await this.sudoExec(id, `command -v ${shellQuote(tool)} >/dev/null 2>&1`);
       return true;
     } catch (_) {
       return false;
@@ -319,6 +379,189 @@ class SshManager {
   /** Crea un file vuoto (touch) nel percorso indicato, con privilegi sudo. */
   async createFile(id, remotePath) {
     return this.sudoExec(id, `touch ${shellQuote(remotePath)}`);
+  }
+
+  /** Crea una cartella (mkdir -p) nel percorso indicato, con privilegi sudo. */
+  async makeDir(id, remotePath) {
+    if (await this._remoteExists(id, remotePath)) {
+      throw new Error(`Esiste già: ${path.basename(remotePath)}`);
+    }
+    await this.sudoExec(id, `mkdir -p ${shellQuote(remotePath)}`);
+    return path.basename(remotePath);
+  }
+
+  /**
+   * Rinomina una voce (`mv` nella stessa cartella). Rifiuta l'operazione se il
+   * nuovo nome è già occupato: rinominare non deve mai sovrascrivere.
+   */
+  async renameEntry(id, oldPath, newPath) {
+    const from = String(oldPath).replace(/\/+$/, '');
+    const to = String(newPath).replace(/\/+$/, '');
+    if (!to || to === '/') throw new Error('Nome non valido');
+    if (from === to) return path.basename(to);
+    if (await this._remoteExists(id, to)) {
+      throw new Error(`Esiste già: ${path.basename(to)}`);
+    }
+    await this.sudoExec(id, `mv -- ${shellQuote(from)} ${shellQuote(to)}`);
+    return path.basename(to);
+  }
+
+  /**
+   * Sposta una voce dentro `destDir` conservando il nome (taglia/incolla).
+   * Come `copyInto` rifiuta i casi degeneri: cartella dentro se stessa e
+   * destinazione che coincide con la cartella di partenza.
+   */
+  async moveInto(id, src, destDir) {
+    const clean = String(src).replace(/\/+$/, '');
+    const dest = String(destDir).replace(/\/+$/, '') || '/';
+    if (dest === clean || dest.startsWith(clean + '/')) {
+      throw new Error('Impossibile spostare una cartella dentro se stessa');
+    }
+    if (dest === path.dirname(clean)) {
+      throw new Error('Origine e destinazione coincidono');
+    }
+    await this.sudoExec(id, `mv -- ${shellQuote(clean)} ${shellQuote(dest)}/`);
+    return path.basename(clean);
+  }
+
+  /**
+   * Elimina più voci (selezione multipla) con un solo `rm` ogni 40 percorsi,
+   * per non superare la lunghezza massima della riga di comando.
+   */
+  async deleteMany(id, paths) {
+    const list = (paths || []).filter(Boolean);
+    for (let i = 0; i < list.length; i += 40) {
+      const chunk = list.slice(i, i + 40).map(shellQuote).join(' ');
+      await this.sudoExec(id, `rm -rf -- ${chunk}`);
+    }
+    return list.length;
+  }
+
+  /**
+   * Dimensione ricorsiva di una cartella in byte (`du`). Con `du` di BusyBox,
+   * che non ha `-b`, si ripiega su `-sk` (KiB) e si moltiplica.
+   */
+  async dirSize(id, remotePath) {
+    const q = shellQuote(remotePath);
+    try {
+      const out = await this.sudoExec(id, `du -sb -- ${q}`);
+      return parseInt(String(out).trim().split(/\s+/)[0], 10) || 0;
+    } catch (_) {
+      const out = await this.sudoExec(id, `du -sk -- ${q}`);
+      return (parseInt(String(out).trim().split(/\s+/)[0], 10) || 0) * 1024;
+    }
+  }
+
+  /**
+   * Metadati di una voce (finestra "Proprietà"): tipo, proprietario, permessi,
+   * dimensione, date e, per i link simbolici, il percorso puntato.
+   * Un campo per riga: così i nomi con spazi non rompono il parsing.
+   */
+  async pathInfo(id, remotePath) {
+    const q = shellQuote(remotePath);
+    const fmt = '%F\\n%U\\n%G\\n%a\\n%A\\n%s\\n%Y\\n%X\\n%h';
+    const out = await this.sudoExec(id, `stat -c ${shellQuote(fmt)} -- ${q}`);
+    const f = String(out).split('\n').map((x) => x.trim());
+    const info = {
+      path: remotePath,
+      type: f[0] || '',
+      owner: f[1] || '',
+      group: f[2] || '',
+      mode: f[3] || '',
+      modeText: f[4] || '',
+      size: Number(f[5]) || 0,
+      mtime: Number(f[6]) || 0,
+      atime: Number(f[7]) || 0,
+      links: Number(f[8]) || 0,
+      target: null,
+    };
+    if (/link/i.test(info.type)) {
+      try {
+        info.target = String(await this.sudoExec(id, `readlink -- ${q}`)).trim();
+      } catch (_) {}
+    }
+    return info;
+  }
+
+  /**
+   * Comprime una o più voci di `cwd` nell'archivio `archive` (creato dentro
+   * `cwd`). `format` è 'zip' oppure 'targz'. Ritorna il nome dell'archivio.
+   */
+  async compress(id, cwd, names, archive, format) {
+    const list = (names || []).filter(Boolean);
+    if (!list.length) throw new Error('Nessun elemento da comprimere');
+    if (String(archive).includes('/')) throw new Error('Nome archivio non valido');
+    const dir = String(cwd).replace(/\/+$/, '') || '/';
+    if (await this._remoteExists(id, `${dir}/${archive}`)) {
+      throw new Error(`Esiste già: ${archive}`);
+    }
+    const items = list.map(shellQuote).join(' ');
+    const cd = `cd ${shellQuote(dir)} && `;
+    if (format === 'zip') {
+      const hint = 'In alternativa comprimi in .tar.gz.';
+      // controllo preventivo: senza `zip` il comando esce con 127 e basta
+      if (!(await this._hasTool(id, 'zip'))) throw missingToolError('zip', hint);
+      await this._execTool(id, `${cd}zip -q -r ${shellQuote(archive)} ${items}`, 'zip', hint);
+      return archive;
+    }
+    await this._execTool(id, `${cd}tar -czf ${shellQuote(archive)} -- ${items}`, 'tar');
+    return archive;
+  }
+
+  /**
+   * Estrae un archivio dentro `destDir`. Se contiene più elementi al primo
+   * livello crea una sottocartella col nome dell'archivio (come fanno i file
+   * manager), altrimenti estrae direttamente in `destDir`. Ritorna il nome
+   * creato dentro `destDir`.
+   */
+  async extract(id, archivePath, destDir) {
+    const base = path.basename(archivePath);
+    const spec = ARCHIVE_FORMATS.find((f) => f.re.test(base));
+    if (!spec) throw new Error(`Formato non riconosciuto: ${base}`);
+    const dest = String(destDir).replace(/\/+$/, '') || '/';
+    const q = shellQuote(archivePath);
+    const stem = base.replace(spec.re, '') || `${base}_estratto`;
+
+    // singolo file compresso: si decomprime accanto, senza cartelle
+    if (spec.kind === 'single') {
+      const out = await this._uniqueName(id, dest, stem);
+      await this._execTool(
+        id,
+        `${spec.dec} < ${q} > ${shellQuote(`${dest}/${out}`)}`,
+        spec.tool
+      );
+      return out;
+    }
+
+    if (spec.kind === 'zip' && !(await this._hasTool(id, 'unzip'))) {
+      throw missingToolError('unzip');
+    }
+
+    // nomi al primo livello dell'archivio: decidono se serve una sottocartella
+    let roots = [];
+    try {
+      const listCmd = spec.kind === 'zip' ? `unzip -Z1 ${q}` : `tar ${spec.t} ${q}`;
+      const out = await this.sudoExec(
+        id,
+        `${listCmd} | sed -e 's|^\\./||' -e 's|/.*$||' | sort -u | head -n 5`
+      );
+      roots = String(out).split('\n').map((x) => x.trim()).filter(Boolean);
+    } catch (_) {
+      roots = [];
+    }
+
+    let target = dest;
+    let created = roots.length === 1 ? roots[0] : null;
+    if (roots.length !== 1) {
+      created = await this._uniqueName(id, dest, stem);
+      target = `${dest}/${created}`;
+      await this.sudoExec(id, `mkdir -p ${shellQuote(target)}`);
+    }
+    const cmd = spec.kind === 'zip'
+      ? `unzip -o -q ${q} -d ${shellQuote(target)}`
+      : `tar ${spec.x} ${q} -C ${shellQuote(target)}`;
+    await this._execTool(id, cmd, spec.kind === 'zip' ? 'unzip' : 'tar');
+    return created;
   }
 
   /**
@@ -335,8 +578,10 @@ class SshManager {
         stream.on('data', (d) => (out += d.toString('utf8')));
         stream.stderr.on('data', (d) => (errOut += d.toString('utf8')));
         stream.on('close', (code) => {
-          if (code === 0) resolve(out);
-          else reject(new Error(errOut.trim() || `Comando uscito con codice ${code}`));
+          if (code === 0) return resolve(out);
+          const e = new Error(errOut.trim() || `Comando uscito con codice ${code}`);
+          e.code = code; // 127 = comando non trovato: serve a dare errori parlanti
+          reject(e);
         });
       });
     });
@@ -357,7 +602,9 @@ class SshManager {
         stream.on('close', (code) => {
           if (code === 0) return resolve(out);
           const msg = errOut.trim().replace(/\[sudo\][^\n]*\n?/g, '').trim();
-          reject(new Error(msg || `Comando uscito con codice ${code}`));
+          const e = new Error(msg || `Comando uscito con codice ${code}`);
+          e.code = code; // 127 = comando non trovato
+          reject(e);
         });
         if (password) {
           stream.write(password + '\n');
@@ -1086,6 +1333,17 @@ class Session {
     }
     return { clean, cwd, sty, styFound };
   }
+}
+
+/**
+ * Errore per un comando mancante sul server: meglio dirlo con chiarezza che
+ * mostrare "uscito con codice 127". `zip` e `unzip` spesso non sono installati.
+ */
+function missingToolError(tool, hint) {
+  const extra = hint ? ` ${hint}` : '';
+  return new Error(
+    `Comando '${tool}' non disponibile sul server: installalo (es. sudo apt install ${tool}).${extra}`
+  );
 }
 
 function shellQuote(s) {

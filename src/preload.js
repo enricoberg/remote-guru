@@ -26,11 +26,23 @@ contextBridge.exposeInMainWorld('api', {
   createFile: (id, p) => ipcRenderer.invoke('ssh:createFile', { id, path: p }),
   readFile: (id, p) => ipcRenderer.invoke('ssh:readFile', { id, path: p }),
   writeFile: (id, p, content) => ipcRenderer.invoke('ssh:writeFile', { id, path: p, content }),
+  mkdir: (id, p) => ipcRenderer.invoke('ssh:mkdir', { id, path: p }),
+  rename: (id, from, to) => ipcRenderer.invoke('ssh:rename', { id, from, to }),
+  moveInto: (id, src, destDir) => ipcRenderer.invoke('ssh:moveInto', { id, src, destDir }),
+  deleteMany: (id, paths) => ipcRenderer.invoke('ssh:deleteMany', { id, paths }),
+  dirSize: (id, p) => ipcRenderer.invoke('ssh:dirSize', { id, path: p }),
+  pathInfo: (id, p) => ipcRenderer.invoke('ssh:pathInfo', { id, path: p }),
+  compress: (id, cwd, names, archive, format) =>
+    ipcRenderer.invoke('ssh:compress', { id, cwd, names, archive, format }),
+  extract: (id, p, destDir) => ipcRenderer.invoke('ssh:extract', { id, path: p, destDir }),
 
   // trasferimenti file (upload + download, coda unica con pausa/ripresa)
   queueUpload: (id, destDir) => ipcRenderer.invoke('transfer:upload', { id, destDir }),
   queueDownload: (id, remotePath, filename, isDir, size) =>
     ipcRenderer.invoke('transfer:download', { id, remotePath, filename, isDir, size }),
+  queueUploadPaths: (id, destDir, paths) =>
+    ipcRenderer.invoke('transfer:uploadPaths', { id, destDir, paths }),
+  queueDownloadMany: (id, items) => ipcRenderer.invoke('transfer:downloadMany', { id, items }),
   queueRelay: (srcId, srcPath, name, isDir, size, dstId, destDir) =>
     ipcRenderer.invoke('transfer:relay', { srcId, srcPath, name, isDir, size, dstId, destDir }),
   transferList: () => ipcRenderer.invoke('transfer:list'),

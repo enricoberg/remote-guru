@@ -162,6 +162,23 @@ ipcMain.handle('ssh:readFile', (_e, { id, path: p }) => ssh.readFile(id, p));
 ipcMain.handle('ssh:writeFile', (_e, { id, path: p, content }) =>
   ssh.writeFile(id, p, content));
 
+ipcMain.handle('ssh:mkdir', (_e, { id, path: p }) => ssh.makeDir(id, p));
+
+ipcMain.handle('ssh:rename', (_e, { id, from, to }) => ssh.renameEntry(id, from, to));
+
+ipcMain.handle('ssh:moveInto', (_e, { id, src, destDir }) => ssh.moveInto(id, src, destDir));
+
+ipcMain.handle('ssh:deleteMany', (_e, { id, paths }) => ssh.deleteMany(id, paths));
+
+ipcMain.handle('ssh:dirSize', (_e, { id, path: p }) => ssh.dirSize(id, p));
+
+ipcMain.handle('ssh:pathInfo', (_e, { id, path: p }) => ssh.pathInfo(id, p));
+
+ipcMain.handle('ssh:compress', (_e, { id, cwd, names, archive, format }) =>
+  ssh.compress(id, cwd, names, archive, format));
+
+ipcMain.handle('ssh:extract', (_e, { id, path: p, destDir }) => ssh.extract(id, p, destDir));
+
 // --- Trasferimenti file (upload + download) ---------------------------------
 
 /** Chiede dove salvare e accoda il download; ritorna la voce creata (o null). */
@@ -194,6 +211,48 @@ ipcMain.handle('transfer:upload', async (_e, { id, destDir }) => {
   });
   if (res.canceled || !res.filePaths.length) return null;
   return res.filePaths.map((p) => transfers.addUpload({ sessionId: id, localPath: p, destDir }));
+});
+
+/**
+ * Accoda l'upload di percorsi locali già noti (file trascinati dal Finder /
+ * Esplora file dentro il file browser): nessun dialog, la destinazione è la
+ * cartella su cui è avvenuto il drop.
+ */
+ipcMain.handle('transfer:uploadPaths', (_e, { id, destDir, paths }) => {
+  const list = (paths || []).filter((p) => typeof p === 'string' && p);
+  const items = [];
+  const errors = [];
+  list.forEach((p) => {
+    try {
+      items.push(transfers.addUpload({ sessionId: id, localPath: p, destDir }));
+    } catch (e) {
+      errors.push(e.message);
+    }
+  });
+  if (!items.length && errors.length) throw new Error(errors[0]);
+  return items;
+});
+
+/** Chiede una sola cartella di destinazione e accoda il download di più voci. */
+ipcMain.handle('transfer:downloadMany', async (_e, { id, items }) => {
+  const list = (items || []).filter((it) => it && it.path && it.name);
+  if (!list.length) return null;
+  const res = await dialog.showOpenDialog(mainWindow, {
+    title: 'Scarica in…',
+    properties: ['openDirectory', 'createDirectory'],
+  });
+  if (res.canceled || !res.filePaths.length) return null;
+  const dir = res.filePaths[0];
+  return list.map((it) =>
+    transfers.addDownload({
+      sessionId: id,
+      remotePath: it.path,
+      name: it.name,
+      isDir: !!it.isDir,
+      localPath: path.join(dir, it.name),
+      size: it.size,
+    })
+  );
 });
 
 /**

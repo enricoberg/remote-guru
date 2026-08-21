@@ -20,7 +20,8 @@ let activeTabId = null;
 let splitIds = [];
 let splitWeights = new Map(); // id -> peso flex (somma qualsiasi, conta il rapporto)
 
-let remoteClipboard = null; // { sessionId, path, isDir, name }
+// appunti del file browser: copia o taglia di una o più voci della stessa sessione
+let remoteClipboard = null; // { sessionId, mode: 'copy'|'cut', items: [{ path, name, isDir, parentDir }] }
 
 const $ = (sel) => document.querySelector(sel);
 const el = (tag, cls) => {
@@ -615,7 +616,8 @@ function buildPane(tab) {
   // drop zone per split view (con evidenziazione); vicino ai bordi della
   // finestra ha la precedenza lo snap a metà schermo (vedi setupEdgeSnap)
   pane.addEventListener('dragover', (e) => {
-    if (isEntryDrag(e)) return; // voce del file browser: se ne occupa l'overlay
+    // voce del file browser o file dal sistema: se ne occupa l'overlay del listing
+    if (isEntryDrag(e) || isFileDrag(e)) return;
     e.preventDefault();
     const edge = edgeSide(e);
     showEdgeHint(edge);
@@ -623,7 +625,7 @@ function buildPane(tab) {
   });
   pane.addEventListener('dragleave', () => pane.classList.remove('drop-hint'));
   pane.addEventListener('drop', (e) => {
-    if (isEntryDrag(e)) return;
+    if (isEntryDrag(e) || isFileDrag(e)) return;
     e.preventDefault();
     pane.classList.remove('drop-hint');
     const edge = edgeSide(e);
@@ -928,13 +930,13 @@ function showEdgeHint(side) {
 function setupEdgeSnap() {
   const view = $('#terminal-view');
   view.addEventListener('dragover', (e) => {
-    if (isEntryDrag(e)) return; // il drag&drop di file non sposta le schede
+    if (isEntryDrag(e) || isFileDrag(e)) return; // il drag&drop di file non sposta le schede
     const side = edgeSide(e);
     if (side) e.preventDefault();
     showEdgeHint(side);
   });
   view.addEventListener('drop', (e) => {
-    if (isEntryDrag(e)) return;
+    if (isEntryDrag(e) || isFileDrag(e)) return;
     const side = edgeSide(e);
     showEdgeHint(null);
     if (!side) return;
@@ -1153,9 +1155,14 @@ function makeListingHead(tab, cwd, count, overlay) {
 
 /** Disegna il contenuto della cartella. `loading` = dati dalla cache, in attesa di conferma. */
 function renderListing(tab, res, loading = false) {
+  syncSelection(tab, res);
   const overlay = beginListingOverlay(tab, loading);
   overlay.appendChild(makeListingHead(tab, res.cwd, res.entries.length, overlay));
   setupListingDrop(tab, overlay, res.cwd);
+  // clic sullo sfondo del pannello: azzera la selezione
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) clearSelection(tab);
+  });
 
   // voce per risalire
   const up = makeEntry(tab, { name: '..', isDir: true, isLink: false, size: 0 }, res.cwd);
@@ -1167,6 +1174,7 @@ function renderListing(tab, res, loading = false) {
   });
 
   endListingOverlay(tab, overlay, res.cwd);
+  refreshSelBar(tab);
 }
 
 /** Scheletro mostrato subito quando la cartella non è in cache. */
@@ -1233,10 +1241,14 @@ function toggleSearch(tab, cwd, overlay) {
   });
 }
 
-/** Mostra una riga di input nell'overlay per creare un file vuoto nella cartella `cwd`. */
-function newFilePrompt(tab, cwd) {
-  let overlay = tab.hostEl.querySelector('.ll-overlay');
-  if (!overlay) return showListing(tab, cwd).then(() => newFilePrompt(tab, cwd));
+/**
+ * Riga di input mostrata in cima al file browser. La usano la creazione di file
+ * e cartelle e la scelta del nome dell'archivio da comprimere.
+ * `opts`: { icon, placeholder, value, selectTo, onOk(nome) }
+ */
+function promptRow(tab, cwd, opts) {
+  const overlay = tab.hostEl.querySelector('.ll-overlay');
+  if (!overlay) return showListing(tab, cwd).then(() => promptRow(tab, cwd, opts));
 
   // rimuovi eventuale riga di input già presente
   const existing = overlay.querySelector('.ll-newfile');
@@ -1244,35 +1256,126 @@ function newFilePrompt(tab, cwd) {
 
   const row = el('div', 'll-entry ll-newfile');
   const ico = el('span', 'ico');
-  ico.innerHTML = '<i class="fa-solid fa-file-pen"></i>';
+  ico.innerHTML = `<i class="${opts.icon}"></i>`;
   const input = document.createElement('input');
   input.type = 'text';
   input.className = 'newfile-input';
-  input.placeholder = i18n.t('newfile_placeholder');
+  input.placeholder = opts.placeholder || '';
+  if (opts.value) input.value = opts.value;
   row.appendChild(ico);
   row.appendChild(input);
 
-  // inserisci subito dopo l'intestazione
-  overlay.insertBefore(row, overlay.children[1] || null);
+  // subito sotto l'intestazione
+  const head = overlay.querySelector('.ll-head');
+  if (head) head.insertAdjacentElement('afterend', row);
+  else overlay.insertBefore(row, overlay.children[1] || null);
   input.focus();
+  // col nome già proposto si seleziona la parte da cambiare (senza estensione)
+  if (opts.value) input.setSelectionRange(0, opts.selectTo == null ? opts.value.length : opts.selectTo);
 
   let done = false;
   const cleanup = () => { if (!done) { done = true; row.remove(); } };
-  input.addEventListener('keydown', async (e) => {
+  input.addEventListener('keydown', (e) => {
     e.stopPropagation();
     if (e.key === 'Escape') { e.preventDefault(); cleanup(); }
     else if (e.key === 'Enter') {
       e.preventDefault();
-      const name = input.value.trim();
-      if (!name) return cleanup();
-      const target = joinPath(cwd, name);
+      const value = input.value.trim();
+      if (!value) return cleanup();
+      cleanup();
+      opts.onOk(value);
+    }
+  });
+  input.addEventListener('blur', cleanup);
+}
+
+/** Crea un file vuoto nella cartella `cwd`. */
+function newFilePrompt(tab, cwd) {
+  return promptRow(tab, cwd, {
+    icon: 'fa-solid fa-file-pen',
+    placeholder: i18n.t('newfile_placeholder'),
+    onOk: async (name) => {
+      if (!validName(name)) return;
       try {
-        await window.api.createFile(tab.id, target);
+        await window.api.createFile(tab.id, joinPath(cwd, name));
         toast(i18n.t('newfile_created', { name: name }));
-        cleanup();
         showListing(tab, cwd, { fresh: true });
       } catch (err) { toast(i18n.t('generic_error', { error: err.message }), true); }
-    }
+    },
+  });
+}
+
+/** Crea una cartella nella cartella `cwd`. */
+function newFolderPrompt(tab, cwd) {
+  return promptRow(tab, cwd, {
+    icon: 'fa-solid fa-folder-plus',
+    placeholder: i18n.t('newfolder_placeholder'),
+    onOk: async (name) => {
+      if (!validName(name)) return;
+      try {
+        await window.api.mkdir(tab.id, joinPath(cwd, name));
+        toast(i18n.t('newfolder_created', { name: name }));
+        showListing(tab, cwd, { fresh: true });
+      } catch (err) { toast(i18n.t('generic_error', { error: err.message }), true); }
+    },
+  });
+}
+
+/** Nome utilizzabile per un file/cartella: senza slash e diverso da "." e "..". */
+function validName(name) {
+  if (!name || name.includes('/') || name === '.' || name === '..') {
+    toast(i18n.t('name_invalid'), true);
+    return false;
+  }
+  return true;
+}
+
+/**
+ * Rinomina in linea: al posto del nome compare un input con il nome corrente
+ * (esteso selezionato senza l'estensione, come nei file manager).
+ */
+function renameEntryPrompt(tab, entry, fullPath, cwd, row) {
+  const overlay = tab.hostEl.querySelector('.ll-overlay.ll-files');
+  if (!overlay) return;
+  const target = row && row.isConnected
+    ? row
+    : overlay.querySelector(`.ll-entry[data-name="${cssEscape(entry.name)}"]`);
+  if (!target || target.querySelector('.rename-input')) return;
+  const nm = target.querySelector('.nm');
+  if (!nm) return;
+
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'newfile-input rename-input';
+  input.value = entry.name;
+  nm.style.display = 'none';
+  nm.insertAdjacentElement('afterend', input);
+  input.focus();
+  const dot = entry.isDir ? -1 : entry.name.lastIndexOf('.');
+  input.setSelectionRange(0, dot > 0 ? dot : entry.name.length);
+
+  let done = false;
+  const cleanup = () => {
+    if (done) return;
+    done = true;
+    input.remove();
+    nm.style.display = '';
+  };
+  input.addEventListener('click', (e) => e.stopPropagation());
+  input.addEventListener('keydown', async (e) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') { e.preventDefault(); cleanup(); return; }
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const name = input.value.trim();
+    if (!name || name === entry.name) return cleanup();
+    cleanup();
+    if (!validName(name)) return;
+    try {
+      await window.api.rename(tab.id, fullPath, joinPath(cwd, name));
+      toast(i18n.t('renamed', { from: entry.name, to: name }));
+      showListing(tab, cwd, { fresh: true });
+    } catch (err) { toast(i18n.t('generic_error', { error: err.message }), true); }
   });
   input.addEventListener('blur', cleanup);
 }
@@ -1288,22 +1391,43 @@ function makeEntry(tab, entry, cwd) {
     : '<i class="fa-solid fa-file"></i>';
   const nm = el('span', 'nm');
   nm.textContent = entry.name;
+  const fullPath = joinPath(cwd, entry.name);
   const sz = el('span', 'sz');
-  sz.textContent = entry.isDir ? '' : humanSize(entry.size);
+  // le cartelle non hanno una dimensione propria: si mostra quella calcolata a
+  // richiesta con "Calcola dimensione" (tenuta in cache finché la scheda vive)
+  sz.textContent = entry.isDir ? cachedDirSize(tab, fullPath) : humanSize(entry.size);
   row.appendChild(ico);
   row.appendChild(nm);
   row.appendChild(sz);
 
-  const fullPath = joinPath(cwd, entry.name);
+  // la voce ".." serve solo a risalire: non è selezionabile né trascinabile
+  const selectable = entry.name !== '..';
+  if (selectable) {
+    row.dataset.name = entry.name;
+    if (tab.sel && tab.sel.has(entry.name)) row.classList.add('selected');
+    if (isCutPath(fullPath)) row.classList.add('cut');
+  }
 
   // drag&drop fra file browser: ogni voce si può trascinare (tranne ".."), le
   // cartelle sono anche bersaglio di drop
-  if (entry.name !== '..') setupEntryDrag(row, tab, entry, fullPath, cwd);
+  if (selectable) setupEntryDrag(row, tab, entry, fullPath, cwd);
   if (entry.isDir) row.dataset.dropDir = entry.name === '..' ? parentPath(cwd) : fullPath;
+
+  // clic sulla riga: selezione singola, a interruttore con cmd/ctrl, a
+  // intervallo con shift
+  if (selectable) {
+    row.addEventListener('click', (e) => {
+      // sul nome di una cartella il clic semplice naviga: lì si seleziona solo
+      // con un modificatore premuto
+      if (entry.isDir && e.target.closest('.nm') && !(e.metaKey || e.ctrlKey || e.shiftKey)) return;
+      selectOnClick(tab, entry, row, e);
+    });
+  }
 
   // click su cartella -> cd
   if (entry.isDir) {
-    nm.addEventListener('click', () => {
+    nm.addEventListener('click', (e) => {
+      if (e.metaKey || e.ctrlKey || e.shiftKey) return; // selezione, non navigazione
       const target = entry.name === '..' ? parentPath(cwd) : fullPath;
       window.api.write(tab.id, `cd '${target.replace(/'/g, `'\\''`)}'\r`);
       tab.cwd = target;
@@ -1323,33 +1447,209 @@ function makeEntry(tab, entry, cwd) {
   row.addEventListener('contextmenu', (e) => {
     e.preventDefault();
     e.stopPropagation();
-    openEntryContextMenu(e, tab, entry, fullPath, cwd);
+    openEntryContextMenu(e, tab, entry, fullPath, cwd, row);
   });
 
   return row;
 }
 
 // ---------------------------------------------------------------------------
+// SELEZIONE MULTIPLA NEL FILE BROWSER
+// La selezione vive sulla scheda (`tab.sel`, insieme di nomi) e vale per una
+// sola cartella (`tab.selDir`): cambiando cartella si azzera. Le azioni di
+// gruppo stanno nella barra sotto l'intestazione e nel menu contestuale.
+// ---------------------------------------------------------------------------
+
+/**
+ * Allinea la selezione al contenuto appena letto: azzera se la cartella è
+ * cambiata, altrimenti scarta i nomi che non esistono più (file cancellati o
+ * rinominati da altri).
+ */
+function syncSelection(tab, res) {
+  if (tab.selDir !== res.cwd) {
+    tab.sel = new Set();
+    tab.selDir = res.cwd;
+    tab.selAnchor = null;
+  } else if (tab.sel && tab.sel.size) {
+    const names = new Set(res.entries.map((e) => e.name));
+    [...tab.sel].forEach((n) => { if (!names.has(n)) tab.sel.delete(n); });
+  }
+  // mappa nome -> voce: serve alle azioni di gruppo (tipo e dimensione)
+  tab.llEntries = new Map(res.entries.map((e) => [e.name, e]));
+}
+
+/** Nomi delle righe selezionabili, nell'ordine in cui appaiono. */
+function visibleNames(overlay) {
+  return [...overlay.querySelectorAll('.ll-entry[data-name]')].map((r) => r.dataset.name);
+}
+
+/** Aggiorna la selezione in base al clic: semplice, cmd/ctrl, shift. */
+function selectOnClick(tab, entry, row, e) {
+  const overlay = row.closest('.ll-overlay');
+  if (!overlay) return;
+  if (!tab.sel) tab.sel = new Set();
+  tab.selDir = tab.llDir;
+  const name = entry.name;
+
+  if (e.shiftKey && tab.selAnchor) {
+    const names = visibleNames(overlay);
+    const a = names.indexOf(tab.selAnchor);
+    const b = names.indexOf(name);
+    if (a >= 0 && b >= 0) {
+      if (!(e.metaKey || e.ctrlKey)) tab.sel = new Set();
+      const [from, to] = a <= b ? [a, b] : [b, a];
+      for (let i = from; i <= to; i++) tab.sel.add(names[i]);
+    }
+  } else if (e.metaKey || e.ctrlKey) {
+    if (tab.sel.has(name)) tab.sel.delete(name);
+    else tab.sel.add(name);
+    tab.selAnchor = name;
+  } else {
+    // clic semplice sulla voce già unica selezionata: deseleziona
+    const only = tab.sel.size === 1 && tab.sel.has(name);
+    tab.sel = only ? new Set() : new Set([name]);
+    tab.selAnchor = only ? null : name;
+  }
+  paintSelection(tab, overlay);
+}
+
+/** Riporta a schermo lo stato della selezione. */
+function paintSelection(tab, overlay) {
+  overlay.querySelectorAll('.ll-entry[data-name]').forEach((r) => {
+    r.classList.toggle('selected', !!tab.sel && tab.sel.has(r.dataset.name));
+  });
+  refreshSelBar(tab);
+}
+
+function clearSelection(tab) {
+  tab.sel = new Set();
+  tab.selAnchor = null;
+  const ov = tab.hostEl && tab.hostEl.querySelector('.ll-overlay.ll-files');
+  if (ov) paintSelection(tab, ov);
+}
+
+/** Voci selezionate nella cartella mostrata, con percorso completo. */
+function selectedItems(tab, cwd) {
+  if (!tab.sel || !tab.sel.size || !tab.llEntries) return [];
+  const dir = cwd || tab.llDir;
+  return [...tab.sel].map((name) => {
+    const e = tab.llEntries.get(name);
+    if (!e) return null;
+    return { name, isDir: !!e.isDir, size: e.size || 0, path: joinPath(dir, name), parentDir: dir };
+  }).filter(Boolean);
+}
+
+/** Barra delle azioni di gruppo, presente solo quando c'è una selezione. */
+function refreshSelBar(tab) {
+  const ov = tab.hostEl && tab.hostEl.querySelector('.ll-overlay.ll-files');
+  if (!ov) return;
+  const old = ov.querySelector('.ll-selbar');
+  const count = tab.sel ? tab.sel.size : 0;
+  if (!count) { if (old) old.remove(); return; }
+
+  const cwd = tab.llDir;
+  const bar = el('div', 'll-selbar');
+  const label = el('span', 'sel-count');
+  label.textContent = i18n.t('sel_count', { count: count });
+  bar.appendChild(label);
+
+  const actions = el('span', 'sel-actions');
+  const add = (icon, title, fn, cls) => {
+    const b = el('button', cls);
+    b.innerHTML = `<i class="${icon}"></i>`;
+    b.title = title;
+    b.addEventListener('click', (e) => { e.stopPropagation(); fn(selectedItems(tab, cwd)); });
+    actions.appendChild(b);
+  };
+  add('fa-solid fa-download', i18n.t('download'), (items) => downloadItems(tab, items));
+  add('fa-solid fa-copy', i18n.t('copy'), (items) => putOnClipboard(tab, items, 'copy'));
+  add('fa-solid fa-scissors', i18n.t('cut'), (items) => putOnClipboard(tab, items, 'cut'));
+  add('fa-solid fa-file-zipper', i18n.t('compress_targz'),
+    (items) => compressPrompt(tab, cwd, items, 'targz'));
+  add('fa-solid fa-trash', i18n.t('delete'), (items) => deleteItems(tab, items), 'danger');
+  const clear = el('button');
+  clear.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+  clear.title = i18n.t('sel_clear');
+  clear.addEventListener('click', (e) => { e.stopPropagation(); clearSelection(tab); });
+  actions.appendChild(clear);
+  bar.appendChild(actions);
+
+  if (old) old.replaceWith(bar);
+  else {
+    const head = ov.querySelector('.ll-head');
+    if (head) head.insertAdjacentElement('afterend', bar);
+    else ov.insertBefore(bar, ov.children[1] || null);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// APPUNTI DEL FILE BROWSER (copia / taglia / incolla)
+// ---------------------------------------------------------------------------
+
+/** Mette una o più voci negli appunti, in modalità copia o taglia. */
+function putOnClipboard(tab, items, mode) {
+  if (!items || !items.length) return;
+  remoteClipboard = {
+    sessionId: tab.id,
+    mode,
+    items: items.map((i) => ({
+      path: i.path, name: i.name, isDir: !!i.isDir, parentDir: i.parentDir,
+    })),
+  };
+  toast(i18n.t(mode === 'cut' ? 'cut_ready' : 'copied', { name: clipboardLabel() }));
+  const ov = tab.hostEl.querySelector('.ll-overlay.ll-files');
+  if (ov) paintCut(tab, ov);
+}
+
+/** Etichetta degli appunti: il nome se è una voce sola, altrimenti il conteggio. */
+function clipboardLabel() {
+  if (!remoteClipboard) return '';
+  const items = remoteClipboard.items;
+  return items.length === 1 ? items[0].name : i18n.t('n_items', { count: items.length });
+}
+
+/** True se il percorso è fra le voci tagliate in attesa di essere incollate. */
+function isCutPath(fullPath) {
+  return !!remoteClipboard && remoteClipboard.mode === 'cut'
+    && remoteClipboard.items.some((i) => i.path === fullPath);
+}
+
+/** Mostra in trasparenza le voci tagliate presenti a schermo. */
+function paintCut(tab, overlay) {
+  const dir = tab.llDir;
+  overlay.querySelectorAll('.ll-entry[data-name]').forEach((r) => {
+    r.classList.toggle('cut', isCutPath(joinPath(dir, r.dataset.name)));
+  });
+}
+
+// ---------------------------------------------------------------------------
 // DRAG & DROP FRA FILE BROWSER
-// Trascinando una voce dal file browser di una scheda a quello di un'altra si
-// copia il file (o la cartella) nella cartella su cui si lascia il puntatore:
+// Trascinando una o più voci dal file browser di una scheda a quello di
+// un'altra si copia tutto nella cartella su cui si lascia il puntatore:
 //  - stesso server, anche in due schede diverse -> copia lato server (`cp`);
 //  - server diversi -> passa dal disco locale (download in una cartella
 //    temporanea + upload sull'altra macchina, vedi addRelay in transfers.js).
+// Lo stesso pannello accetta anche i file trascinati dal sistema operativo
+// (Finder / Esplora file), che vengono accodati come upload.
 // ---------------------------------------------------------------------------
 
 const RG_MIME = 'text/rg-entry';
 
 /**
- * Voce attualmente trascinata. Serve tenerla qui perché durante `dragover` il
+ * Voci attualmente trascinate. Serve tenerle qui perché durante `dragover` il
  * contenuto del dataTransfer non è leggibile (solo i tipi), ma va deciso subito
  * se il bersaglio è valido.
  */
-let dragEntry = null;
+let dragEntries = null;
 
-/** True se il trascinamento in corso è una voce del file browser. */
+/** True se il trascinamento in corso è una o più voci del file browser. */
 function isEntryDrag(e) {
   return !!(e.dataTransfer && [...e.dataTransfer.types].includes(RG_MIME));
+}
+
+/** True se il trascinamento arriva dal sistema operativo (file locali). */
+function isFileDrag(e) {
+  return !!(e.dataTransfer && [...e.dataTransfer.types].includes('Files'));
 }
 
 function clearDropHints() {
@@ -1360,21 +1660,32 @@ function clearDropHints() {
 function setupEntryDrag(row, tab, entry, fullPath, cwd) {
   row.draggable = true;
   row.addEventListener('dragstart', (e) => {
-    dragEntry = {
+    // trascinando una voce che fa parte della selezione si trascina tutta
+    const sel = selectedItems(tab, cwd);
+    const many = sel.length > 1 && tab.sel.has(entry.name);
+    const src = many
+      ? sel
+      : [{ path: fullPath, name: entry.name, isDir: !!entry.isDir, size: entry.size || 0, parentDir: cwd }];
+    dragEntries = src.map((i) => ({
       tabId: tab.id,
-      path: fullPath,
-      name: entry.name,
-      isDir: !!entry.isDir,
-      size: entry.size || 0,
-      parentDir: cwd,
-    };
-    e.dataTransfer.setData(RG_MIME, JSON.stringify(dragEntry));
+      path: i.path,
+      name: i.name,
+      isDir: !!i.isDir,
+      size: i.size || 0,
+      parentDir: i.parentDir || cwd,
+    }));
+    e.dataTransfer.setData(RG_MIME, JSON.stringify(dragEntries));
     e.dataTransfer.effectAllowed = 'copy';
-    row.classList.add('dragging');
+    if (many) {
+      const ov = row.closest('.ll-overlay');
+      if (ov) ov.querySelectorAll('.ll-entry.selected').forEach((r) => r.classList.add('dragging'));
+    } else {
+      row.classList.add('dragging');
+    }
   });
   row.addEventListener('dragend', () => {
-    dragEntry = null;
-    row.classList.remove('dragging');
+    dragEntries = null;
+    document.querySelectorAll('.ll-entry.dragging').forEach((r) => r.classList.remove('dragging'));
     clearDropHints();
   });
 }
@@ -1388,8 +1699,8 @@ function sameMachine(tab, src) {
   return a.host === b.host && a.username === b.username && (a.port || 22) === (b.port || 22);
 }
 
-/** Verifica se la voce trascinata può essere lasciata nella cartella `dir`. */
-function dropAllowed(tab, dir, src = dragEntry) {
+/** Verifica se una singola voce trascinata può essere lasciata in `dir`. */
+function dropAllowedOne(tab, dir, src) {
   if (!src || !dir || !tabs.has(src.tabId)) return false;
   if (!sameMachine(tab, src)) return true;
   if (dir === src.parentDir) return false; // già lì: niente da fare
@@ -1397,6 +1708,11 @@ function dropAllowed(tab, dir, src = dragEntry) {
   const root = src.path.replace(/\/+$/, '');
   if (src.isDir && (dir === root || dir.startsWith(root + '/'))) return false;
   return true;
+}
+
+/** True se almeno una delle voci trascinate è accettabile in `dir`. */
+function dropAllowed(tab, dir, srcs = dragEntries) {
+  return !!srcs && srcs.some((s) => dropAllowedOne(tab, dir, s));
 }
 
 /**
@@ -1421,13 +1737,21 @@ function setupListingDrop(tab, overlay, cwd) {
   };
 
   overlay.addEventListener('dragover', (e) => {
-    if (!isEntryDrag(e)) return; // trascinamento di una scheda: se ne occupa il pane
+    if (isEntryDrag(e)) {
+      e.stopPropagation();
+      const t = targetOf(e);
+      if (!dropAllowed(tab, t.dir)) return mark(null);
+      e.preventDefault(); // senza preventDefault il drop non viene consegnato
+      e.dataTransfer.dropEffect = 'copy';
+      mark(t.hint);
+      return;
+    }
+    if (!isFileDrag(e)) return; // trascinamento di una scheda: se ne occupa il pane
+    // file dal sistema operativo: sempre accettati, vanno nella cartella puntata
     e.stopPropagation();
-    const t = targetOf(e);
-    if (!dropAllowed(tab, t.dir)) return mark(null);
-    e.preventDefault(); // senza preventDefault il drop non viene consegnato
+    e.preventDefault();
     e.dataTransfer.dropEffect = 'copy';
-    mark(t.hint);
+    mark(targetOf(e).hint);
   });
 
   overlay.addEventListener('dragleave', (e) => {
@@ -1435,45 +1759,90 @@ function setupListingDrop(tab, overlay, cwd) {
   });
 
   overlay.addEventListener('drop', (e) => {
-    if (!isEntryDrag(e)) return;
+    if (!isEntryDrag(e) && !isFileDrag(e)) return;
     e.preventDefault();
     e.stopPropagation();
     const t = targetOf(e);
-    const src = dragEntry;
     mark(null);
-    dragEntry = null;
-    if (!dropAllowed(tab, t.dir, src)) return;
-    // il dialog di conferma è bloccante: va aperto fuori dall'handler, così il
-    // trascinamento si chiude prima che compaia
-    setTimeout(() => dropEntryInto(tab, t.dir, src), 0);
+
+    if (isEntryDrag(e)) {
+      // normalmente le voci sono in `dragEntries`; il payload del dataTransfer
+      // è la riserva se lo stato è stato perso per strada
+      let dragged = dragEntries;
+      if (!dragged) {
+        try { dragged = JSON.parse(e.dataTransfer.getData(RG_MIME)); } catch (_) { dragged = []; }
+      }
+      const srcs = dragged.filter((s) => dropAllowedOne(tab, t.dir, s));
+      dragEntries = null;
+      if (!srcs.length) return;
+      // il dialog di conferma è bloccante: va aperto fuori dall'handler, così il
+      // trascinamento si chiude prima che compaia
+      setTimeout(() => dropEntriesInto(tab, t.dir, srcs), 0);
+      return;
+    }
+
+    // Electron espone il percorso locale sui File trascinati dal sistema
+    const paths = [...(e.dataTransfer.files || [])].map((f) => f.path).filter(Boolean);
+    if (!paths.length) return toast(i18n.t('drop_no_path'), true);
+    setTimeout(() => uploadLocalPaths(tab, t.dir, paths), 0);
   });
 }
 
 /** Esegue la copia richiesta dal drag&drop, previa conferma. */
-async function dropEntryInto(tab, destDir, src) {
-  const srcTab = tabs.get(src.tabId);
+async function dropEntriesInto(tab, destDir, srcs) {
+  const srcTab = tabs.get(srcs[0].tabId);
   if (!srcTab) return toast(i18n.t('dnd_source_gone'), true);
-  const what = src.isDir ? src.name : `${src.name} (${humanSize(src.size)})`;
+  const what = srcs.length === 1
+    ? (srcs[0].isDir ? srcs[0].name : `${srcs[0].name} (${humanSize(srcs[0].size)})`)
+    : i18n.t('n_items', { count: srcs.length });
 
   // stesso server (anche in schede diverse): copia lato server, senza rete
-  if (sameMachine(tab, src)) {
+  if (sameMachine(tab, srcs[0])) {
     if (!confirm(i18n.t('dnd_confirm_local', { name: what, dest: destDir }))) return;
-    try {
-      await window.api.copyInto(tab.id, src.path, destDir, src.isDir);
-      toast(i18n.t('dnd_copied', { name: src.name, dest: destDir }));
-      refreshListingFor(destDir);
-    } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
+    let ok = 0;
+    for (const src of srcs) {
+      try {
+        await window.api.copyInto(tab.id, src.path, destDir, src.isDir);
+        ok++;
+      } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
+    }
+    if (!ok) return;
+    toast(ok === 1
+      ? i18n.t('dnd_copied', { name: srcs[0].name, dest: destDir })
+      : i18n.t('dnd_copied_many', { count: ok, dest: destDir }));
+    refreshListingFor(destDir);
     return;
   }
 
   const from = serverLabel(srcTab.server);
   const to = serverLabel(tab.server);
   if (!confirm(i18n.t('dnd_confirm_relay', { name: what, from: from, to: to, dest: destDir }))) return;
+  let ok = 0;
+  for (const src of srcs) {
+    try {
+      await window.api.queueRelay(src.tabId, src.path, src.name, src.isDir, src.size, tab.id, destDir);
+      ok++;
+    } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
+  }
+  if (!ok) return;
+  toast(ok === 1
+    ? i18n.t('dnd_queued', { name: srcs[0].name, server: to })
+    : i18n.t('dnd_queued_many', { count: ok, server: to }));
+  openTransfers();
+}
+
+/** Accoda l'upload dei file trascinati dal sistema operativo. */
+async function uploadLocalPaths(tab, destDir, paths) {
+  const what = paths.length === 1
+    ? baseName(paths[0])
+    : i18n.t('n_items', { count: paths.length });
+  if (!confirm(i18n.t('drop_upload_confirm', { name: what, dest: destDir }))) return;
   try {
-    await window.api.queueRelay(src.tabId, src.path, src.name, src.isDir, src.size, tab.id, destDir);
-    toast(i18n.t('dnd_queued', { name: src.name, server: to }));
+    const items = await window.api.queueUploadPaths(tab.id, destDir, paths);
+    if (!items || !items.length) return;
+    toast(i18n.t('tf_queued_upload', { name: items.map((i) => i.name).join(', ') }));
     openTransfers();
-  } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
+  } catch (e) { toast(i18n.t('import_error', { error: e.message }), true); }
 }
 
 // ============================================================================
@@ -3464,36 +3833,73 @@ async function startManualPull(tab, targetImage, raw, ui) {
 // MENU CONTESTUALI
 // ============================================================================
 
-function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
-  const items = [
-    { icon: 'fa-solid fa-file-circle-plus', label: i18n.t('new_file'), action: () => newFilePrompt(tab, cwd) },
-    { icon: 'fa-solid fa-file-import', label: i18n.t('import_file'), action: () => importLocal(tab, cwd) },
-    { icon: 'fa-solid fa-trash', label: i18n.t('delete'), action: () => deleteEntry(tab, entry, fullPath) },
-    { icon: 'fa-solid fa-copy', label: i18n.t('copy'), action: () => {
-        remoteClipboard = { sessionId: tab.id, path: fullPath, isDir: entry.isDir, name: entry.name };
-        toast(i18n.t('copied', { name: entry.name }));
-      } },
-    {
-      icon: 'fa-solid fa-paste',
-      label: i18n.t('paste') + (remoteClipboard ? ` (${remoteClipboard.name})` : ''),
-      disabled: !remoteClipboard,
-      action: () => pasteEntry(tab, cwd),
-    },
-  ];
+/** Voci di menu ricorrenti (creazione, importazione, incolla). */
+const newFileItem = (tab, cwd) => ({
+  icon: 'fa-solid fa-file-circle-plus', label: i18n.t('new_file'),
+  action: () => newFilePrompt(tab, cwd),
+});
+const newFolderItem = (tab, cwd) => ({
+  icon: 'fa-solid fa-folder-plus', label: i18n.t('new_folder'),
+  action: () => newFolderPrompt(tab, cwd),
+});
+const importItem = (tab, cwd) => ({
+  icon: 'fa-solid fa-file-import', label: i18n.t('import_file'),
+  action: () => importLocal(tab, cwd),
+});
+const pasteItem = (tab, cwd) => ({
+  icon: 'fa-solid fa-paste',
+  label: i18n.t(remoteClipboard && remoteClipboard.mode === 'cut' ? 'paste_move' : 'paste')
+    + (remoteClipboard ? ` (${clipboardLabel()})` : ''),
+  disabled: !remoteClipboard,
+  action: () => pasteEntry(tab, cwd),
+});
+
+function openEntryContextMenu(e, tab, entry, fullPath, cwd, row) {
+  // sulla voce ".." hanno senso solo creazione e incolla: tutto il resto
+  // agirebbe sulla cartella superiore, che non è quello che si intende fare
+  if (entry.name === '..') {
+    return openContextMenu(e.clientX, e.clientY, [
+      newFileItem(tab, cwd), newFolderItem(tab, cwd), importItem(tab, cwd), pasteItem(tab, cwd),
+    ]);
+  }
+
+  const sel = selectedItems(tab, cwd);
+  // clic dentro una selezione multipla: il menu agisce su tutta la selezione
+  if (sel.length > 1 && tab.sel.has(entry.name)) {
+    const count = sel.length;
+    return openContextMenu(e.clientX, e.clientY, [
+      { icon: 'fa-solid fa-download', label: i18n.t('sel_download', { count: count }),
+        action: () => downloadItems(tab, sel) },
+      { sep: true },
+      { icon: 'fa-solid fa-copy', label: i18n.t('sel_copy', { count: count }),
+        action: () => putOnClipboard(tab, sel, 'copy') },
+      { icon: 'fa-solid fa-scissors', label: i18n.t('sel_cut', { count: count }),
+        action: () => putOnClipboard(tab, sel, 'cut') },
+      pasteItem(tab, cwd),
+      { icon: 'fa-solid fa-trash', label: i18n.t('sel_delete', { count: count }),
+        action: () => deleteItems(tab, sel) },
+      { sep: true },
+      { icon: 'fa-solid fa-file-zipper', label: i18n.t('compress_targz'),
+        action: () => compressPrompt(tab, cwd, sel, 'targz') },
+      { icon: 'fa-solid fa-file-zipper', label: i18n.t('compress_zip'),
+        action: () => compressPrompt(tab, cwd, sel, 'zip') },
+      { sep: true },
+      { icon: 'fa-solid fa-xmark', label: i18n.t('sel_clear'), action: () => clearSelection(tab) },
+    ]);
+  }
+
+  const one = {
+    name: entry.name, isDir: !!entry.isDir, size: entry.size || 0,
+    path: fullPath, parentDir: cwd,
+  };
+  const items = [newFileItem(tab, cwd), newFolderItem(tab, cwd), importItem(tab, cwd), { sep: true }];
+
   if (!entry.isDir) {
     items.push({
       icon: 'fa-solid fa-file-pen',
       label: i18n.t('edit_with_editor'),
       action: () => openEmbeddedEditor(tab, entry, fullPath),
     });
-    if (isScriptFile(entry.name)) {
-      items.push({
-        icon: 'fa-solid fa-gears',
-        label: i18n.t('make_executable'),
-        disabled: !!entry.isExec,
-        action: () => makeExecutable(tab, entry, fullPath),
-      });
-    }
     items.push({
       icon: 'fa-solid fa-pen-to-square',
       label: i18n.t('edit'),
@@ -3504,9 +3910,54 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
         window.api.write(tab.id, `sudo nano ${shQuote(fullPath)}\r`);
       },
     });
+    if (isScriptFile(entry.name)) {
+      items.push({
+        icon: 'fa-solid fa-gears',
+        label: i18n.t('make_executable'),
+        disabled: !!entry.isExec,
+        action: () => makeExecutable(tab, entry, fullPath),
+      });
+    }
+    if (isArchiveFile(entry.name)) {
+      items.push({
+        icon: 'fa-solid fa-box-open',
+        label: i18n.t('extract_here'),
+        action: () => extractEntry(tab, entry, fullPath, cwd),
+      });
+    }
+    items.push({ sep: true });
   }
-  // Scarica: disponibile sia per file che per cartelle
-  items.push({ icon: 'fa-solid fa-download', label: i18n.t('download'), action: () => downloadEntry(tab, entry, fullPath) });
+
+  items.push(
+    { icon: 'fa-solid fa-i-cursor', label: i18n.t('rename'),
+      action: () => renameEntryPrompt(tab, entry, fullPath, cwd, row) },
+    { icon: 'fa-solid fa-copy', label: i18n.t('copy'),
+      action: () => putOnClipboard(tab, [one], 'copy') },
+    { icon: 'fa-solid fa-scissors', label: i18n.t('cut'),
+      action: () => putOnClipboard(tab, [one], 'cut') },
+    pasteItem(tab, cwd),
+    { icon: 'fa-solid fa-trash', label: i18n.t('delete'),
+      action: () => deleteItems(tab, [one]) },
+    { sep: true },
+    { icon: 'fa-solid fa-file-zipper', label: i18n.t('compress_targz'),
+      action: () => compressPrompt(tab, cwd, [one], 'targz') },
+    { icon: 'fa-solid fa-file-zipper', label: i18n.t('compress_zip'),
+      action: () => compressPrompt(tab, cwd, [one], 'zip') },
+    { sep: true },
+    // Scarica: disponibile sia per i file che per le cartelle
+    { icon: 'fa-solid fa-download', label: i18n.t('download'),
+      action: () => downloadEntry(tab, entry, fullPath) }
+  );
+  if (entry.isDir) {
+    items.push({
+      icon: 'fa-solid fa-ruler', label: i18n.t('calc_size'),
+      action: () => calcDirSize(tab, entry, fullPath, row),
+    });
+  }
+  items.push({
+    icon: 'fa-solid fa-circle-info', label: i18n.t('properties'),
+    action: () => showProperties(tab, entry, fullPath),
+  });
   openContextMenu(e.clientX, e.clientY, items);
 }
 
@@ -3776,16 +4227,42 @@ async function deleteEntry(tab, entry, fullPath) {
   } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
 }
 
+/**
+ * Incolla gli appunti in `destDir`. In modalità taglia sposta (`mv`), in
+ * modalità copia mantiene il nome se la cartella di destinazione è diversa da
+ * quella d'origine, altrimenti aggiunge il suffisso "_copy" (una copia accanto
+ * all'originale non può chiamarsi come lui).
+ */
 async function pasteEntry(tab, destDir) {
   if (!remoteClipboard) return;
   if (remoteClipboard.sessionId !== tab.id) {
     return toast(i18n.t('paste_only_same_connection'), true);
   }
-  try {
-    const newName = await window.api.copyEntry(tab.id, remoteClipboard.path, destDir, remoteClipboard.isDir);
-    toast(i18n.t('pasted', { name: newName || remoteClipboard.name }));
-    showListing(tab, tab.cwd, { fresh: true });
-  } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
+  const { mode, items } = remoteClipboard;
+  const dirs = new Set([destDir, tab.cwd]);
+  let ok = 0;
+  let last = '';
+  for (const it of items) {
+    try {
+      if (mode === 'cut') {
+        if (it.parentDir === destDir) continue; // già lì: niente da fare
+        last = await window.api.moveInto(tab.id, it.path, destDir);
+        dirs.add(it.parentDir);
+      } else if (it.parentDir === destDir) {
+        last = await window.api.copyEntry(tab.id, it.path, destDir, it.isDir);
+      } else {
+        last = await window.api.copyInto(tab.id, it.path, destDir, it.isDir);
+      }
+      ok++;
+    } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
+  }
+  if (!ok) return;
+  if (ok === 1) toast(i18n.t(mode === 'cut' ? 'moved' : 'pasted', { name: last }));
+  else toast(i18n.t(mode === 'cut' ? 'moved_many' : 'pasted_many', { count: ok }));
+  // le voci tagliate non esistono più dove erano: gli appunti si svuotano
+  if (mode === 'cut') remoteClipboard = null;
+  clearSelection(tab);
+  dirs.forEach((d) => refreshListingFor(d));
 }
 
 async function downloadEntry(tab, entry, fullPath) {
@@ -3804,6 +4281,215 @@ async function importLocal(tab, destDir) {
     toast(i18n.t('tf_queued_upload', { name: items.map((i) => i.name).join(', ') }));
     openTransfers();
   } catch (e) { toast(i18n.t('import_error', { error: e.message }), true); }
+}
+
+/** Elimina una voce sola (messaggio col nome) o l'intera selezione. */
+async function deleteItems(tab, items) {
+  if (!items || !items.length) return;
+  if (items.length === 1) {
+    const it = items[0];
+    return deleteEntry(tab, { name: it.name, isDir: it.isDir }, it.path);
+  }
+  if (!confirm(i18n.t('confirm_delete_many', { count: items.length }))) return;
+  try {
+    await window.api.deleteMany(tab.id, items.map((i) => i.path));
+    toast(i18n.t('deleted_many', { count: items.length }));
+    clearSelection(tab);
+    showListing(tab, tab.cwd, { fresh: true });
+  } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
+}
+
+/**
+ * Scarica una voce sola (con scelta del nome file) oppure tutta la selezione:
+ * in quel caso si sceglie una volta la cartella di destinazione.
+ */
+async function downloadItems(tab, items) {
+  if (!items || !items.length) return;
+  if (items.length === 1) {
+    const it = items[0];
+    return downloadEntry(tab, { name: it.name, isDir: it.isDir, size: it.size }, it.path);
+  }
+  try {
+    const queued = await window.api.queueDownloadMany(
+      tab.id,
+      items.map((i) => ({ path: i.path, name: i.name, isDir: i.isDir, size: i.size }))
+    );
+    if (!queued || !queued.length) return; // scelta della cartella annullata
+    toast(i18n.t('tf_queued_download', { name: items.map((i) => i.name).join(', ') }));
+    openTransfers();
+  } catch (e) { toast(i18n.t('download_error', { error: e.message }), true); }
+}
+
+/** Estensioni di archivio riconosciute (compressione ed estrazione). */
+const ARCHIVE_RE = /\.(tar\.gz|tgz|tar\.bz2|tbz2?|tar\.xz|txz|tar|zip|gz|bz2|xz)$/i;
+
+function isArchiveFile(name) {
+  return ARCHIVE_RE.test(name || '');
+}
+
+/**
+ * Chiede il nome dell'archivio e comprime le voci indicate nella cartella
+ * corrente (tar.gz oppure zip).
+ */
+function compressPrompt(tab, cwd, items, format) {
+  if (!items || !items.length) return;
+  const ext = format === 'zip' ? '.zip' : '.tar.gz';
+  // nome proposto: la voce stessa se è una sola, altrimenti la cartella corrente
+  const base = items.length === 1
+    ? items[0].name
+    : (cwd.replace(/\/+$/, '').split('/').pop() || 'archivio');
+  return promptRow(tab, cwd, {
+    icon: 'fa-solid fa-file-zipper',
+    value: base + ext,
+    selectTo: base.length,
+    onOk: async (name) => {
+      if (!validName(name)) return;
+      toast(i18n.t('compressing', { name: name }));
+      try {
+        const archive = await window.api.compress(
+          tab.id, cwd, items.map((i) => i.name), name, format
+        );
+        toast(i18n.t('compressed', { name: archive }));
+        clearSelection(tab);
+        showListing(tab, cwd, { fresh: true });
+      } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
+    },
+  });
+}
+
+/** Estrae un archivio nella cartella corrente. */
+async function extractEntry(tab, entry, fullPath, cwd) {
+  toast(i18n.t('extracting', { name: entry.name }));
+  try {
+    const created = await window.api.extract(tab.id, fullPath, cwd);
+    toast(i18n.t('extracted', { name: created || entry.name }));
+    showListing(tab, cwd, { fresh: true });
+  } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
+}
+
+/** Dimensioni delle cartelle già calcolate, per scheda: percorso -> byte. */
+function cachedDirSize(tab, fullPath) {
+  const v = tab.dirSizes && tab.dirSizes.get(fullPath);
+  return typeof v === 'number' ? humanSize(v) : '';
+}
+
+/** Calcola con `du` la dimensione di una cartella e la mostra nella sua riga. */
+async function calcDirSize(tab, entry, fullPath, row) {
+  const target = row && row.isConnected
+    ? row
+    : tab.hostEl.querySelector(`.ll-overlay.ll-files .ll-entry[data-name="${cssEscape(entry.name)}"]`);
+  const cell = target ? target.querySelector('.sz') : null;
+  if (cell) cell.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+  try {
+    const bytes = await window.api.dirSize(tab.id, fullPath);
+    if (!tab.dirSizes) tab.dirSizes = new Map();
+    tab.dirSizes.set(fullPath, bytes);
+    if (cell) cell.textContent = humanSize(bytes);
+    return bytes;
+  } catch (e) {
+    if (cell) cell.textContent = '';
+    toast(i18n.t('generic_error', { error: e.message }), true);
+    return null;
+  }
+}
+
+/**
+ * Finestra "Proprietà": tipo, proprietario, permessi, date e — per le cartelle,
+ * su richiesta — la dimensione occupata.
+ */
+async function showProperties(tab, entry, fullPath) {
+  const back = el('div', 'rg-modal-back');
+  const box = el('div', 'rg-modal');
+  const head = el('div', 'rg-modal-head');
+  const title = el('span');
+  title.innerHTML = `<i class="fa-solid fa-circle-info"></i> ${escapeHtml(entry.name)}`;
+  const closeBtn = el('button');
+  closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+  head.appendChild(title);
+  head.appendChild(closeBtn);
+  const body = el('div', 'rg-modal-body');
+  body.innerHTML = '<div class="rg-modal-load"><i class="fa-solid fa-circle-notch fa-spin"></i></div>';
+  box.appendChild(head);
+  box.appendChild(body);
+  back.appendChild(box);
+  document.body.appendChild(back);
+
+  const onKey = (e) => {
+    if (e.key !== 'Escape') return;
+    e.preventDefault();
+    e.stopPropagation();
+    dismiss();
+  };
+  const dismiss = () => {
+    back.remove();
+    document.removeEventListener('keydown', onKey, true);
+  };
+  document.addEventListener('keydown', onKey, true);
+  closeBtn.addEventListener('click', dismiss);
+  back.addEventListener('click', (e) => { if (e.target === back) dismiss(); });
+
+  let info;
+  try {
+    info = await window.api.pathInfo(tab.id, fullPath);
+  } catch (e) {
+    body.innerHTML = '';
+    const err = el('div', 'rg-modal-err');
+    err.textContent = i18n.t('generic_error', { error: e.message });
+    body.appendChild(err);
+    return;
+  }
+
+  body.innerHTML = '';
+  const addRow = (labelKey, value) => {
+    const r = el('div', 'rg-row');
+    const k = el('span', 'rg-k');
+    k.textContent = i18n.t(labelKey);
+    const v = el('span', 'rg-v');
+    if (value instanceof Node) v.appendChild(value);
+    else v.textContent = value;
+    r.appendChild(k);
+    r.appendChild(v);
+    body.appendChild(r);
+    return v;
+  };
+
+  addRow('prop_name', entry.name);
+  addRow('prop_path', fullPath);
+  addRow('prop_type', info.type || '');
+  addRow('prop_owner', `${info.owner}:${info.group}`);
+  addRow('prop_perms', `${info.modeText} (${info.mode})`);
+
+  if (entry.isDir) {
+    // il `du` di una cartella può costare tempo: si lancia solo su richiesta
+    const cached = tab.dirSizes && tab.dirSizes.get(fullPath);
+    const holder = el('span', 'rg-size');
+    const cell = addRow('prop_size', holder);
+    if (typeof cached === 'number') {
+      holder.textContent = humanSize(cached);
+    } else {
+      const btn = el('button', 'rg-calc');
+      btn.innerHTML = `<i class="fa-solid fa-ruler"></i> ${i18n.t('prop_calc')}`;
+      btn.addEventListener('click', async () => {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+        const bytes = await calcDirSize(tab, entry, fullPath, null);
+        cell.textContent = bytes == null ? '' : humanSize(bytes);
+      });
+      holder.appendChild(btn);
+    }
+  } else {
+    addRow('prop_size', `${humanSize(info.size)} (${info.size} byte)`);
+  }
+
+  addRow('prop_modified', formatStamp(info.mtime));
+  addRow('prop_accessed', formatStamp(info.atime));
+  if (info.target) addRow('prop_link_target', info.target);
+}
+
+/** Data e ora leggibili da un timestamp Unix in secondi. */
+function formatStamp(sec) {
+  if (!sec) return '';
+  return new Date(sec * 1000).toLocaleString();
 }
 
 // ============================================================================
@@ -4119,6 +4805,11 @@ function joinPath(dir, name) {
   if (name === '..') return parentPath(dir);
   if (dir.endsWith('/')) return dir + name;
   return dir + '/' + name;
+}
+/** Nome finale di un percorso locale (accetta separatori unix e windows). */
+function baseName(p) {
+  const parts = String(p).split(/[\\/]+/).filter(Boolean);
+  return parts.length ? parts[parts.length - 1] : String(p);
 }
 function parentPath(dir) {
   if (dir === '/' || !dir.includes('/')) return '/';
@@ -4761,6 +5452,11 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   document.addEventListener('click', hideContextMenu);
   window.addEventListener('resize', fitAll);
+
+  // un file trascinato dal sistema e lasciato fuori dal file browser non deve
+  // far navigare la finestra sul file stesso (comportamento predefinito di Chromium)
+  window.addEventListener('dragover', (e) => { if (isFileDrag(e)) e.preventDefault(); });
+  window.addEventListener('drop', (e) => { if (isFileDrag(e)) e.preventDefault(); });
 
   // focus iniziale sulla barra di ricerca dei server
   $('#server-search').focus();
