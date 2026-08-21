@@ -2934,5 +2934,173 @@
     "fr": "Police : {size}px",
     "de": "Schrift: {size}px",
     "pt": "Fonte: {size}px"
+  },
+  "db_activity_button_title": {
+    "it": "Query in corso",
+    "en": "Running queries",
+    "es": "Consultas en curso",
+    "fr": "Requêtes en cours",
+    "de": "Laufende Abfragen",
+    "pt": "Consultas em execução"
+  },
+  "db_activity_title": {
+    "it": "<i class=\"fa-solid fa-bolt\"></i> Query in corso su {db} — {count}",
+    "en": "<i class=\"fa-solid fa-bolt\"></i> Running queries on {db} — {count}",
+    "es": "<i class=\"fa-solid fa-bolt\"></i> Consultas en curso en {db} — {count}",
+    "fr": "<i class=\"fa-solid fa-bolt\"></i> Requêtes en cours sur {db} — {count}",
+    "de": "<i class=\"fa-solid fa-bolt\"></i> Laufende Abfragen auf {db} — {count}",
+    "pt": "<i class=\"fa-solid fa-bolt\"></i> Consultas em execução em {db} — {count}"
+  },
+  "db_activity_none": {
+    "it": "Nessuna query in corso su questo database",
+    "en": "No running queries on this database",
+    "es": "Ninguna consulta en curso en esta base de datos",
+    "fr": "Aucune requête en cours sur cette base",
+    "de": "Keine laufenden Abfragen auf dieser Datenbank",
+    "pt": "Nenhuma consulta em execução neste banco"
+  },
+  "db_activity_back": {
+    "it": "Torna ai database",
+    "en": "Back to databases",
+    "es": "Volver a las bases de datos",
+    "fr": "Retour aux bases de données",
+    "de": "Zurück zu den Datenbanken",
+    "pt": "Voltar aos bancos de dados"
+  },
+  "db_activity_conn": {
+    "it": "{total} connessioni a questo database · {idle} inattive · limite istanza {max}",
+    "en": "{total} connections to this database · {idle} idle · instance limit {max}",
+    "es": "{total} conexiones a esta base de datos · {idle} inactivas · límite de la instancia {max}",
+    "fr": "{total} connexions à cette base · {idle} inactives · limite de l'instance {max}",
+    "de": "{total} Verbindungen zu dieser Datenbank · {idle} inaktiv · Instanzlimit {max}",
+    "pt": "{total} conexões a este banco · {idle} inativas · limite da instância {max}"
+  },
+  "db_activity_filter": {
+    "it": "Filtra per pid, database, utente o testo…",
+    "en": "Filter by pid, database, user or text…",
+    "es": "Filtrar por pid, base de datos, usuario o texto…",
+    "fr": "Filtrer par pid, base, utilisateur ou texte…",
+    "de": "Nach pid, Datenbank, Benutzer oder Text filtern…",
+    "pt": "Filtrar por pid, banco, usuário ou texto…"
+  },
+  "db_activity_running_for": {
+    "it": "attiva da {dur}",
+    "en": "running for {dur}",
+    "es": "activa desde {dur}",
+    "fr": "active depuis {dur}",
+    "de": "läuft seit {dur}",
+    "pt": "ativa há {dur}"
+  },
+  "db_activity_waiting": {
+    "it": "in attesa: {event}",
+    "en": "waiting: {event}",
+    "es": "esperando: {event}",
+    "fr": "en attente : {event}",
+    "de": "wartet: {event}",
+    "pt": "aguardando: {event}"
+  },
+  "db_activity_blocked_by": {
+    "it": "bloccata dal pid {pids}",
+    "en": "blocked by pid {pids}",
+    "es": "bloqueada por el pid {pids}",
+    "fr": "bloquée par le pid {pids}",
+    "de": "blockiert von pid {pids}",
+    "pt": "bloqueada pelo pid {pids}"
+  },
+  "db_activity_xact": {
+    "it": "transazione aperta da {dur}",
+    "en": "transaction open for {dur}",
+    "es": "transacción abierta desde {dur}",
+    "fr": "transaction ouverte depuis {dur}",
+    "de": "Transaktion offen seit {dur}",
+    "pt": "transação aberta há {dur}"
+  },
+  "db_activity_expand": {
+    "it": "Clic per vedere la query intera",
+    "en": "Click to see the full query",
+    "es": "Clic para ver la consulta completa",
+    "fr": "Cliquer pour voir la requête complète",
+    "de": "Klicken für die vollständige Abfrage",
+    "pt": "Clique para ver a consulta completa"
+  },
+  "db_activity_cancel": {
+    "it": "Annulla",
+    "en": "Cancel",
+    "es": "Cancelar",
+    "fr": "Annuler",
+    "de": "Abbrechen",
+    "pt": "Cancelar"
+  },
+  "db_activity_cancel_hint": {
+    "it": "Annulla la query lasciando aperta la connessione (pg_cancel_backend)",
+    "en": "Cancel the query, keeping the connection open (pg_cancel_backend)",
+    "es": "Cancela la consulta manteniendo la conexión (pg_cancel_backend)",
+    "fr": "Annule la requête en gardant la connexion (pg_cancel_backend)",
+    "de": "Bricht die Abfrage ab, Verbindung bleibt offen (pg_cancel_backend)",
+    "pt": "Cancela a consulta mantendo a conexão (pg_cancel_backend)"
+  },
+  "db_activity_terminate": {
+    "it": "Termina",
+    "en": "Terminate",
+    "es": "Terminar",
+    "fr": "Terminer",
+    "de": "Beenden",
+    "pt": "Encerrar"
+  },
+  "db_activity_terminate_hint": {
+    "it": "Chiude la connessione annullando la transazione (pg_terminate_backend)",
+    "en": "Close the connection, rolling back the transaction (pg_terminate_backend)",
+    "es": "Cierra la conexión anulando la transacción (pg_terminate_backend)",
+    "fr": "Ferme la connexion en annulant la transaction (pg_terminate_backend)",
+    "de": "Schließt die Verbindung und rollt die Transaktion zurück (pg_terminate_backend)",
+    "pt": "Fecha a conexão cancelando a transação (pg_terminate_backend)"
+  },
+  "db_activity_confirm_cancel": {
+    "it": "Annullare la query del pid {pid} su {source}?",
+    "en": "Cancel the query of pid {pid} on {source}?",
+    "es": "¿Cancelar la consulta del pid {pid} en {source}?",
+    "fr": "Annuler la requête du pid {pid} sur {source} ?",
+    "de": "Abfrage von pid {pid} auf {source} abbrechen?",
+    "pt": "Cancelar a consulta do pid {pid} em {source}?"
+  },
+  "db_activity_confirm_terminate": {
+    "it": "Terminare la connessione del pid {pid} su {source}?\n\nLa transazione in corso viene annullata.",
+    "en": "Terminate the connection of pid {pid} on {source}?\n\nThe open transaction will be rolled back.",
+    "es": "¿Terminar la conexión del pid {pid} en {source}?\n\nLa transacción en curso se anulará.",
+    "fr": "Terminer la connexion du pid {pid} sur {source} ?\n\nLa transaction en cours sera annulée.",
+    "de": "Verbindung von pid {pid} auf {source} beenden?\n\nDie offene Transaktion wird zurückgesetzt.",
+    "pt": "Encerrar a conexão do pid {pid} em {source}?\n\nA transação em curso será cancelada."
+  },
+  "db_activity_cancelled": {
+    "it": "Annullamento richiesto per il pid {pid}",
+    "en": "Cancellation requested for pid {pid}",
+    "es": "Cancelación solicitada para el pid {pid}",
+    "fr": "Annulation demandée pour le pid {pid}",
+    "de": "Abbruch für pid {pid} angefordert",
+    "pt": "Cancelamento solicitado para o pid {pid}"
+  },
+  "db_activity_terminated": {
+    "it": "Connessione {pid} terminata",
+    "en": "Connection {pid} terminated",
+    "es": "Conexión {pid} terminada",
+    "fr": "Connexion {pid} terminée",
+    "de": "Verbindung {pid} beendet",
+    "pt": "Conexão {pid} encerrada"
+  },
+  "db_activity_signal_failed": {
+    "it": "Il pid {pid} non è più attivo",
+    "en": "Pid {pid} is no longer active",
+    "es": "El pid {pid} ya no está activo",
+    "fr": "Le pid {pid} n'est plus actif",
+    "de": "Pid {pid} ist nicht mehr aktiv",
+    "pt": "O pid {pid} não está mais ativo"
+  },
+  "db_activity_short": {
+    "it": "Query",
+    "en": "Queries",
+    "es": "Consultas",
+    "fr": "Requêtes",
+    "de": "Abfragen",
+    "pt": "Consultas"
   }
 }

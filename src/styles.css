@@ -597,6 +597,51 @@ html, body {
 .docker-group.collapsible .caret { width: 12px; }
 .docker-group.collapsible:hover { filter: brightness(1.15); }
 .docker-btn.d-manual:hover { background: var(--accent); color: #11111b; }
+.docker-btn.d-activity:hover { background: var(--yellow); color: #11111b; }
+
+/* ---------- Query in corso (pg_stat_activity) ----------
+   Vista del pannello database: riusa le righe stile Docker, con la lucina di
+   stato a sinistra (verde/giallo/rosso, vedi pgActivityLevel). */
+.pg-act-body { display: flex; flex-direction: column; }
+.pg-act-row { align-items: flex-start; }
+.pg-act-dot {
+  width: 9px; height: 9px; border-radius: 50%; margin-top: 5px;
+  background: var(--muted); flex: 0 0 auto;
+}
+.pg-act-dot.ok { background: var(--green); }
+.pg-act-dot.warn { background: var(--yellow); }
+.pg-act-dot.crit { background: var(--red); box-shadow: 0 0 0 3px color-mix(in srgb, var(--red) 25%, transparent); }
+.pg-act-head { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.pg-act-pid { font-weight: 600; }
+.pg-act-dur { font-weight: 600; }
+.pg-act-dur.ok { color: var(--green); }
+.pg-act-dur.warn { color: var(--yellow); }
+.pg-act-dur.crit { color: var(--red); }
+.pg-act-who { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pg-act-state { font-size: 12px; }
+.pg-act-state.ok { color: var(--muted); }
+.pg-act-state.warn { color: var(--yellow); }
+.pg-act-state.crit { color: var(--red); }
+.pg-act-blocked { font-size: 12px; color: var(--red); }
+.pg-act-blocked.link { cursor: pointer; text-decoration: underline; }
+/* testo della query: una riga sola, si espande al clic */
+.pg-act-query {
+  font-family: "SFMono-Regular", Menlo, monospace; font-size: 12px; color: var(--text);
+  margin-top: 2px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.pg-act-query.expanded { white-space: pre-wrap; word-break: break-word; }
+.pg-act-query:hover { color: var(--accent); }
+/* riga evidenziata quando si clicca "bloccata da" */
+.pg-act-row.flash { animation: pg-flash 1.4s ease-out; }
+@keyframes pg-flash {
+  from { background: color-mix(in srgb, var(--accent) 35%, transparent); }
+  to { background: transparent; }
+}
+.docker-empty.err { color: var(--red); }
+/* rotellina sul tasto di aggiornamento mentre l'interrogazione è in corso */
+.ll-head-actions button.spinning i { animation: rg-spin 1s linear infinite; }
+@keyframes rg-spin { to { transform: rotate(360deg); } }
 
 /* form Manual Pull inline */
 .docker-mp {

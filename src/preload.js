@@ -71,6 +71,9 @@ contextBridge.exposeInMainWorld('api', {
 
   // postgres
   pgList: (id) => ipcRenderer.invoke('pg:list', id),
+  pgActivity: (id, group, dbName) =>
+    ipcRenderer.invoke('pg:activity', { id, group, dbName }),
+  pgSignal: (id, group, pid, mode) => ipcRenderer.invoke('pg:signal', { id, group, pid, mode }),
   pgDumpPick: (name) => ipcRenderer.invoke('pg:dumpPick', { name }),
   pgDumpRun: (id, opId, group, dbName, localPath) =>
     ipcRenderer.invoke('pg:dumpRun', { id, opId, group, dbName, localPath }),

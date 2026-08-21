@@ -56,6 +56,14 @@ npm run build:mac
   copia avviene lato server (`cp`); fra macchine diverse i dati passano dal disco
   locale — download in una cartella temporanea, poi upload — e le due fasi sono
   visibili nel pannello trasferimenti, entrambe sospendibili e riprendibili.
+- **Query in corso** (pulsante ⚡ sulla riga di ogni database, si apre solo da lì):
+  elenco di `pg_stat_activity` filtrato su quel solo database, con lucina di stato — verde query appena partita, giallo query attiva
+  da oltre 5 secondi o transazione aperta e ferma (`idle in transaction`), rosso
+  query in attesa di un lock o attiva da oltre un minuto. Per ogni riga durata,
+  database, utente, evento di attesa, pid che la blocca (cliccabile: evidenzia la
+  riga del bloccante) e testo della query, con *Annulla* (`pg_cancel_backend`) e
+  *Termina* (`pg_terminate_backend`). Si aggiorna da sé ogni 4 secondi. Richiede
+  PostgreSQL 10 o superiore.
 - **Menu tasto destro sul terminale**: *Incolla password* (inserisce la password
   del server presa da `servers.json`).
 

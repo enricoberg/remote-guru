@@ -2339,6 +2339,13 @@ function makeDbRow(tab, d, group) {
   meta.appendChild(sub);
 
   const btns = el('div', 'docker-actions');
+  // query in corso: si aprono solo da qui, e mostrano solo questo database
+  const actBtn = el('button', 'docker-btn d-activity');
+  actBtn.innerHTML = `<i class="fa-solid fa-bolt"></i><span class="lbl">${i18n.t('db_activity_short')}</span>`;
+  actBtn.title = `${i18n.t('db_activity_button_title')} — ${d.name}`;
+  actBtn.addEventListener('click', () => showPgActivity(tab, d, group));
+  btns.appendChild(actBtn);
+
   const consoleBtn = el('button', 'docker-btn d-shell');
   consoleBtn.innerHTML = `<i class="fa-solid fa-terminal"></i><span class="lbl">${i18n.t('db_console')}</span>`;
   consoleBtn.title = `${i18n.t('db_console')} ${d.name}`;
@@ -2360,6 +2367,293 @@ function makeDbRow(tab, d, group) {
   row.appendChild(meta);
   row.appendChild(btns);
   return row;
+}
+
+// ---------------------------------------------------------------------------
+// QUERY IN CORSO (pg_stat_activity)
+// Vista del pannello database: si apre solo dal suo pulsante. Interroga tutte
+// le istanze trovate sulla macchina (host e container) e si aggiorna da sola
+// finché il pannello resta a schermo.
+// ---------------------------------------------------------------------------
+
+const PG_ACT_INTERVAL = 4000; // aggiornamento automatico
+const PG_SLOW_WARN = 5;       // secondi: da qui la query è "lenta" (giallo)
+const PG_SLOW_CRIT = 60;      // secondi: da qui è "molto lenta" (rosso)
+
+/**
+ * Colore della lucina di una riga:
+ *  - rosso: in attesa di un lock (o bloccata da un altro backend), oppure
+ *    attiva da più di PG_SLOW_CRIT secondi;
+ *  - giallo: attiva da più di PG_SLOW_WARN secondi, oppure transazione aperta
+ *    e ferma ("idle in transaction"), che tiene i lock senza lavorare;
+ *  - verde: attiva da poco, tutto regolare.
+ */
+function pgActivityLevel(r) {
+  if (r.blockedBy.length || r.waitType === 'Lock') return 'crit';
+  if (r.state === 'active') {
+    if (r.duration >= PG_SLOW_CRIT) return 'crit';
+    if (r.duration >= PG_SLOW_WARN) return 'warn';
+    return 'ok';
+  }
+  return 'warn'; // idle in transaction e stati simili
+}
+
+/** Durata compatta: "800ms", "12s", "4m 20s", "1h 05m". */
+function formatPgDuration(sec) {
+  if (sec == null || sec < 0) return '';
+  if (sec < 1) return '<1s';
+  if (sec < 60) return `${Math.round(sec)}s`;
+  const m = Math.floor(sec / 60);
+  if (m < 60) return `${m}m ${String(Math.round(sec % 60)).padStart(2, '0')}s`;
+  return `${Math.floor(m / 60)}h ${String(m % 60).padStart(2, '0')}m`;
+}
+
+/** Etichetta della sorgente: host oppure nome del container. */
+function pgSourceLabel(src) {
+  return src.source === 'container' ? src.container : i18n.t('db_host');
+}
+
+async function showPgActivity(tab, d, group) {
+  // al main serve solo l'indirizzo dell'istanza, non l'elenco dei database
+  const src = { source: group.source, container: group.container, user: group.user };
+
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  if (old) old.remove();
+
+  const overlay = el('div', 'll-overlay docker-overlay containers-overlay pg-act');
+  const grip = el('div', 'll-resize');
+  overlay.appendChild(grip);
+  setupOverlayResize(grip, overlay, tab);
+  if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+
+  const head = el('div', 'll-head');
+  const info = el('span');
+  info.innerHTML = i18n.t('db_activity_title', { db: escapeHtml(d.name), count: 0 });
+  const acts = el('span', 'll-head-actions');
+  const backBtn = el('button');
+  backBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i>';
+  backBtn.title = i18n.t('db_activity_back');
+  backBtn.addEventListener('click', () => showDatabases(tab));
+  const refreshBtn = el('button');
+  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
+  refreshBtn.title = i18n.t('refresh');
+  const closeBtn = el('button');
+  closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+  closeBtn.title = 'Chiudi';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  acts.appendChild(backBtn);
+  acts.appendChild(refreshBtn);
+  acts.appendChild(closeBtn);
+  head.appendChild(info);
+  head.appendChild(acts);
+  overlay.appendChild(head);
+
+  // da quale istanza arriva il database: host oppure container
+  const srcLine = el('div', 'docker-group');
+  srcLine.innerHTML = src.source === 'container'
+    ? `<i class="fa-brands fa-docker"></i> ${escapeHtml(src.container)}`
+    : `<i class="fa-solid fa-server"></i> ${i18n.t('db_host')}`;
+  overlay.appendChild(srcLine);
+
+  const bar = el('div', 'll-search');
+  const searchIcon = el('i', 'fa-solid fa-magnifying-glass');
+  const searchInput = document.createElement('input');
+  searchInput.type = 'text';
+  searchInput.className = 'search-input';
+  searchInput.placeholder = i18n.t('db_activity_filter');
+  searchInput.addEventListener('keydown', (e) => e.stopPropagation());
+  bar.appendChild(searchIcon);
+  bar.appendChild(searchInput);
+  overlay.appendChild(bar);
+
+  const body = el('div', 'pg-act-body');
+  overlay.appendChild(body);
+  tab.hostEl.appendChild(overlay);
+
+  const applyFilter = () => {
+    const q = searchInput.value.trim().toLowerCase();
+    body.querySelectorAll('.pg-act-row').forEach((row) => {
+      row.style.display = !q || (row.dataset.text || '').includes(q) ? '' : 'none';
+    });
+  };
+  searchInput.addEventListener('input', applyFilter);
+
+  let busy = false;
+  const load = async () => {
+    if (busy || tab.dead) return;
+    busy = true;
+    refreshBtn.classList.add('spinning');
+    let res;
+    try {
+      res = await window.api.pgActivity(tab.id, src, d.name);
+    } catch (e) {
+      res = { rows: [], totals: null, error: e.message };
+    } finally {
+      busy = false;
+      refreshBtn.classList.remove('spinning');
+    }
+    if (!overlay.isConnected) return;
+    renderPgActivity(tab, src, d, info, body, res, load);
+    applyFilter();
+  };
+
+  refreshBtn.addEventListener('click', load);
+
+  // aggiornamento automatico: si spegne quando il pannello sparisce
+  const timer = setInterval(() => {
+    if (!overlay.isConnected) return clearInterval(timer);
+    if (tab.dead || !tab.paneEl.classList.contains('visible')) return;
+    load();
+  }, PG_ACT_INTERVAL);
+
+  await load();
+}
+
+/** Disegna l'elenco delle query in corso del database mostrato. */
+function renderPgActivity(tab, src, d, info, body, res, reload) {
+  // lo scroll non deve saltare a ogni aggiornamento automatico
+  const scroll = body.scrollTop;
+  body.innerHTML = '';
+
+  const rows = res.rows || [];
+  info.innerHTML = i18n.t('db_activity_title', { db: escapeHtml(d.name), count: rows.length })
+    + (res.totals
+      ? ` <span class="cwd">${escapeHtml(i18n.t('db_activity_conn', {
+          total: res.totals.total, idle: res.totals.idle, max: res.totals.max,
+        }))}</span>`
+      : '');
+
+  if (res.error) {
+    const err = el('div', 'docker-empty err');
+    err.textContent = i18n.t('db_action_error', { error: res.error });
+    body.appendChild(err);
+    return;
+  }
+  if (!rows.length) {
+    const empty = el('div', 'docker-empty');
+    empty.textContent = i18n.t('db_activity_none');
+    body.appendChild(empty);
+    return;
+  }
+
+  // i pid presenti servono per capire se il bloccante è in elenco
+  const present = new Set(rows.map((r) => r.pid));
+  rows.forEach((r) => body.appendChild(makePgActivityRow(tab, src, r, present, reload)));
+
+  body.scrollTop = scroll;
+}
+
+function makePgActivityRow(tab, src, r, present, reload) {
+  const level = pgActivityLevel(r);
+  const row = el('div', 'pg-act-row docker-row');
+  row.dataset.pid = String(r.pid);
+  row.dataset.text = `${r.pid} ${r.database} ${r.user} ${r.application} ${r.client} ${r.query}`.toLowerCase();
+
+  const dot = el('span', 'pg-act-dot ' + level);
+  const dur = formatPgDuration(r.duration);
+  dot.title = r.blockedBy.length
+    ? i18n.t('db_activity_blocked_by', { pids: r.blockedBy.join(', ') })
+    : r.state === 'active'
+      ? i18n.t('db_activity_running_for', { dur: dur })
+      : `${r.state}${r.xactDuration >= 0 ? ' · ' + i18n.t('db_activity_xact', { dur: formatPgDuration(r.xactDuration) }) : ''}`;
+  row.appendChild(dot);
+
+  const meta = el('div', 'docker-meta');
+
+  const line = el('span', 'pg-act-head');
+  const pid = el('span', 'pg-act-pid');
+  pid.textContent = 'pid ' + r.pid;
+  const time = el('span', 'pg-act-dur ' + level);
+  time.textContent = r.state === 'active' ? dur : formatPgDuration(r.stateDuration);
+  const who = el('span', 'pg-act-who');
+  who.textContent = [r.user, r.application].filter(Boolean).join(' · ');
+  who.title = [r.client && `client ${r.client}`, r.application].filter(Boolean).join(' · ');
+  line.appendChild(pid);
+  line.appendChild(time);
+  line.appendChild(who);
+  meta.appendChild(line);
+
+  // stato: attesa, blocco, transazione aperta
+  const notes = [];
+  if (r.state !== 'active') notes.push(r.state);
+  if (r.waitType) notes.push(i18n.t('db_activity_waiting', { event: `${r.waitType}/${r.waitEvent || '?'}` }));
+  if (r.state !== 'active' && r.xactDuration >= 0) {
+    notes.push(i18n.t('db_activity_xact', { dur: formatPgDuration(r.xactDuration) }));
+  }
+  if (notes.length) {
+    const st = el('span', 'pg-act-state ' + level);
+    st.textContent = notes.join(' · ');
+    meta.appendChild(st);
+  }
+  if (r.blockedBy.length) {
+    const bl = el('span', 'pg-act-blocked');
+    bl.textContent = i18n.t('db_activity_blocked_by', { pids: r.blockedBy.join(', ') });
+    // se il bloccante è in elenco, un clic lo evidenzia
+    if (r.blockedBy.some((p) => present.has(p))) {
+      bl.classList.add('link');
+      bl.addEventListener('click', () => highlightPgRow(row.parentNode, r.blockedBy));
+    }
+    meta.appendChild(bl);
+  }
+
+  const q = el('span', 'pg-act-query');
+  q.textContent = r.query || '—';
+  q.title = i18n.t('db_activity_expand');
+  q.addEventListener('click', () => q.classList.toggle('expanded'));
+  meta.appendChild(q);
+
+  const btns = el('div', 'docker-actions');
+  const cancelBtn = el('button', 'docker-btn d-logs');
+  cancelBtn.innerHTML = `<i class="fa-solid fa-ban"></i><span class="lbl">${i18n.t('db_activity_cancel')}</span>`;
+  cancelBtn.title = i18n.t('db_activity_cancel_hint');
+  cancelBtn.addEventListener('click', () => pgSignalRow(tab, src, r, 'cancel', cancelBtn, reload));
+  const killBtn = el('button', 'docker-btn d-down');
+  killBtn.innerHTML = `<i class="fa-solid fa-plug-circle-xmark"></i><span class="lbl">${i18n.t('db_activity_terminate')}</span>`;
+  killBtn.title = i18n.t('db_activity_terminate_hint');
+  killBtn.addEventListener('click', () => pgSignalRow(tab, src, r, 'terminate', killBtn, reload));
+  btns.appendChild(cancelBtn);
+  btns.appendChild(killBtn);
+
+  row.appendChild(meta);
+  row.appendChild(btns);
+  return row;
+}
+
+/** Lampeggia le righe dei pid indicati (chi blocca la query selezionata). */
+function highlightPgRow(container, pids) {
+  if (!container) return;
+  pids.forEach((p) => {
+    const target = container.querySelector(`.pg-act-row[data-pid="${p}"]`);
+    if (!target) return;
+    target.classList.remove('flash');
+    target.scrollIntoView({ block: 'nearest' });
+    // riavvia l'animazione anche se la classe c'era già
+    void target.offsetWidth;
+    target.classList.add('flash');
+  });
+}
+
+/** Annulla la query o chiude la connessione, previa conferma. */
+async function pgSignalRow(tab, src, r, mode, btn, reload) {
+  const confirmKey = mode === 'terminate'
+    ? 'db_activity_confirm_terminate'
+    : 'db_activity_confirm_cancel';
+  if (!confirm(i18n.t(confirmKey, { pid: r.pid, source: pgSourceLabel(src) }))) return;
+  btn.disabled = true;
+  try {
+    const ok = await window.api.pgSignal(tab.id, src, r.pid, mode);
+    if (ok) {
+      toast(i18n.t(mode === 'terminate' ? 'db_activity_terminated' : 'db_activity_cancelled',
+        { pid: r.pid }));
+    } else {
+      toast(i18n.t('db_activity_signal_failed', { pid: r.pid }), true);
+    }
+    if (reload) reload();
+  } catch (e) {
+    toast(i18n.t('db_action_error', { error: e.message }), true);
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 /** Esegue il dump (custom, struttura + dati) del database in un file locale scelto,

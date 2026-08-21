@@ -329,6 +329,12 @@ ipcMain.handle('docker:imageAction', (_e, { id, action, image }) =>
 
 ipcMain.handle('pg:list', (_e, id) => ssh.pgListAll(id));
 
+ipcMain.handle('pg:activity', (_e, { id, group, dbName }) =>
+  ssh.pgActivity(id, group, dbName));
+
+ipcMain.handle('pg:signal', (_e, { id, group, pid, mode }) =>
+  ssh.pgSignal(id, group, pid, mode));
+
 // Sceglie il percorso locale dove salvare il dump.
 ipcMain.handle('pg:dumpPick', async (_e, { name }) => {
   const now = new Date();

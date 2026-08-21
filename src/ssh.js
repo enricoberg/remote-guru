@@ -1156,6 +1156,52 @@ class SshManager {
   }
 
   /**
+   * Esegue `psql` sulla sorgente indicata: l'istanza dell'host (con o senza
+   * sudo) oppure quella dentro un container. `group` è { source, container, user }
+   * come lo restituisce `pgListAll`.
+   */
+  async _pgRun(id, group, args) {
+    if (group && group.source === 'container') {
+      const user = group.user || 'postgres';
+      return this.dockerExec(
+        id,
+        `docker exec ${shellQuote(group.container)} psql -U ${shellQuote(user)} ${args}`
+      );
+    }
+    const cmd = `psql ${args}`;
+    try {
+      return await this.exec(id, cmd);
+    } catch (_) {
+      return this._pgSudo(id, cmd);
+    }
+  }
+
+  /** Query in corso (e conteggio connessioni) di un singolo database. */
+  async pgActivity(id, group, dbName) {
+    if (!dbName) throw new Error('Database non indicato');
+    const out = await this._pgRun(
+      id,
+      group,
+      `-At -c ${shellQuote(pgActivitySql(dbName))} -c ${shellQuote(pgTotalsSql(dbName))}`
+    );
+    return parsePgActivity(out);
+  }
+
+  /**
+   * Annulla la query in corso (`pg_cancel_backend`) o chiude la connessione
+   * (`pg_terminate_backend`) di un backend. Ritorna true se il segnale è stato
+   * consegnato: false significa che quel pid non c'è più.
+   */
+  async pgSignal(id, group, pid, mode) {
+    const n = parseInt(pid, 10);
+    if (!Number.isInteger(n) || n <= 0) throw new Error('PID non valido');
+    const fn = mode === 'terminate' ? 'pg_terminate_backend' : 'pg_cancel_backend';
+    const sql = `SELECT ${fn}(${n});`;
+    const out = await this._pgRun(id, group, `-At -c ${shellQuote(sql)}`);
+    return String(out).trim().startsWith('t');
+  }
+
+  /**
    * Elenca tutti i database PostgreSQL raggiungibili sulla macchina, sia quelli
    * installati sull'host sia quelli dentro container Docker basati su immagini
    * Postgres. Ritorna un elenco di gruppi:
@@ -1346,6 +1392,15 @@ function missingToolError(tool, hint) {
   );
 }
 
+/**
+ * Cita un valore come letterale SQL: gli apostrofi si raddoppiano. Con
+ * `standard_conforming_strings` attivo (predefinito) i backslash sono caratteri
+ * normali, quindi non serve altro.
+ */
+function sqlLiteral(v) {
+  return `'${String(v).replace(/'/g, "''")}'`;
+}
+
 function shellQuote(s) {
   return `'${String(s).replace(/'/g, `'\\''`)}'`;
 }
@@ -1360,6 +1415,50 @@ const PG_LIST_SQL =
   'SELECT datname, pg_catalog.pg_get_userbyid(datdba), ' +
   'pg_size_pretty(pg_database_size(datname)) ' +
   'FROM pg_database WHERE datistemplate = false ORDER BY datname;';
+
+/**
+ * SQL per le query in corso di UN database: una riga per connessione client che
+ * non è inattiva. Il nome del database entra come letterale SQL (`sqlLiteral`):
+ * psql non interpola le proprie variabili nei comandi passati con `-c`, quindi
+ * `:'db'` qui non funzionerebbe. La connessione resta quella predefinita, non
+ * il database osservato: se lo si guarda perché ha esaurito le connessioni,
+ * collegarsi proprio a lui potrebbe non riuscire.
+ * Le connessioni semplicemente `idle` sono escluse (sarebbero centinaia con un
+ * pool e non hanno una query da mostrare): il loro numero arriva da pgTotalsSql.
+ * Il testo della query è l'ultimo campo e ha gli spazi normalizzati, così una
+ * query su più righe resta su una riga sola e il parsing non si rompe.
+ * Richiede PostgreSQL 10 o superiore (`backend_type`).
+ */
+const pgActivitySql = (db) =>
+  'SELECT pid, ' +
+  "coalesce(datname,''), " +
+  "coalesce(usename,''), " +
+  "coalesce(state,''), " +
+  "coalesce(wait_event_type,''), " +
+  "coalesce(wait_event,''), " +
+  'coalesce(extract(epoch from (now()-query_start))::int,-1), ' +
+  'coalesce(extract(epoch from (now()-xact_start))::int,-1), ' +
+  'coalesce(extract(epoch from (now()-state_change))::int,-1), ' +
+  "array_to_string(pg_blocking_pids(pid),','), " +
+  "coalesce(host(client_addr),''), " +
+  "coalesce(application_name,''), " +
+  "regexp_replace(coalesce(query,''),'\\s+',' ','g') " +
+  'FROM pg_stat_activity ' +
+  'WHERE pid <> pg_backend_pid() ' +
+  "AND backend_type = 'client backend' " +
+  "AND state IS DISTINCT FROM 'idle' " +
+  `AND datname = ${sqlLiteral(db)} ` +
+  "ORDER BY (state='active') DESC, query_start NULLS LAST;";
+
+/**
+ * Riga riassuntiva: connessioni a quel database, di cui inattive, e limite
+ * globale dell'istanza (`max_connections` non è per database).
+ */
+const pgTotalsSql = (db) =>
+  "SELECT 'TOTALS|'||count(*)||'|'||count(*) FILTER (WHERE state='idle')" +
+  "||'|'||current_setting('max_connections') " +
+  'FROM pg_stat_activity ' +
+  `WHERE backend_type = 'client backend' AND datname = ${sqlLiteral(db)};`;
 
 // ---- Parsing dello stato di sistema ---------------------------------------
 
@@ -1509,6 +1608,47 @@ function parsePs(lines) {
 }
 
 /** Converte l'output `nome|proprietario|dimensione` di psql in oggetti. */
+/**
+ * Parsing dell'output di `pgActivity`. I campi sono separati da '|' e il testo
+ * della query è l'ultimo: si ricompone unendo il resto della riga, perché una
+ * query può contenere '|' (concatenazioni, operatori, stringhe).
+ */
+function parsePgActivity(out) {
+  const rows = [];
+  let totals = null;
+  String(out).split('\n').forEach((raw) => {
+    const line = raw.replace(/\r$/, '');
+    if (!line.trim()) return;
+    if (line.startsWith('TOTALS|')) {
+      const t = line.split('|');
+      totals = {
+        total: Number(t[1]) || 0,
+        idle: Number(t[2]) || 0,
+        max: Number(t[3]) || 0,
+      };
+      return;
+    }
+    const f = line.split('|');
+    if (f.length < 13) return;
+    rows.push({
+      pid: Number(f[0]) || 0,
+      database: f[1],
+      user: f[2],
+      state: f[3],
+      waitType: f[4],
+      waitEvent: f[5],
+      duration: Number(f[6]),
+      xactDuration: Number(f[7]),
+      stateDuration: Number(f[8]),
+      blockedBy: f[9] ? f[9].split(',').filter(Boolean).map(Number) : [],
+      client: f[10],
+      application: f[11],
+      query: f.slice(12).join('|').trim(),
+    });
+  });
+  return { rows, totals };
+}
+
 function parsePgList(out) {
   return String(out)
     .split('\n')
