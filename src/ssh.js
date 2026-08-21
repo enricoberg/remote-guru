@@ -201,8 +201,11 @@ class SshManager {
         name: e.filename,
         isDir,
         isLink,
+        // eseguibile: almeno un bit x (utente, gruppo o altri) e non è una cartella
+        isExec: !isDir && (m & 0o111) !== 0,
         size: e.attrs.size,
         mtime: e.attrs.mtime,
+        mode: m & 0o7777,
         longname: e.longname,
       };
     });
@@ -211,6 +214,11 @@ class SshManager {
       return a.name.localeCompare(b.name);
     });
     return { cwd: abs, entries };
+  }
+
+  /** Rende eseguibile un file (sudo chmod 777): utile per gli script .sh. */
+  async makeExecutable(id, remotePath) {
+    return this.sudoExec(id, `chmod 777 ${shellQuote(remotePath)}`);
   }
 
   /** Risolve un path relativo rispetto alla cwd in path assoluto. */

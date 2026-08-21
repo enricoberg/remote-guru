@@ -148,6 +148,8 @@ ipcMain.handle('ssh:copy', (_e, { id, src, destDir, isDir }) =>
   ssh.copyRemote(id, src, destDir, isDir)
 );
 
+ipcMain.handle('ssh:makeExecutable', (_e, { id, path: p }) => ssh.makeExecutable(id, p));
+
 ipcMain.handle('ssh:createFile', (_e, { id, path: p }) => ssh.createFile(id, p));
 
 ipcMain.handle('ssh:readFile', (_e, { id, path: p }) => ssh.readFile(id, p));

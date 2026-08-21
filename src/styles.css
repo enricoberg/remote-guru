@@ -359,6 +359,9 @@ html, body {
 .ll-entry .ico { width: 16px; }
 .ll-entry.dir .nm { color: var(--accent); cursor: pointer; text-decoration: underline; }
 .ll-entry.link .nm { color: var(--yellow); }
+/* file eseguibili: nome in verde (come `ls --color`) per distinguerli a vista */
+.ll-entry.exec .nm { color: var(--green); font-weight: 600; }
+.ll-entry.exec .ico { color: var(--green); }
 .ll-entry .sz { color: var(--muted); margin-left: auto; }
 .ll-newfile .newfile-input {
   flex: 1; background: var(--bg); border: 1px solid var(--accent); color: var(--text);

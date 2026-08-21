@@ -1130,11 +1130,14 @@ function newFilePrompt(tab, cwd) {
 }
 
 function makeEntry(tab, entry, cwd) {
-  const row = el('div', 'll-entry' + (entry.isDir ? ' dir' : '') + (entry.isLink ? ' link' : ''));
+  const row = el('div', 'll-entry' + (entry.isDir ? ' dir' : '') + (entry.isLink ? ' link' : '')
+    + (entry.isExec ? ' exec' : ''));
   const ico = el('span', 'ico');
   ico.innerHTML = entry.isDir
     ? '<i class="fa-solid fa-folder"></i>'
-    : entry.isLink ? '<i class="fa-solid fa-link"></i>' : '<i class="fa-solid fa-file"></i>';
+    : entry.isLink ? '<i class="fa-solid fa-link"></i>'
+    : entry.isExec ? '<i class="fa-solid fa-gears"></i>'
+    : '<i class="fa-solid fa-file"></i>';
   const nm = el('span', 'nm');
   nm.textContent = entry.name;
   const sz = el('span', 'sz');
@@ -3181,6 +3184,14 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd) {
       label: i18n.t('edit_with_editor'),
       action: () => openEmbeddedEditor(tab, entry, fullPath),
     });
+    if (isScriptFile(entry.name)) {
+      items.push({
+        icon: 'fa-solid fa-gears',
+        label: i18n.t('make_executable'),
+        disabled: !!entry.isExec,
+        action: () => makeExecutable(tab, entry, fullPath),
+      });
+    }
     items.push({
       icon: 'fa-solid fa-pen-to-square',
       label: i18n.t('edit'),
@@ -3437,6 +3448,20 @@ function openContextMenu(x, y, items) {
 
 function hideContextMenu() {
   $('#ctx-menu').classList.add('hidden');
+}
+
+/** True per i file che hanno senso rendere eseguibili (script di shell). */
+function isScriptFile(name) {
+  return /\.(sh|bash|zsh|ksh|run)$/i.test(name || '');
+}
+
+/** Rende eseguibile uno script (sudo chmod 777) e ricarica il listing. */
+async function makeExecutable(tab, entry, fullPath) {
+  try {
+    await window.api.makeExecutable(tab.id, fullPath);
+    toast(i18n.t('made_executable', { name: entry.name }));
+    showListing(tab, tab.cwd);
+  } catch (e) { toast(i18n.t('generic_error', { error: e.message }), true); }
 }
 
 async function deleteEntry(tab, entry, fullPath) {

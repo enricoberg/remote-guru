@@ -303,6 +303,22 @@
     "de": "Bearbeiten",
     "pt": "Editar"
   },
+  "make_executable": {
+    "it": "Rendi eseguibile",
+    "en": "Make executable",
+    "es": "Hacer ejecutable",
+    "fr": "Rendre exécutable",
+    "de": "Ausführbar machen",
+    "pt": "Tornar executável"
+  },
+  "made_executable": {
+    "it": "{name} è ora eseguibile",
+    "en": "{name} is now executable",
+    "es": "{name} ahora es ejecutable",
+    "fr": "{name} est maintenant exécutable",
+    "de": "{name} ist jetzt ausführbar",
+    "pt": "{name} agora é executável"
+  },
   "edit_with_editor": {
     "it": "Modifica con editor",
     "en": "Edit with editor",
