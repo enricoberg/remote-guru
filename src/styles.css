@@ -379,6 +379,12 @@ html, body {
 /* indicatore di lettura in corso: visibile solo mentre l'overlay è in caricamento */
 .ll-spin { display: none; color: var(--accent); padding: 2px 4px; }
 .ll-overlay.ll-loading .ll-spin { display: inline-block; }
+/* pannello mostrato subito, in attesa dei dati: intestazione con spinner */
+.ov-pending .ll-head { color: var(--accent); }
+.ov-pending .ll-head .fa-circle-notch { margin-right: 4px; }
+/* spinner aggiunto all'intestazione durante l'aggiornamento di un pannello già aperto */
+.ov-spin { color: var(--accent); padding: 2px 4px; }
+.mon-notice .fa-circle-notch { color: var(--accent); margin-right: 6px; }
 /* righe segnaposto mostrate subito, in attesa della risposta SFTP */
 .ll-skeleton {
   height: 13px; margin: 4px; border-radius: 4px; opacity: 0.6;

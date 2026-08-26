@@ -1250,7 +1250,7 @@ async function showListing(tab, dir, opts = {}) {
   const target = dir || tab.cwd;
   // ogni richiesta ha un numero progressivo: se ne parte una più recente
   // (navigazione rapida fra cartelle) la risposta arretrata viene scartata
-  const seq = tab.llSeq = (tab.llSeq || 0) + 1;
+  const seq = bumpOverlaySeq(tab);
 
   if (opts.fresh) invalidateListing(tab.id, target);
   const cached = listingCache.get(listingKey(tab.id, target));
@@ -1265,14 +1265,14 @@ async function showListing(tab, dir, opts = {}) {
   try {
     res = await window.api.listDir(tab.id, target);
   } catch (e) {
-    if (seq === tab.llSeq) {
+    if (seq === tab.ovSeq) {
       // se non c'era nulla da mostrare togli lo scheletro, altrimenti resta il contenuto vecchio
       if (skeleton) { const ov = tab.hostEl.querySelector('.ll-overlay.ll-files'); if (ov) ov.remove(); }
       else stopListingSpinner(tab);
     }
     return toast(i18n.t('listing_error', { error: e.message }), true);
   }
-  if (seq !== tab.llSeq) return; // sorpassata da una richiesta più recente
+  if (seq !== tab.ovSeq) return; // sorpassata da una richiesta più recente
 
   res.sig = listingSig(res);
   cacheListing(tab.id, res.cwd, res);
@@ -1328,7 +1328,7 @@ function makeListingHead(tab, cwd, count, overlay) {
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
   closeBtn.title = 'Chiudi';
   // il numero di richiesta avanza: una lettura ancora in volo non riapre il pannello
-  closeBtn.addEventListener('click', () => { tab.llSeq = (tab.llSeq || 0) + 1; overlay.remove(); });
+  closeBtn.addEventListener('click', () => { bumpOverlaySeq(tab); overlay.remove(); });
   actions.appendChild(spin);
   actions.appendChild(searchBtn);
   actions.appendChild(closeBtn);
@@ -1367,6 +1367,76 @@ function renderListingSkeleton(tab, dir) {
   overlay.appendChild(makeListingHead(tab, dir, null, overlay));
   for (let i = 0; i < 8; i++) overlay.appendChild(el('div', 'll-skeleton'));
   endListingOverlay(tab, overlay, dir);
+}
+
+/**
+ * Numero progressivo condiviso da tutti i pannelli in fondo alla scheda.
+ * Ogni apertura lo fa avanzare: la risposta di una lettura ancora in volo trova
+ * un numero diverso e viene scartata, così un pannello chiuso (o sostituito da
+ * un altro) non ricompare più a sorpresa.
+ */
+function bumpOverlaySeq(tab) {
+  return tab.ovSeq = (tab.ovSeq || 0) + 1;
+}
+
+/**
+ * Apre subito il pannello, senza aspettare la rete: mostra il messaggio di
+ * attesa (es. "Lettura container Docker…") con lo spinner che gira e qualche
+ * riga segnaposto. Chi chiama sostituisce l'overlay quando arrivano i dati.
+ *
+ * Restituisce `alive()` (vero se nel frattempo nessuno ha aperto o chiuso altro)
+ * e `remove()` per togliere il segnaposto in caso di errore.
+ */
+function openPendingOverlay(tab, message, opts = {}) {
+  const { cls = 'docker-overlay', panel = null } = opts;
+  const seq = bumpOverlaySeq(tab);
+  const old = tab.hostEl.querySelector('.ll-overlay');
+
+  // aggiornamento dello stesso pannello (pulsante "Aggiorna"): il contenuto
+  // resta a schermo, si accende solo lo spinner nell'intestazione
+  if (old && panel && old.dataset.panel === panel) {
+    const acts = old.querySelector('.ll-head-actions');
+    let spin = acts && acts.querySelector('.ov-spin');
+    if (acts && !spin) {
+      spin = el('span', 'ov-spin');
+      spin.innerHTML = '<i class="fa-solid fa-circle-notch fa-spin"></i>';
+      acts.insertBefore(spin, acts.firstChild);
+    }
+    return {
+      alive: () => tab.ovSeq === seq,
+      remove: () => { if (tab.ovSeq === seq && spin) spin.remove(); },
+    };
+  }
+
+  if (old) old.remove();
+
+  const overlay = el('div', 'll-overlay ov-pending ' + cls);
+  const grip = el('div', 'll-resize');
+  overlay.appendChild(grip);
+  setupOverlayResize(grip, overlay, tab);
+  if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+
+  const head = el('div', 'll-head');
+  const info = el('span');
+  info.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${escapeHtml(message)}`;
+  const actions = el('span', 'll-head-actions');
+  const closeBtn = el('button');
+  closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
+  closeBtn.title = i18n.t('tf_close');
+  // il numero avanza: la lettura in corso non riaprirà il pannello
+  closeBtn.addEventListener('click', () => { bumpOverlaySeq(tab); overlay.remove(); });
+  actions.appendChild(closeBtn);
+  head.appendChild(info);
+  head.appendChild(actions);
+  overlay.appendChild(head);
+
+  for (let i = 0; i < 6; i++) overlay.appendChild(el('div', 'll-skeleton'));
+
+  tab.hostEl.appendChild(overlay);
+  return {
+    alive: () => tab.ovSeq === seq,
+    remove: () => { if (tab.ovSeq === seq) overlay.remove(); },
+  };
 }
 
 /** Permette di ridimensionare verticalmente il pannello file browser trascinando la maniglia in alto. */
@@ -2034,19 +2104,24 @@ async function uploadLocalPaths(tab, destDir, paths) {
 // ============================================================================
 
 async function showDocker(tab) {
+  // il pannello compare subito con lo spinner, i dati arrivano dopo
+  const pending = openPendingOverlay(tab, i18n.t('listing_loading'),
+    { cls: 'docker-overlay containers-overlay', panel: 'docker' });
   let containers;
   try {
-    toast(i18n.t('listing_loading'));
     containers = await window.api.dockerPs(tab.id);
   } catch (e) {
+    pending.remove();
     return toast(i18n.t('docker_action_error', { action: 'Docker', error: e.message }), true);
   }
+  if (!pending.alive()) return; // pannello chiuso o sostituito nel frattempo
 
   // riusa lo stesso overlay del file browser
   const old = tab.hostEl.querySelector('.ll-overlay');
   if (old) old.remove();
 
   const overlay = el('div', 'll-overlay docker-overlay containers-overlay');
+  overlay.dataset.panel = 'docker'; // permette all'aggiornamento di riusare il pannello
   const grip = el('div', 'll-resize');
   overlay.appendChild(grip);
   setupOverlayResize(grip, overlay, tab);
@@ -2215,19 +2290,23 @@ function makeDockerRow(tab, c) {
 // ---- Database (PostgreSQL) --------------------------------------------------
 
 async function showDatabases(tab) {
+  const pending = openPendingOverlay(tab, i18n.t('listing_databases'),
+    { cls: 'docker-overlay containers-overlay', panel: 'databases' });
   let groups;
   try {
-    toast(i18n.t('listing_databases'));
     groups = await window.api.pgList(tab.id);
   } catch (e) {
+    pending.remove();
     return toast(i18n.t('db_action_error', { error: e.message }), true);
   }
+  if (!pending.alive()) return;
 
   // riusa lo stesso overlay di docker/file browser
   const old = tab.hostEl.querySelector('.ll-overlay');
   if (old) old.remove();
 
   const overlay = el('div', 'll-overlay docker-overlay containers-overlay');
+  overlay.dataset.panel = 'databases'; // permette all'aggiornamento di riusare il pannello
   const grip = el('div', 'll-resize');
   overlay.appendChild(grip);
   setupOverlayResize(grip, overlay, tab);
@@ -2417,6 +2496,7 @@ async function showPgActivity(tab, d, group) {
   // al main serve solo l'indirizzo dell'istanza, non l'elenco dei database
   const src = { source: group.source, container: group.container, user: group.user };
 
+  bumpOverlaySeq(tab);
   const old = tab.hostEl.querySelector('.ll-overlay');
   if (old) old.remove();
 
@@ -2731,6 +2811,7 @@ async function dbRestore(tab, d, group, btn) {
  * altrimenti si accede come utente di sistema `postgres` sull'host.
  */
 function openPsql(tab, d, group) {
+  bumpOverlaySeq(tab);
   const ov = tab.hostEl.querySelector('.ll-overlay');
   if (ov) ov.remove();
   tab.term.focus();
@@ -2771,6 +2852,7 @@ function returnToHostShell(tab) {
 async function dockerAction(tab, action, c, btn) {
   // i log vanno mostrati live nel terminale (come cat/grep)
   if (action === 'logs') {
+    bumpOverlaySeq(tab);
     const ov = tab.hostEl.querySelector('.ll-overlay');
     if (ov) ov.remove();
     tab.term.focus();
@@ -2786,6 +2868,7 @@ async function dockerAction(tab, action, c, btn) {
 
   // Shell: entra nel container nel terminale (docker exec -it ... bash/sh)
   if (action === 'shell') {
+    bumpOverlaySeq(tab);
     const ov = tab.hostEl.querySelector('.ll-overlay');
     if (ov) ov.remove();
     tab.term.focus();
@@ -2849,21 +2932,24 @@ function openContainerBrowser(tab, c, btn) {
 // ============================================================================
 
 async function showImages(tab) {
+  const pending = openPendingOverlay(tab, i18n.t('images_loading'), { panel: 'images' });
   let composeImgs, localImgs;
   try {
-    toast(i18n.t('listing_loading'));
     [composeImgs, localImgs] = await Promise.all([
       window.api.composeImages(tab.id),
       window.api.listImages(tab.id),
     ]);
   } catch (e) {
+    pending.remove();
     return toast(i18n.t('docker_action_error', { action: 'Immagini', error: e.message }), true);
   }
+  if (!pending.alive()) return;
 
   const old = tab.hostEl.querySelector('.ll-overlay');
   if (old) old.remove();
 
   const overlay = el('div', 'll-overlay docker-overlay');
+  overlay.dataset.panel = 'images'; // permette all'aggiornamento di riusare il pannello
   const grip = el('div', 'll-resize');
   overlay.appendChild(grip);
   setupOverlayResize(grip, overlay, tab);
@@ -3073,18 +3159,21 @@ async function imageAction(tab, action, img, btn) {
 // ============================================================================
 
 async function showScreens(tab) {
+  const pending = openPendingOverlay(tab, i18n.t('screens_loading'), { panel: 'screens' });
   let screens;
   try {
-    toast(i18n.t('listing_loading'));
     screens = await window.api.screenList(tab.id);
   } catch (e) {
+    pending.remove();
     return toast(i18n.t('docker_action_error', { action: 'Screen', error: e.message }), true);
   }
+  if (!pending.alive()) return;
 
   const old = tab.hostEl.querySelector('.ll-overlay');
   if (old) old.remove();
 
   const overlay = el('div', 'll-overlay docker-overlay');
+  overlay.dataset.panel = 'screens'; // permette all'aggiornamento di riusare il pannello
   const grip = el('div', 'll-resize');
   overlay.appendChild(grip);
   setupOverlayResize(grip, overlay, tab);
@@ -3212,6 +3301,7 @@ async function createScreen(tab, name, input) {
 /** Entra nello screen nel terminale. `-d -r` lo stacca da eventuali altre
  *  sessioni e lo riattacca qui, evitando l'errore "Attached elsewhere". */
 function enterScreen(tab, s) {
+  bumpOverlaySeq(tab);
   const ov = tab.hostEl.querySelector('.ll-overlay');
   if (ov) ov.remove();
   tab.term.clear();
@@ -3402,19 +3492,22 @@ function humanizeCron(schedule) {
 }
 
 async function showCrontab(tab) {
+  const pending = openPendingOverlay(tab, i18n.t('crontab_loading'), { panel: 'crontab' });
   let text;
   try {
-    toast(i18n.t('listing_loading'));
     text = await window.api.cronRead(tab.id);
   } catch (e) {
+    pending.remove();
     return toast(i18n.t('cron_error', { error: e.message }), true);
   }
+  if (!pending.alive()) return;
   const { lines, jobs } = parseCrontab(text);
 
   const old = tab.hostEl.querySelector('.ll-overlay');
   if (old) old.remove();
 
   const overlay = el('div', 'll-overlay docker-overlay');
+  overlay.dataset.panel = 'crontab'; // permette all'aggiornamento di riusare il pannello
   const grip = el('div', 'll-resize');
   overlay.appendChild(grip);
   setupOverlayResize(grip, overlay, tab);
@@ -3815,6 +3908,7 @@ function levelClass(v) {
  */
 async function showMonitor(tab) {
   // chiudi eventuali overlay già aperti (listing / docker / monitor precedente)
+  bumpOverlaySeq(tab);
   const old = tab.hostEl.querySelector('.ll-overlay');
   if (old) old.remove();
 
@@ -3842,7 +3936,7 @@ async function showMonitor(tab) {
   overlay.appendChild(head);
 
   const notice = el('div', 'mon-notice');
-  notice.textContent = i18n.t('monitor_loading');
+  notice.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${escapeHtml(i18n.t('monitor_loading'))}`;
   overlay.appendChild(notice);
 
   const body = el('div', 'mon-body hidden');
@@ -4382,6 +4476,7 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd, row) {
       icon: 'fa-solid fa-pen-to-square',
       label: i18n.t('edit'),
       action: () => {
+        bumpOverlaySeq(tab);
         const ov = tab.hostEl.querySelector('.ll-overlay');
         if (ov) ov.remove();
         tab.term.focus();
@@ -4510,17 +4605,20 @@ function detectEditorMode(name, content) {
  * "Salva ed esci" e "Esci senza salvare".
  */
 async function openEmbeddedEditor(tab, entry, fullPath) {
-  // chiudi eventuali overlay aperti (listing / docker / editor precedente)
-  const old = tab.hostEl.querySelector('.ll-overlay');
-  if (old) old.remove();
+  // il pannello dell'editor compare subito, il contenuto arriva via SFTP
+  const pending = openPendingOverlay(tab, i18n.t('editor_loading', { name: entry.name }));
 
   let content;
   try {
-    toast(i18n.t('editor_loading', { name: entry.name }));
     content = await window.api.readFile(tab.id, fullPath);
   } catch (e) {
+    pending.remove();
     return toast(i18n.t('generic_error', { error: e.message }), true);
   }
+  if (!pending.alive()) return;
+
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  if (old) old.remove();
 
   const overlay = el('div', 'll-overlay editor-overlay');
   const grip = el('div', 'll-resize');

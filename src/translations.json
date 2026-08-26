@@ -223,6 +223,30 @@
     "de": "Lese Docker-Container…",
     "pt": "Lendo contêineres Docker…"
   },
+  "images_loading": {
+    "it": "Lettura immagini Docker…",
+    "en": "Reading Docker images…",
+    "es": "Leyendo imágenes Docker…",
+    "fr": "Lecture des images Docker…",
+    "de": "Lese Docker-Images…",
+    "pt": "Lendo imagens Docker…"
+  },
+  "screens_loading": {
+    "it": "Lettura sessioni screen…",
+    "en": "Reading screen sessions…",
+    "es": "Leyendo sesiones de screen…",
+    "fr": "Lecture des sessions screen…",
+    "de": "Lese Screen-Sitzungen…",
+    "pt": "Lendo sessões screen…"
+  },
+  "crontab_loading": {
+    "it": "Lettura del crontab…",
+    "en": "Reading crontab…",
+    "es": "Leyendo el crontab…",
+    "fr": "Lecture du crontab…",
+    "de": "Lese Crontab…",
+    "pt": "A ler o crontab…"
+  },
   "listing_databases": {
     "it": "Lettura dei database…",
     "en": "Reading databases…",
