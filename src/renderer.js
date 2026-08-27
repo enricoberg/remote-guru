@@ -488,6 +488,8 @@ async function openConnection(server) {
     dead: false, inputBuffer: '',
     fontSize: TERM_FONT_DEFAULT, // zoom del carattere, per singola sessione
     termState: 'host', // 'host' | 'logs' | 'shell': stato del terminale per i comandi docker
+    // ripristino dopo una caduta di rete (vedi reconnectLoop)
+    closing: false, rcRunning: false, rcAuto: false, rcError: null, rcWake: null,
   };
   tabs.set(id, tab);
 
@@ -1176,6 +1178,8 @@ function fitAll() {
 async function closeTab(id) {
   const tab = tabs.get(id);
   if (!tab) return;
+  // se era in corso un ripristino va fermato prima di chiudere la sessione
+  stopReconnect(tab);
   await window.api.disconnect(id);
   tab.term.dispose();
   tab.paneEl.remove();
@@ -5361,14 +5365,282 @@ window.api.onDumpProgress((p) => {
   pgProgressHandlers.forEach((h) => h(p));
 });
 
-window.api.onClosed(({ id }) => {
+window.api.onClosed(({ id, clean, reason }) => {
   const tab = tabs.get(id);
-  if (tab) {
-    tab.dead = true;
-    tab.term.write(`\r\n\x1b[31m[${i18n.t('connection_closed')}]\x1b[0m\r\n`);
-    layout();
-  }
+  if (tab) handleSessionLost(tab, { clean, reason });
 });
+
+// ============================================================================
+// CADUTA DELLA CONNESSIONE E RIPRISTINO AUTOMATICO
+// ============================================================================
+//
+// Il rilevamento arriva da due parti, complementari:
+//  - la linea locale (`navigator.onLine` + eventi online/offline): immediato,
+//    copre wi-fi che cade e cavo staccato; riguarda tutte le sessioni insieme,
+//    quindi si mostra in una fascia in cima alla finestra;
+//  - la singola sessione SSH (`ssh:closed` dal main, che nasce dal keepalive di
+//    ssh2): copre anche i casi in cui la linea locale c'è ma il server non è
+//    più raggiungibile — VPN caduta, rotta persa, server riavviato.
+//
+// Senza il keepalive una caduta di rete lasciava il socket TCP aperto a tempo
+// indefinito: nessun evento, nessun errore, e l'app sembrava semplicemente
+// bloccata. Ora la scheda resta viva (il buffer del terminale non si perde), un
+// velo sopra il terminale dice cosa sta succedendo e la sessione viene riaperta
+// da sola con lo STESSO id (vedi `ssh.reconnect`), così schede, split, pannelli
+// e coda dei trasferimenti non hanno nulla da rimappare.
+//
+// Nota: quando la linea cade non si dichiarano subito morte le sessioni. Una
+// micro-interruzione (wi-fi che salta per due secondi) viene assorbita da TCP e
+// la sessione sopravvive: è il keepalive SSH a stabilire quando è davvero finita.
+
+/** Attesa fra un tentativo e il successivo; l'ultimo valore vale per tutti i successivi. */
+const RECONNECT_DELAYS = [1000, 2000, 4000, 8000, 15000, 30000];
+/** Dopo questi tentativi si smette da soli e resta il pulsante "Riprova adesso". */
+const RECONNECT_MAX_ATTEMPTS = 12;
+/**
+ * Ritardo prima di scrivere "connessione ripristinata" nel terminale: la shell
+ * nuova pulisce la schermata dopo ~300 ms (`_initCwd` in ssh.js) e cancellerebbe
+ * un messaggio scritto subito.
+ */
+const RECONNECT_BANNER_DELAY = 500;
+
+/**
+ * La sessione della scheda è caduta.
+ * `info.clean` = la shell remota è uscita da sé (`exit`, `logout`): riaprirla in
+ * automatico sarebbe sbagliato, si lascia solo il pulsante manuale. In tutti gli
+ * altri casi è un problema di rete o di trasporto e il ripristino parte da solo.
+ * @param {{clean:boolean, reason:string|null}} info
+ */
+function handleSessionLost(tab, info) {
+  if (tab.dead) return;
+  tab.dead = true;
+  tab.rcError = (info && info.reason) || null;
+  tab.rcAuto = !(info && info.clean);
+  tab.term.write(`\r\n\x1b[31m[${i18n.t('connection_closed')}]\x1b[0m\r\n`);
+  layout();
+  if (tab.rcAuto) reconnectLoop(tab);
+  else setReconnectState(tab, { phase: 'ended' });
+  updateNetBanner();
+}
+
+/**
+ * Ciclo di ripristino di una scheda: uno solo per scheda alla volta. Si ferma
+ * da sé se la scheda viene chiusa o se la sessione è tornata su per altra via.
+ */
+async function reconnectLoop(tab) {
+  if (tab.rcRunning || !tab.dead) return;
+  tab.rcRunning = true;
+  let attempt = 0;
+  try {
+    while (tab.dead && tabs.has(tab.id) && !tab.closing) {
+      if (!navigator.onLine) {
+        // senza linea ogni tentativo fallirebbe subito: si aspetta che torni e
+        // si riparte dal primo tentativo (attese brevi, non da fondo scala)
+        setReconnectState(tab, { phase: 'offline' });
+        await waitForOnline();
+        attempt = 0;
+        continue;
+      }
+      attempt++;
+      setReconnectState(tab, { phase: 'trying', attempt });
+      try {
+        const res = await window.api.reconnect(tab.id);
+        if (!tabs.has(tab.id) || tab.closing) return;
+        onSessionRestored(tab, res);
+        return;
+      } catch (e) {
+        tab.rcError = e.message || String(e);
+      }
+      if (!tab.dead || !tabs.has(tab.id) || tab.closing) return;
+      if (attempt >= RECONNECT_MAX_ATTEMPTS) {
+        setReconnectState(tab, { phase: 'giveup' });
+        return; // il ripristino riparte a mano o quando la linea torna su
+      }
+      const wait = RECONNECT_DELAYS[Math.min(attempt - 1, RECONNECT_DELAYS.length - 1)];
+      setReconnectState(tab, { phase: 'waiting', wait });
+      await reconnectWait(tab, wait);
+    }
+  } finally {
+    tab.rcRunning = false;
+  }
+}
+
+/** Attesa interrompibile: `reconnectNow` la fa terminare in anticipo. */
+function reconnectWait(tab, ms) {
+  return new Promise((resolve) => {
+    tab.rcWake = () => {
+      clearTimeout(timer);
+      tab.rcWake = null;
+      resolve();
+    };
+    const timer = setTimeout(() => tab.rcWake && tab.rcWake(), ms);
+  });
+}
+
+/** Tentativo immediato: pulsante sul velo, oppure linea appena tornata su. */
+function reconnectNow(tab) {
+  if (!tab.dead || tab.closing) return;
+  tab.rcAuto = true;
+  if (tab.rcWake) return void tab.rcWake(); // il ciclo sta aspettando: lo si sveglia
+  if (!tab.rcRunning) reconnectLoop(tab);   // aveva rinunciato (o non era partito)
+}
+
+/** Ferma il ripristino di una scheda (chiusura della scheda). */
+function stopReconnect(tab) {
+  tab.closing = true;
+  if (tab.rcWake) tab.rcWake();
+}
+
+/** La sessione è tornata su: si riallinea quel poco che dipende dalla shell remota. */
+function onSessionRestored(tab, res) {
+  tab.dead = false;
+  tab.rcError = null;
+  const ov = tab.hostEl.querySelector('.net-lost');
+  if (ov) ov.remove();
+  tab.rcMsgEl = tab.rcErrEl = tab.rcRetryEl = null;
+
+  if (res && res.cwd) {
+    tab.cwd = res.cwd;
+    if (tab.cwdEl) tab.cwdEl.textContent = res.cwd;
+  }
+  // shell nuova: nessuno screen agganciato, nessun comando docker in corso
+  tab.termState = 'host';
+  hideScreenBar(tab);
+  // La shell appena aperta pulisce la schermata poco dopo l'apertura (vedi
+  // `_initCwd` in ssh.js): scrivendo subito, la riga verrebbe cancellata.
+  setTimeout(() => {
+    if (tabs.get(tab.id) === tab && !tab.dead) {
+      tab.term.write(`\r\n\x1b[32m[${i18n.t('connection_restored')}]\x1b[0m\r\n`);
+    }
+  }, RECONNECT_BANNER_DELAY);
+  layout();
+  // la shell appena aperta non conosce la geometria del terminale
+  try { tab.fit.fit(); } catch (_) {}
+  window.api.resize(tab.id, tab.term.cols, tab.term.rows);
+  // i listing in cache sono di prima della caduta: possono essere obsoleti
+  invalidateListing(tab.id);
+  if (tab.hostEl.querySelector('.ll-overlay.ll-files')) showListing(tab, tab.cwd, { fresh: true });
+  updateNetBanner();
+  toast(i18n.t('net_reconnected', { name: tab.server.nickname || tab.server.name || tab.server.host }));
+}
+
+// ---------- Velo sopra il terminale della scheda caduta ----------
+
+/**
+ * Il velo è semitrasparente: quello che c'era nel terminale resta leggibile
+ * dietro, così non si perde il contesto di quello che si stava facendo.
+ */
+function reconnectOverlay(tab) {
+  const existing = tab.hostEl.querySelector('.net-lost');
+  // riusato solo se i riferimenti ai suoi nodi sono ancora validi
+  if (existing && tab.rcMsgEl && tab.rcMsgEl.isConnected) return existing;
+  if (existing) existing.remove();
+
+  const ov = el('div', 'net-lost');
+  const box = el('div', 'net-lost-box');
+  const icon = el('i', 'net-lost-icon fa-solid fa-plug-circle-xmark');
+  const title = el('div', 'net-lost-title');
+  title.textContent = i18n.t('net_session_lost');
+  const msg = el('div', 'net-lost-msg');
+  const err = el('div', 'net-lost-err');
+
+  const actions = el('div', 'net-lost-actions');
+  const retry = el('button', 'btn btn-primary btn-sm');
+  retry.innerHTML = `<i class="fa-solid fa-arrows-rotate"></i> ${i18n.t('net_retry_now')}`;
+  retry.addEventListener('click', () => reconnectNow(tab));
+  const close = el('button', 'btn btn-sm');
+  close.innerHTML = `<i class="fa-solid fa-xmark"></i> ${i18n.t('close_session')}`;
+  close.addEventListener('click', () => closeTab(tab.id));
+  actions.appendChild(retry);
+  actions.appendChild(close);
+
+  [icon, title, msg, err, actions].forEach((n) => box.appendChild(n));
+  ov.appendChild(box);
+  tab.hostEl.appendChild(ov);
+  tab.rcMsgEl = msg;
+  tab.rcErrEl = err;
+  tab.rcRetryEl = retry;
+  return ov;
+}
+
+/** Testo del velo per la fase corrente del ripristino. */
+function setReconnectState(tab, st) {
+  reconnectOverlay(tab);
+  const busy = st.phase === 'trying';
+  tab.rcRetryEl.disabled = busy;
+  tab.rcRetryEl.classList.toggle('spinning', busy);
+
+  const text = {
+    offline: () => i18n.t('net_waiting_line'),
+    trying: () => i18n.t('net_attempt', { n: st.attempt, max: RECONNECT_MAX_ATTEMPTS }),
+    waiting: () => i18n.t('net_next_attempt', { s: Math.round(st.wait / 1000) }),
+    giveup: () => i18n.t('net_giveup'),
+    ended: () => i18n.t('net_session_ended'),
+  }[st.phase];
+  tab.rcMsgEl.textContent = text ? text() : '';
+
+  // il motivo tecnico della caduta serve solo se c'è (e non nella fase iniziale)
+  tab.rcErrEl.textContent = st.phase === 'ended' ? '' : (tab.rcError || '');
+  tab.rcErrEl.classList.toggle('hidden', !tab.rcErrEl.textContent);
+  updateNetBanner();
+}
+
+// ---------- Stato della linea locale ----------
+
+/** Promise che si risolve quando la linea torna disponibile. */
+function waitForOnline() {
+  if (navigator.onLine) return Promise.resolve();
+  return new Promise((resolve) => {
+    const done = () => {
+      window.removeEventListener('online', done);
+      clearInterval(poll);
+      resolve();
+    };
+    // l'evento `online` non arriva sempre (cambio rete, VPN): si guarda anche a intervalli
+    const poll = setInterval(() => { if (navigator.onLine) done(); }, 2000);
+    window.addEventListener('online', done);
+  });
+}
+
+/** Fascia in cima alla finestra: linea assente, oppure ripristino in corso. */
+function updateNetBanner() {
+  const banner = $('#net-banner');
+  if (!banner) return;
+  // conta solo le schede in ripristino: una sessione chiusa con `exit` è morta
+  // ma non c'è nulla da riportare su, e nella fascia sarebbe fuorviante
+  const lost = [...tabs.values()].filter((t) => t.dead && t.rcAuto).length;
+  const state = !navigator.onLine ? 'offline' : (lost ? 'restoring' : null);
+
+  const wasShown = !banner.classList.contains('hidden');
+  banner.classList.toggle('hidden', !state);
+  banner.classList.toggle('offline', state === 'offline');
+  banner.classList.toggle('restoring', state === 'restoring');
+  // la fascia toglie spazio alle viste: i terminali vanno riadattati
+  document.body.classList.toggle('net-warn', !!state);
+  if (wasShown !== !!state) setTimeout(fitAll, 0);
+  if (!state) return;
+
+  banner.querySelector('.net-banner-icon').className = state === 'offline'
+    ? 'net-banner-icon fa-solid fa-plug-circle-xmark'
+    : 'net-banner-icon fa-solid fa-arrows-rotate fa-spin';
+  banner.querySelector('.net-banner-text').textContent = state === 'offline'
+    ? i18n.t('net_offline', { count: lost })
+    : i18n.t('net_restoring', { count: lost });
+}
+
+function setupNetworkWatch() {
+  window.addEventListener('offline', () => {
+    updateNetBanner();
+    toast(i18n.t('net_offline_toast'), true);
+  });
+  window.addEventListener('online', () => {
+    updateNetBanner();
+    // la linea è di nuovo buona: si riprova subito, anche per le schede che
+    // avevano già esaurito i tentativi
+    tabs.forEach((tab) => { if (tab.dead && tab.rcAuto) reconnectNow(tab); });
+  });
+  updateNetBanner();
+}
 
 // ============================================================================
 // UTILITY
@@ -5993,6 +6265,8 @@ window.addEventListener('DOMContentLoaded', async () => {
 
   setupEdgeSnap();
   setupTooltips();
+  // rilevamento caduta linea + ripristino automatico delle sessioni
+  setupNetworkWatch();
 
   // scorciatoie da tastiera: carica le associazioni salvate e disegna l'elenco
   setupShortcuts();

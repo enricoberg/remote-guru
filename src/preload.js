@@ -12,6 +12,8 @@ contextBridge.exposeInMainWorld('api', {
 
   // ssh
   connect: (server) => ipcRenderer.invoke('ssh:connect', server),
+  // riapre una sessione caduta mantenendone l'id (la scheda resta la stessa)
+  reconnect: (id) => ipcRenderer.invoke('ssh:reconnect', id),
   write: (id, data) => ipcRenderer.send('ssh:write', { id, data }),
   resize: (id, cols, rows) => ipcRenderer.send('ssh:resize', { id, cols, rows }),
   disconnect: (id) => ipcRenderer.invoke('ssh:disconnect', id),

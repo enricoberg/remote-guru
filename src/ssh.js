@@ -34,6 +34,13 @@ class SshManager {
   constructor() {
     /** @type {Map<string, Session>} */
     this.sessions = new Map();
+    /**
+     * Sessioni cadute per un problema di rete, non chiuse dall'utente.
+     * id -> { server, cb, cwd }: il minimo per riaprire la connessione con lo
+     * STESSO id, così per il renderer la scheda resta quella di prima.
+     * @type {Map<string, {server:object, cb:object, cwd:string}>}
+     */
+    this.zombies = new Map();
     this._seq = 0;
   }
 
@@ -41,12 +48,43 @@ class SshManager {
    * @param {object} server  voce di servers.json
    * @param {(id:string, data:string)=>void} onData   output della shell (già pulito dal marker CWD)
    * @param {(id:string, cwd:string)=>void} onCwd      aggiornamento della cwd corrente
-   * @param {(id:string)=>void} onClose
+   * @param {(id:string, info:{clean:boolean, reason:string|null})=>void} onClose
    * @returns {Promise<{id:string, cwd:string}>}
    */
   connect(server, onData, onCwd, onSty, onClose) {
+    const id = 's' + ++this._seq + '_' + Date.now();
+    return this._open(id, server, { onData, onCwd, onSty, onClose });
+  }
+
+  /**
+   * Riapre una sessione caduta riutilizzandone l'id. Per il renderer la scheda
+   * resta la stessa (nessun rimappaggio di id in tab, split, cache dei listing
+   * o coda dei trasferimenti); lato server invece è una shell nuova: si
+   * ripristina la cartella di lavoro, non il resto dello stato remoto.
+   * @returns {Promise<{id:string, cwd:string}>}
+   */
+  reconnect(id) {
+    const live = this.sessions.get(id);
+    if (live) return Promise.resolve({ id, cwd: live.cwd }); // già tornata su
+    const z = this.zombies.get(id);
+    if (!z) return Promise.reject(new Error('Sessione non ripristinabile: ' + id));
+    return this._open(id, z.server, z.cb, z.cwd);
+  }
+
+  /** True se la sessione è caduta ma può essere riaperta con lo stesso id. */
+  canReconnect(id) {
+    return this.zombies.has(id);
+  }
+
+  /**
+   * Apre connessione + shell PTY registrandole sull'id indicato.
+   * @param {string} id
+   * @param {object} server
+   * @param {{onData:Function,onCwd:Function,onSty:Function,onClose:Function}} cb
+   * @param {string} [restoreCwd] cartella in cui riposizionarsi (riconnessione)
+   */
+  _open(id, server, cb, restoreCwd) {
     return new Promise((resolve, reject) => {
-      const id = 's' + ++this._seq + '_' + Date.now();
       const client = new Client();
 
       const connConfig = {
@@ -54,7 +92,13 @@ class SshManager {
         port: server.port || 22,
         username: server.username,
         readyTimeout: 20000,
-        keepaliveInterval: 15000,
+        // Keepalive applicativo: senza, un cavo staccato o un wi-fi che cade
+        // lasciano il socket TCP aperto a tempo indefinito e la sessione sembra
+        // viva pur non rispondendo più (nessun evento, nessun errore: l'app si
+        // "blocca"). Con questi valori la caduta emerge entro ~30 secondi come
+        // errore sul client, che qui diventa una chiusura di sessione.
+        keepaliveInterval: 10000,
+        keepaliveCountMax: 3,
       };
 
       if (server.usePem) {
@@ -72,46 +116,82 @@ class SshManager {
         connConfig.password = server.password || '';
       }
 
+      /** @type {Session|null} */
+      let session = null;
+      let settled = false; // promise già risolta o rifiutata
+      let closed = false;  // chiusura già notificata al renderer
+
+      // `exit` sul canale arriva solo se è il server a dirci che la shell è
+      // finita (`exit`, `logout`, kill del processo). Distingue una chiusura
+      // voluta da una caduta della rete, dove il canale muore senza preavviso.
+      let shellExited = false;
+
+      /**
+       * Punto unico di uscita: `error`, `close` ed `end` del client e `close`
+       * dello stream possono arrivare tutti insieme per la stessa caduta.
+       * Prima che la shell sia pronta è un errore di connessione (rifiuta la
+       * promise); dopo è una sessione caduta (notifica e diventa riapribile).
+       */
+      const die = (err) => {
+        if (!session) {
+          if (!settled) {
+            settled = true;
+            reject(err || new Error('Connessione interrotta'));
+          }
+          return;
+        }
+        if (closed) return;
+        closed = true;
+        // chiusura voluta (disconnect) o sessione già rimpiazzata da una
+        // riconnessione riuscita: questa è la vecchia, non deve toccare nulla
+        if (this.sessions.get(id) !== session) return;
+        this.sessions.delete(id);
+        // il descrittore resta a disposizione di `reconnect`
+        this.zombies.set(id, { server, cb, cwd: session.cwd });
+        try { client.end(); } catch (_) {}
+        cb.onClose(id, { clean: shellExited && !err, reason: err ? err.message : null });
+      };
+
       client.on('ready', () => {
         client.shell({ term: 'xterm-256color' }, (err, stream) => {
           if (err) {
-            client.end();
+            try { client.end(); } catch (_) {}
+            settled = true;
             return reject(err);
           }
 
-          const session = new Session(id, client, stream, server);
+          session = new Session(id, client, stream, server);
+          if (restoreCwd) session.cwd = restoreCwd;
           this.sessions.set(id, session);
+          this.zombies.delete(id);
 
           // Stream della shell: estraiamo il marker CWD e inoltriamo il resto al renderer.
           stream.on('data', (chunk) => {
             const { clean, cwd, sty, styFound } = session.extractMarkers(chunk.toString('utf8'));
             if (cwd && cwd !== session.cwd) {
               session.cwd = cwd;
-              onCwd(id, cwd);
+              cb.onCwd(id, cwd);
             }
             // emesso ad ogni prompt: STY vuoto = shell esterna, valorizzato = dentro screen
-            if (styFound) onSty(id, sty);
-            if (clean.length) onData(id, clean);
+            if (styFound) cb.onSty(id, sty);
+            if (clean.length) cb.onData(id, clean);
           });
-          stream.stderr.on('data', (chunk) => onData(id, chunk.toString('utf8')));
+          stream.stderr.on('data', (chunk) => cb.onData(id, chunk.toString('utf8')));
 
-          stream.on('close', () => {
-            this.sessions.delete(id);
-            try { client.end(); } catch (_) {}
-            onClose(id);
-          });
+          stream.on('exit', () => { shellExited = true; });
+          stream.on('close', () => die());
 
           // Ricaviamo la home come cwd iniziale e installiamo l'emettitore di CWD.
-          this._initCwd(session);
+          this._initCwd(session, restoreCwd);
 
+          settled = true;
           resolve({ id, cwd: session.cwd });
         });
       });
 
-      client.on('error', (err) => {
-        if (!this.sessions.has(id)) reject(err);
-        else onClose(id);
-      });
+      client.on('error', (err) => die(err));
+      client.on('close', () => die());
+      client.on('end', () => die());
 
       client.connect(connConfig);
     });
@@ -120,8 +200,16 @@ class SshManager {
   /**
    * Configura la shell affinché emetta la cwd dopo ogni prompt tramite un marker
    * invisibile (OSC custom 1337;CWD=...). Funziona sia con bash che con zsh.
+   * @param {string} [restoreCwd] dopo una riconnessione, la cartella in cui si
+   *   trovava la sessione caduta: ci si torna se esiste ancora.
    */
-  _initCwd(session) {
+  _initCwd(session, restoreCwd) {
+    // cartella di partenza: quella di prima (riconnessione), poi /opt, poi la root
+    const cdChain = [
+      restoreCwd && restoreCwd !== '~' ? `cd ${shellQuote(restoreCwd)} 2>/dev/null` : null,
+      'cd /opt 2>/dev/null',
+      'cd /',
+    ].filter(Boolean).join(' || ');
     const marker =
       `__RG() { printf '\\033]1337;CWD=%s\\007' "$PWD"; printf '\\033]1337;STY=%s\\007' "$STY"; }; ` +
       `PROMPT_COMMAND="__RG;$PROMPT_COMMAND"; ` +
@@ -129,9 +217,12 @@ class SshManager {
       `else export IGNOREEOF=1; fi; ` +
       // ^ evita che un Ctrl-D accidentale (es. durante il detach da screen)
       //   chiuda la shell e quindi la connessione SSH.
-      // cartella di partenza: /opt se esiste, altrimenti la root
-      `cd /opt 2>/dev/null || cd /; ` +
-      `__RG; clear\n`;
+      `${cdChain}; ` +
+      // Alla prima connessione `clear` ripulisce anche lo scrollback: va bene,
+      // non c'era nulla. Dopo una riconnessione invece lo scrollback contiene
+      // quello che si stava facendo prima della caduta, quindi si pulisce solo
+      // la schermata (CUP + ED2) lasciando la cronologia scorribile.
+      `__RG; ${restoreCwd ? `printf '\\033[H\\033[2J'` : 'clear'}\n`;
     // piccolo ritardo per far stabilizzare il prompt iniziale
     setTimeout(() => {
       try { session.stream.write(marker); } catch (_) {}
@@ -153,6 +244,8 @@ class SshManager {
   }
 
   disconnect(id) {
+    // chiusura voluta dall'utente: nessuna riconnessione automatica
+    this.zombies.delete(id);
     const s = this.sessions.get(id);
     if (!s) return;
     try { s.stream.end(); } catch (_) {}

@@ -1487,6 +1487,102 @@
     "de": "[Verbindung geschlossen]",
     "pt": "[conexão fechada]"
   },
+  "connection_restored": {
+    "it": "[connessione ripristinata]",
+    "en": "[connection restored]",
+    "es": "[conexión restablecida]",
+    "fr": "[connexion rétablie]",
+    "de": "[Verbindung wiederhergestellt]",
+    "pt": "[conexão restabelecida]"
+  },
+  "net_offline": {
+    "it": "Nessuna connessione di rete",
+    "en": "No network connection",
+    "es": "Sin conexión de red",
+    "fr": "Aucune connexion réseau",
+    "de": "Keine Netzwerkverbindung",
+    "pt": "Sem ligação de rede"
+  },
+  "net_offline_toast": {
+    "it": "Connessione di rete assente: le sessioni verranno ripristinate al ritorno della linea",
+    "en": "Network connection lost: sessions will be restored when the line is back",
+    "es": "Sin conexión de red: las sesiones se restablecerán cuando vuelva la línea",
+    "fr": "Connexion réseau perdue : les sessions seront rétablies au retour de la ligne",
+    "de": "Keine Netzwerkverbindung: Sitzungen werden wiederhergestellt, sobald die Leitung zurück ist",
+    "pt": "Sem ligação de rede: as sessões serão restabelecidas quando a linha voltar"
+  },
+  "net_restoring": {
+    "it": "Ripristino delle sessioni in corso ({count})…",
+    "en": "Restoring sessions ({count})…",
+    "es": "Restableciendo sesiones ({count})…",
+    "fr": "Rétablissement des sessions ({count})…",
+    "de": "Sitzungen werden wiederhergestellt ({count})…",
+    "pt": "A restabelecer sessões ({count})…"
+  },
+  "net_session_lost": {
+    "it": "Connessione persa",
+    "en": "Connection lost",
+    "es": "Conexión perdida",
+    "fr": "Connexion perdue",
+    "de": "Verbindung verloren",
+    "pt": "Ligação perdida"
+  },
+  "net_session_ended": {
+    "it": "La sessione remota è terminata.",
+    "en": "The remote session has ended.",
+    "es": "La sesión remota ha terminado.",
+    "fr": "La session distante est terminée.",
+    "de": "Die entfernte Sitzung wurde beendet.",
+    "pt": "A sessão remota terminou."
+  },
+  "net_waiting_line": {
+    "it": "In attesa che la connessione di rete torni disponibile…",
+    "en": "Waiting for the network connection to come back…",
+    "es": "Esperando a que vuelva la conexión de red…",
+    "fr": "En attente du retour de la connexion réseau…",
+    "de": "Warten auf die Rückkehr der Netzwerkverbindung…",
+    "pt": "À espera do regresso da ligação de rede…"
+  },
+  "net_attempt": {
+    "it": "Riconnessione in corso… (tentativo {n} di {max})",
+    "en": "Reconnecting… (attempt {n} of {max})",
+    "es": "Reconectando… (intento {n} de {max})",
+    "fr": "Reconnexion… (tentative {n} sur {max})",
+    "de": "Verbindung wird wiederhergestellt… (Versuch {n} von {max})",
+    "pt": "A reconectar… (tentativa {n} de {max})"
+  },
+  "net_next_attempt": {
+    "it": "Nuovo tentativo fra {s} s…",
+    "en": "Next attempt in {s}s…",
+    "es": "Nuevo intento en {s} s…",
+    "fr": "Nouvelle tentative dans {s} s…",
+    "de": "Nächster Versuch in {s} s…",
+    "pt": "Nova tentativa em {s} s…"
+  },
+  "net_giveup": {
+    "it": "Riconnessione non riuscita. Controlla la rete e riprova.",
+    "en": "Could not reconnect. Check the network and try again.",
+    "es": "No se pudo reconectar. Comprueba la red e inténtalo de nuevo.",
+    "fr": "Reconnexion impossible. Vérifie le réseau et réessaie.",
+    "de": "Verbindung konnte nicht wiederhergestellt werden. Netzwerk prüfen und erneut versuchen.",
+    "pt": "Não foi possível reconectar. Verifica a rede e tenta de novo."
+  },
+  "net_retry_now": {
+    "it": "Riprova adesso",
+    "en": "Retry now",
+    "es": "Reintentar ahora",
+    "fr": "Réessayer maintenant",
+    "de": "Jetzt erneut versuchen",
+    "pt": "Tentar agora"
+  },
+  "net_reconnected": {
+    "it": "Connessione a {name} ripristinata",
+    "en": "Connection to {name} restored",
+    "es": "Conexión con {name} restablecida",
+    "fr": "Connexion à {name} rétablie",
+    "de": "Verbindung zu {name} wiederhergestellt",
+    "pt": "Ligação a {name} restabelecida"
+  },
   "generic_error": {
     "it": "Errore: {error}",
     "en": "Error: {error}",

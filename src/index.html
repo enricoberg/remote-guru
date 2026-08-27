@@ -12,6 +12,13 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <!-- fascia di stato della rete: linea assente oppure ripristino sessioni in corso.
+       È globale perché una caduta di linea riguarda tutte le schede insieme. -->
+  <div id="net-banner" class="net-banner hidden" role="status" aria-live="polite">
+    <i class="net-banner-icon fa-solid fa-plug-circle-xmark"></i>
+    <span class="net-banner-text"></span>
+  </div>
+
   <!-- ============ VISTA CONFIGURAZIONE ============ -->
   <div id="config-view" class="view active">
     <div class="config-wrap">

@@ -146,13 +146,23 @@ ipcMain.handle('ssh:connect', async (_e, server) => {
   const onData = (id, data) => send('ssh:data', { id, data });
   const onCwd = (id, cwd) => send('ssh:cwd', { id, cwd });
   const onSty = (id, sty) => send('ssh:sty', { id, sty });
-  const onClose = (id) => {
+  const onClose = (id, info) => {
     // i trasferimenti in corso su questa sessione vanno in pausa, non persi
     transfers.onSessionClosed(id);
-    send('ssh:closed', { id });
+    send('ssh:closed', { id, clean: !!(info && info.clean), reason: (info && info.reason) || null });
   };
   const { id, cwd } = await ssh.connect(server, onData, onCwd, onSty, onClose);
   return { id, cwd };
+});
+
+/**
+ * Riapre una sessione caduta mantenendone l'id (vedi `ssh.reconnect`) e rimette
+ * in coda i trasferimenti che la caduta aveva messo in pausa.
+ */
+ipcMain.handle('ssh:reconnect', async (_e, id) => {
+  const res = await ssh.reconnect(id);
+  transfers.onSessionReconnected(id);
+  return res;
 });
 
 ipcMain.on('ssh:write', (_e, { id, data }) => {

@@ -168,6 +168,8 @@ class TransferManager {
     it._abort = true;
     it.status = 'paused';
     it.speed = 0;
+    // pausa voluta: non deve ripartire da sola alla prossima riconnessione
+    it._netPaused = false;
     if (it._abortFn) { try { it._abortFn(); } catch (_) {} }
     this._emit(it);
     this._save();
@@ -237,15 +239,31 @@ class TransferManager {
         it._abort = true;
         it.status = 'paused';
         it.speed = 0;
+        // messo in pausa dalla caduta, non dall'utente: va ripreso da solo
+        it._netPaused = true;
         if (it._abortFn) { try { it._abortFn(); } catch (_) {} }
         this._emit(it);
       } else if (it.status === 'queued') {
         it.status = 'paused';
+        it._netPaused = true;
         this._emit(it);
       }
     }
     this._active.delete(sessionId);
     this._save();
+  }
+
+  /**
+   * La sessione è tornata su (stesso id, vedi `ssh.reconnect`): riprende solo i
+   * trasferimenti che erano stati messi in pausa dalla caduta. Quelli fermati a
+   * mano dall'utente restano fermi.
+   */
+  onSessionReconnected(sessionId) {
+    for (const it of this.items.values()) {
+      if (it.sessionId !== sessionId || !it._netPaused) continue;
+      it._netPaused = false;
+      if (it.status === 'paused') this.resume(it.id);
+    }
   }
 
   // ---- Coda -----------------------------------------------------------------
