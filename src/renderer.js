@@ -1313,6 +1313,20 @@ function endListingOverlay(tab, overlay, dir) {
   tab.llDir = dir;
 }
 
+/**
+ * Sostituisce l'overlay a schermo con `overlay`, conservando la posizione di
+ * scroll quando si sta ridisegnando lo stesso pannello (es. dopo un'operazione
+ * sul crontab): i dati si aggiornano ma la vista resta dov'era.
+ */
+function swapPanelOverlay(tab, overlay) {
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  const same = old && old.dataset.panel && old.dataset.panel === overlay.dataset.panel;
+  const scroll = same ? old.scrollTop : 0;
+  if (old) old.remove();
+  tab.hostEl.appendChild(overlay);
+  if (scroll) overlay.scrollTop = scroll;
+}
+
 /** Intestazione del file browser. `count` a null = cartella non ancora letta. */
 function makeListingHead(tab, cwd, count, overlay) {
   const head = el('div', 'll-head');
@@ -3507,9 +3521,6 @@ async function showCrontab(tab) {
   if (!pending.alive()) return;
   const { lines, jobs } = parseCrontab(text);
 
-  const old = tab.hostEl.querySelector('.ll-overlay');
-  if (old) old.remove();
-
   const overlay = el('div', 'll-overlay docker-overlay');
   overlay.dataset.panel = 'crontab'; // permette all'aggiornamento di riusare il pannello
   const grip = el('div', 'll-resize');
@@ -3553,7 +3564,7 @@ async function showCrontab(tab) {
     jobs.forEach((job) => overlay.appendChild(makeCronRow(tab, job, lines)));
   }
 
-  tab.hostEl.appendChild(overlay);
+  swapPanelOverlay(tab, overlay);
 }
 
 function makeCronRow(tab, job, lines) {
