@@ -3904,7 +3904,7 @@ function makeCronForm(tab, lines, job) {
 }
 
 // ============================================================================
-// MONITOR DI SISTEMA (dischi + CPU/RAM in tempo reale)
+// MONITOR DI SISTEMA (dischi + CPU/RAM/rete in tempo reale)
 // ============================================================================
 
 const MON_INTERVAL = 1000; // frequenza di aggiornamento
@@ -3918,7 +3918,7 @@ function levelClass(v) {
 
 /**
  * Dashboard di sistema: unisce `df` (dischi) e le metriche in stile htop
- * (CPU per core, memoria, swap, load, processi) in un pannello che si aggiorna
+ * (CPU per core, memoria, swap, rete, load, processi) in un pannello che si aggiorna
  * ogni 2 secondi finché resta aperto e la scheda è visibile.
  */
 async function showMonitor(tab) {
@@ -3993,9 +3993,26 @@ async function showMonitor(tab) {
   const memKv = el('div', 'mon-kv');
   memCard.appendChild(memKv);
 
+  // ---- riquadro rete ----
+  const netCard = el('div', 'mon-card');
+  const netBig = el('span', 'mon-big rate');
+  netBig.textContent = '—';
+  const netSub = el('span', 'mon-sub');
+  netCard.appendChild(makeCardHead('fa-solid fa-network-wired', i18n.t('monitor_net'), netSub, netBig));
+  // due serie sovrapposte sullo stesso grafico: traffico in entrata e in uscita
+  const netSpark = makeSpark('net', ['rx', 'tx']);
+  netCard.appendChild(netSpark.svg);
+  const netLegend = el('div', 'mon-legend');
+  const netIn = makeLegendVal(netLegend, 'rx', i18n.t('monitor_net_in'));
+  const netOut = makeLegendVal(netLegend, 'tx', i18n.t('monitor_net_out'));
+  netCard.appendChild(netLegend);
+  const netKv = el('div', 'mon-kv');
+  netCard.appendChild(netKv);
+
   const grid = el('div', 'mon-grid');
   grid.appendChild(cpuCard);
   grid.appendChild(memCard);
+  grid.appendChild(netCard);
   body.appendChild(grid);
 
   // ---- dischi ----
@@ -4019,8 +4036,9 @@ async function showMonitor(tab) {
     overlay, notice, body, headInfo,
     cpuBig, cpuSub, cpuKv, cpuSpark, cores,
     memBig, memSub, memKv, memSpark, segUsed, segCache,
+    netCard, netBig, netSub, netKv, netSpark, netIn, netOut,
     diskBox, procBox, diskSig: null, diskRefs: new Map(),
-    hist: { cpu: [], mem: [] },
+    hist: { cpu: [], mem: [], netRx: [], netTx: [] },
   };
 
   let busy = false;
@@ -4060,6 +4078,21 @@ function makeCardHead(icon, label, subEl, bigEl) {
   return h;
 }
 
+/**
+ * Voce di legenda con pallino colorato e valore aggiornabile: ritorna l'elemento
+ * del valore, così l'aggiornamento non ricostruisce il DOM.
+ */
+function makeLegendVal(box, dotCls, label) {
+  const wrap = el('span');
+  wrap.appendChild(el('i', 'dot ' + dotCls));
+  wrap.appendChild(document.createTextNode(label + ' '));
+  const val = el('b');
+  val.textContent = '—';
+  wrap.appendChild(val);
+  box.appendChild(wrap);
+  return val;
+}
+
 function makeSectionTitle(icon, label) {
   const d = el('div', 'mon-section-title');
   d.innerHTML = `<i class="${icon}"></i> ${escapeHtml(label)}`;
@@ -4067,10 +4100,11 @@ function makeSectionTitle(icon, label) {
 }
 
 /**
- * Grafico sparkline in SVG (area + linea + linee guida), disegnato a percentuali
- * 0-100. Usa `currentColor` così il colore arriva dal tema via CSS.
+ * Grafico sparkline in SVG (area + linea + linee guida). Usa `currentColor` così
+ * il colore arriva dal tema via CSS. Con `series` disegna una coppia area/linea
+ * per ciascun nome (usato dalla rete per entrata e uscita nello stesso grafico).
  */
-function makeSpark(cls) {
+function makeSpark(cls, series = null) {
   const svg = document.createElementNS(SVG_NS, 'svg');
   svg.setAttribute('class', 'mon-spark ' + cls);
   svg.setAttribute('viewBox', '0 0 100 34');
@@ -4085,29 +4119,46 @@ function makeSpark(cls) {
     ln.setAttribute('class', 'mon-spark-grid');
     svg.appendChild(ln);
   });
-  const area = document.createElementNS(SVG_NS, 'path');
-  area.setAttribute('class', 'mon-spark-area');
-  const line = document.createElementNS(SVG_NS, 'path');
-  line.setAttribute('class', 'mon-spark-line');
-  svg.appendChild(area);
-  svg.appendChild(line);
+  const layers = (series || [null]).map((name) => {
+    const suffix = name ? ' ' + name : '';
+    const area = document.createElementNS(SVG_NS, 'path');
+    area.setAttribute('class', 'mon-spark-area' + suffix);
+    const line = document.createElementNS(SVG_NS, 'path');
+    line.setAttribute('class', 'mon-spark-line' + suffix);
+    return { area, line };
+  });
+  // prima tutte le aree, poi tutte le linee: così un'area non copre la linea di
+  // una serie disegnata prima
+  layers.forEach((ly) => svg.appendChild(ly.area));
+  layers.forEach((ly) => svg.appendChild(ly.line));
   return {
     svg,
-    draw(values) {
-      const { l, a } = sparkPaths(values, 100, 34);
-      line.setAttribute('d', l);
-      area.setAttribute('d', a);
+    /**
+     * `values` è la serie da disegnare, o un array di serie se il grafico è
+     * multi-serie. `max` è il fondo scala (100 per le percentuali).
+     */
+    draw(values, max) {
+      const sets = series ? values : [values];
+      layers.forEach((ly, i) => {
+        const { l, a } = sparkPaths(sets[i] || [], 100, 34, max);
+        ly.line.setAttribute('d', l);
+        ly.area.setAttribute('d', a);
+      });
     },
   };
 }
 
-/** Percorsi SVG di linea e area: la serie scorre da destra verso sinistra. */
-function sparkPaths(values, w, h) {
+/**
+ * Percorsi SVG di linea e area: la serie scorre da destra verso sinistra.
+ * `max` è il fondo scala, 100 di default (metriche in percentuale).
+ */
+function sparkPaths(values, w, h, max = 100) {
   if (!values.length) return { l: '', a: '' };
+  const top = max > 0 ? max : 100;
   const step = w / (MON_HIST - 1);
   const pts = values.map((v, i) => {
     const x = w - (values.length - 1 - i) * step;
-    const y = h - 1 - (Math.max(0, Math.min(100, v)) / 100) * (h - 2);
+    const y = h - 1 - (Math.max(0, Math.min(top, v)) / top) * (h - 2);
     return [x.toFixed(2), y.toFixed(2)];
   });
   const l = pts.map(([x, y], i) => `${i ? 'L' : 'M'}${x},${y}`).join(' ');
@@ -4173,8 +4224,50 @@ function updateMonitor(tab, s) {
     m.memKv.textContent = kv.join('  ·  ');
   }
 
+  // ---- rete ----
+  if (s.net) {
+    m.netCard.classList.remove('hidden');
+    push(m.hist.netRx, s.net.rx);
+    push(m.hist.netTx, s.net.tx);
+    const scale = netScale(Math.max(...m.hist.netRx, ...m.hist.netTx));
+    m.netSpark.draw([m.hist.netRx, m.hist.netTx], scale);
+    m.netBig.textContent = rateText(s.net.rx + s.net.tx);
+    m.netSub.textContent = i18n.t('monitor_net_scale', { value: rateText(scale) });
+    m.netIn.textContent = rateText(s.net.rx);
+    m.netOut.textContent = rateText(s.net.tx);
+    const kv = [
+      i18n.t('monitor_net_total', {
+        in: humanSize(s.net.ifaces.reduce((n, i) => n + i.rxTotal, 0)),
+        out: humanSize(s.net.ifaces.reduce((n, i) => n + i.txTotal, 0)),
+      }),
+    ];
+    // le interfacce che non hanno mai visto un byte sono rumore (down, non usate)
+    const names = s.net.ifaces.filter((i) => i.rxTotal || i.txTotal).map((i) => i.name);
+    if (names.length) kv.push(names.slice(0, 4).join(' '));
+    m.netKv.textContent = kv.join('  ·  ');
+  } else {
+    // niente /proc/net/dev su questo sistema: il riquadro non ha nulla da dire
+    m.netCard.classList.add('hidden');
+  }
+
   renderDisks(m, s.disks || []);
   renderProcs(m.procBox, s.procs || []);
+}
+
+/** Velocità di trasferimento leggibile: "1.2 MB/s". */
+function rateText(bytesPerSec) {
+  return humanSize(Math.round(bytesPerSec)) + '/s';
+}
+
+/**
+ * Fondo scala del grafico di rete: parte da 64 KB/s e raddoppia finché contiene
+ * il picco dello storico. Raddoppiare invece di adattarsi al valore esatto evita
+ * che la scala (e quindi la forma della curva) balli a ogni aggiornamento.
+ */
+function netScale(peak) {
+  let s = 64 * 1024;
+  while (s < peak) s *= 2;
+  return s;
 }
 
 function push(arr, v) {

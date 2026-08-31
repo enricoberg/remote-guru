@@ -1150,19 +1150,25 @@ class SshManager {
 
   /**
    * Fotografia dello stato del sistema per la dashboard: CPU (totale e per core),
-   * memoria, swap, load average, uptime, dischi (`df`) e processi più esosi.
+   * memoria, swap, rete, load average, uptime, dischi (`df`) e processi più esosi.
    *
-   * Tutto in una sola exec per non moltiplicare i round trip. /proc/stat viene
-   * campionato due volte a 0,5 s di distanza: così l'uso istantaneo di CPU si
-   * calcola sul posto, senza conservare stato tra una chiamata e l'altra (e il
-   * primo aggiornamento mostra già valori sensati).
+   * Tutto in una sola exec per non moltiplicare i round trip. /proc/stat e
+   * /proc/net/dev vengono campionati due volte a 0,5 s di distanza: così l'uso
+   * istantaneo di CPU e il traffico di rete si calcolano sul posto, senza
+   * conservare stato tra una chiamata e l'altra (e il primo aggiornamento mostra
+   * già valori sensati). /proc/uptime accompagna i due campioni di rete perché
+   * serve l'intervallo reale trascorso, non quello nominale dello `sleep`.
    */
   async sysStats(id) {
     const cmd = [
       'export LC_ALL=C',
       'echo @S1', "grep '^cpu' /proc/stat 2>/dev/null",
+      'echo @N1', 'cat /proc/net/dev 2>/dev/null',
+      'echo @T1', 'cat /proc/uptime 2>/dev/null',
       'sleep 0.5',
       'echo @S2', "grep '^cpu' /proc/stat 2>/dev/null",
+      'echo @N2', 'cat /proc/net/dev 2>/dev/null',
+      'echo @T2', 'cat /proc/uptime 2>/dev/null',
       'echo @MEM', 'cat /proc/meminfo 2>/dev/null',
       'echo @LOAD', 'cat /proc/loadavg 2>/dev/null',
       'echo @UP', 'cat /proc/uptime 2>/dev/null',
@@ -1575,10 +1581,17 @@ function parseSysStats(out) {
   const upFields = (sec.UP || [])[0] ? String(sec.UP[0]).trim().split(/\s+/) : [];
   const modelLine = (sec.MODEL || [])[0] || '';
 
+  // intervallo reale fra i due campioni: lo `sleep 0.5` è solo nominale, il
+  // tempo effettivo dipende dal carico della macchina
+  const t1 = Number(((sec.T1 || [])[0] || '').trim().split(/\s+/)[0]);
+  const t2 = Number(((sec.T2 || [])[0] || '').trim().split(/\s+/)[0]);
+  const netDt = Number.isFinite(t1) && Number.isFinite(t2) && t2 > t1 ? t2 - t1 : null;
+
   return {
     cpu: parseCpu(sec.S1 || [], sec.S2 || []),
     cpuModel: modelLine.includes(':') ? modelLine.split(':').slice(1).join(':').trim() : '',
     mem,
+    net: parseNet(sec.N1 || [], sec.N2 || [], netDt),
     load: load.length >= 3 ? load.slice(0, 3).map(Number) : null,
     procsRunning: load[3] || '',
     uptime: upFields.length ? Math.floor(Number(upFields[0])) : null,
@@ -1630,6 +1643,58 @@ function parseCpu(first, second) {
     cores.push(c ? c.busy : 0);
   }
   return { all: all ? all.busy : null, iowait: all ? all.iowait : null, cores };
+}
+
+/**
+ * Interfacce virtuali da escludere dal totale: la loopback non è traffico verso
+ * l'esterno, mentre bridge e veth di Docker/libvirt/k8s vedono gli stessi
+ * pacchetti che passano poi dalla scheda fisica (li conterebbero due volte).
+ */
+const NET_SKIP = /^(lo\d*|docker\d*|br-|veth|virbr|vnet|tap|dummy|kube|cni|flannel|cali|nodelocal)/;
+
+/** Contatori cumulativi rx/tx per interfaccia da una lettura di /proc/net/dev. */
+function parseNetDev(lines) {
+  const map = new Map();
+  for (const raw of lines) {
+    const m = String(raw).match(/^\s*([^:\s]+):\s*(.+)$/);
+    if (!m) continue; // intestazioni e righe vuote
+    const f = m[2].trim().split(/\s+/).map((x) => Number(x) || 0);
+    // 8 colonne di ricezione (bytes primo) + 8 di trasmissione (bytes nono)
+    if (f.length < 16) continue;
+    map.set(m[1], { rx: f[0], tx: f[8] });
+  }
+  return map;
+}
+
+/**
+ * Traffico di rete in byte al secondo dalla differenza fra due letture di
+ * /proc/net/dev distanti `dt` secondi. Ritorna { rx, tx, ifaces } con il totale
+ * delle interfacce reali e il dettaglio per interfaccia, oppure null se i dati
+ * non sono utilizzabili (sistemi senza /proc/net/dev).
+ */
+function parseNet(first, second, dt) {
+  const a = parseNetDev(first);
+  const b = parseNetDev(second);
+  if (!a.size || !b.size) return null;
+  const secs = dt && dt > 0 ? dt : 0.5;
+
+  const ifaces = [];
+  let rx = 0;
+  let tx = 0;
+  for (const [name, y] of b) {
+    if (NET_SKIP.test(name)) continue;
+    const x = a.get(name);
+    if (!x) continue; // interfaccia comparsa fra i due campioni
+    // i contatori possono azzerarsi (wrap a 32 bit, reset del driver): in quel
+    // caso la differenza è negativa e vale 0, non un picco inventato
+    const drx = Math.max(0, y.rx - x.rx) / secs;
+    const dtx = Math.max(0, y.tx - x.tx) / secs;
+    ifaces.push({ name, rx: drx, tx: dtx, rxTotal: y.rx, txTotal: y.tx });
+    rx += drx;
+    tx += dtx;
+  }
+  ifaces.sort((p, q) => q.rx + q.tx - (p.rx + p.tx));
+  return { rx, tx, ifaces };
 }
 
 /** Memoria e swap in byte da /proc/meminfo. */

@@ -2239,6 +2239,46 @@
     "de": "Speicher",
     "pt": "Memória"
   },
+  "monitor_net": {
+    "it": "Rete",
+    "en": "Network",
+    "es": "Red",
+    "fr": "Réseau",
+    "de": "Netzwerk",
+    "pt": "Rede"
+  },
+  "monitor_net_in": {
+    "it": "In entrata",
+    "en": "Inbound",
+    "es": "Entrada",
+    "fr": "Entrant",
+    "de": "Eingehend",
+    "pt": "Entrada"
+  },
+  "monitor_net_out": {
+    "it": "In uscita",
+    "en": "Outbound",
+    "es": "Salida",
+    "fr": "Sortant",
+    "de": "Ausgehend",
+    "pt": "Saída"
+  },
+  "monitor_net_scale": {
+    "it": "fondo scala {value}",
+    "en": "full scale {value}",
+    "es": "escala máx. {value}",
+    "fr": "pleine échelle {value}",
+    "de": "Skalenende {value}",
+    "pt": "escala máx. {value}"
+  },
+  "monitor_net_total": {
+    "it": "Totali dall'avvio ↓ {in} · ↑ {out}",
+    "en": "Since boot ↓ {in} · ↑ {out}",
+    "es": "Desde el arranque ↓ {in} · ↑ {out}",
+    "fr": "Depuis le démarrage ↓ {in} · ↑ {out}",
+    "de": "Seit dem Start ↓ {in} · ↑ {out}",
+    "pt": "Desde o arranque ↓ {in} · ↑ {out}"
+  },
   "monitor_disks": {
     "it": "Dischi",
     "en": "Disks",

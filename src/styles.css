@@ -832,6 +832,7 @@ body.net-warn { --net-offset: 32px; }
   flex: 0 0 auto; font-size: 21px; font-weight: 700; line-height: 1;
   font-variant-numeric: tabular-nums; color: var(--text);
 }
+.mon-big.rate { font-size: 16px; }
 .mon-big.ok { color: var(--green); }
 .mon-big.warn { color: var(--yellow); }
 .mon-big.crit { color: var(--red); }
@@ -839,6 +840,8 @@ body.net-warn { --net-offset: 32px; }
 /* grafico storico: il colore arriva da currentColor, così cambia col tema */
 .mon-spark { display: block; width: 100%; height: 46px; margin: 8px 0 4px; color: var(--accent); }
 .mon-spark.mem { color: var(--green); }
+/* rete: due serie nello stesso grafico, il colore lo porta la singola serie */
+.mon-spark-line.tx, .mon-spark-area.tx { color: var(--yellow); }
 .mon-spark-line {
   fill: none; stroke: currentColor; stroke-width: 1.6;
   stroke-linejoin: round; stroke-linecap: round; vector-effect: non-scaling-stroke;
@@ -869,6 +872,9 @@ body.net-warn { --net-offset: 32px; }
 .mon-legend .dot.used { background: var(--green); }
 .mon-legend .dot.cache { background: var(--accent); opacity: .65; }
 .mon-legend .dot.free { background: var(--border); }
+.mon-legend .dot.rx { background: var(--accent); }
+.mon-legend .dot.tx { background: var(--yellow); }
+.mon-legend b { color: var(--text); font-weight: 600; font-variant-numeric: tabular-nums; }
 
 .mon-kv {
   margin-top: 7px; font-size: 11.5px; color: var(--muted);
