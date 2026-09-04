@@ -13,7 +13,7 @@ npm run start
 ## Build
 
 ```bash
-npm run build:mac
+npm run dist:mac
 ```
 
 ## Funzionalità
