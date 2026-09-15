@@ -1,9 +1,9 @@
 # Remote Guru
 
-Browser SSH desktop (Electron) per navigare server remoti, con schede multiple,
-split view e funzioni avanzate sui file.
+An SSH browser for the desktop (Electron): browse remote servers with multiple
+tabs, split view and advanced file operations.
 
-## Avvio
+## Getting started
 
 ```bash
 npm install
@@ -16,63 +16,65 @@ npm run start
 npm run dist:mac
 ```
 
-## Funzionalità
+## Features
 
-- **Pagina di configurazione** all'avvio: aggiungi / modifica / elimina connessioni
-  o selezionane una per connetterti. Le connessioni sono salvate in `servers.json`.
-- **Due modalità di autenticazione** per server: password oppure file PEM
-  (il campo password, in modalità PEM, è usato come passphrase opzionale della chiave).
-- **Schede tipo browser**: più connessioni contemporanee.
-- **Split view**: trascina una scheda dentro l'area del terminale per affiancare
-  due sessioni a metà schermo; il divisore centrale è ridimensionabile.
-- **Terminale reale** (xterm.js + shell PTY) → compatibile con vim, htop, sudo, ecc.
-- **Ricerca nel buffer del terminale** (`Cmd`/`Ctrl+Shift`+`F`): barra in alto a destra
-  con contatore dei risultati, evidenziazione di tutte le occorrenze, `Invio` /
-  `Maiusc+Invio` per scorrerle e interruttori per maiuscole/minuscole ed espressioni
-  regolari. `Esc` chiude.
-- **Zoom del carattere per sessione** (`Cmd`/`Ctrl+Shift` con `+`, `-` e `0` per
-  tornare al valore base): ogni scheda tiene la propria dimensione e il terminale
-  remoto viene avvisato della nuova geometria.
-- **Pulsante elenco `☰`** accanto al nome server: mostra il contenuto della cartella
-  corrente (come `ll`). Le **cartelle sono cliccabili** (fanno `cd` automatico).
-- **Menu tasto destro su file/cartelle** (nell'elenco): nuovo file, nuova cartella,
-  rinomina, copia, taglia, incolla, elimina, comprimi (`.tar.gz` / `.zip`),
-  estrai (per gli archivi), scarica in locale, calcola dimensione (per le cartelle)
-  e **Proprietà** (tipo, proprietario, permessi, date, target dei link).
-- **Selezione multipla** nell'elenco: clic per selezionare, `cmd`/`ctrl`+clic per
-  aggiungere o togliere una voce, `shift`+clic per un intervallo. Con una selezione
-  attiva compare una barra con le azioni di gruppo (scarica, copia, taglia,
-  comprimi, elimina) e lo stesso vale nel menu contestuale; anche il trascinamento
-  porta con sé tutte le voci selezionate.
-- **Taglia / incolla** per spostare (`mv`): le voci tagliate restano visibili in
-  trasparenza fino all'incollo. Incollando nella stessa cartella una copia prende
-  il suffisso `_copy`, in un'altra cartella conserva il nome.
-- **Upload trascinando dal Finder / Esplora file**: lasciando file o cartelle sul
-  pannello elenco vengono accodati come upload nella cartella su cui si rilascia.
-- **Drag & drop fra file browser**: trascinando un file o una cartella dall'elenco
-  di una scheda a quello di un'altra si ottiene una copia esatta nella cartella di
-  destinazione (quella della riga su cui si lascia il puntatore, o quella mostrata
-  se si lascia sullo sfondo del pannello). Fra due schede dello stesso server la
-  copia avviene lato server (`cp`); fra macchine diverse i dati passano dal disco
-  locale — download in una cartella temporanea, poi upload — e le due fasi sono
-  visibili nel pannello trasferimenti, entrambe sospendibili e riprendibili.
-- **Query in corso** (pulsante ⚡ sulla riga di ogni database, si apre solo da lì):
-  elenco di `pg_stat_activity` filtrato su quel solo database, con lucina di stato — verde query appena partita, giallo query attiva
-  da oltre 5 secondi o transazione aperta e ferma (`idle in transaction`), rosso
-  query in attesa di un lock o attiva da oltre un minuto. Per ogni riga durata,
-  database, utente, evento di attesa, pid che la blocca (cliccabile: evidenzia la
-  riga del bloccante) e testo della query, con *Annulla* (`pg_cancel_backend`) e
-  *Termina* (`pg_terminate_backend`). Si aggiorna da sé ogni 4 secondi. Richiede
-  PostgreSQL 10 o superiore.
-- **Menu tasto destro sul terminale**: *Incolla password* (inserisce la password
-  del server presa da `servers.json`).
+- **Configuration page** on startup: add / edit / delete connections, or pick one
+  to connect. Connections are stored in `servers.json`.
+- **Two authentication modes** per server: password or PEM file (in PEM mode the
+  password field is used as the key's optional passphrase).
+- **Browser-style tabs**: several connections open at the same time.
+- **Split view**: drag a tab into the terminal area to place two sessions
+  side by side; the central divider is resizable.
+- **Real terminal** (xterm.js + PTY shell) → works with vim, htop, sudo and so on.
+- **Terminal buffer search** (`Cmd`/`Ctrl+Shift`+`F`): a bar in the top right with
+  a result counter, highlighting of every match, `Enter` / `Shift+Enter` to step
+  through them, and toggles for case sensitivity and regular expressions. `Esc`
+  closes it.
+- **Per-session font zoom** (`Cmd`/`Ctrl+Shift` with `+`, `-` and `0` to return to
+  the base size): each tab keeps its own size, and the remote terminal is notified
+  of the new geometry.
+- **File list button `☰`** next to the server name: shows the contents of the
+  current directory (like `ll`). **Directories are clickable** (they `cd`
+  automatically).
+- **Right-click menu on files and directories** (in the list): new file, new
+  directory, rename, copy, cut, paste, delete, compress (`.tar.gz` / `.zip`),
+  extract (for archives), download locally, compute size (for directories) and
+  **Properties** (type, owner, permissions, dates, link target).
+- **Multiple selection** in the list: click to select, `cmd`/`ctrl`+click to add or
+  remove an entry, `shift`+click for a range. With an active selection a bar
+  appears with bulk actions (download, copy, cut, compress, delete); the same
+  actions are available in the context menu, and dragging carries every selected
+  entry along.
+- **Cut / paste** to move (`mv`): cut entries stay visible, greyed out, until they
+  are pasted. Pasting into the same directory gives the copy a `_copy` suffix;
+  pasting elsewhere keeps the original name.
+- **Upload by dragging from Finder / File Explorer**: dropping files or folders on
+  the list panel queues them as uploads into the directory you dropped them on.
+- **Drag & drop between file browsers**: dragging a file or directory from one
+  tab's list to another's produces an exact copy in the destination directory
+  (the one on the row you drop onto, or the one currently shown if you drop on the
+  panel background). Between two tabs on the same server the copy happens
+  server-side (`cp`); between different machines the data goes through the local
+  disk — download into a temporary directory, then upload — and both phases are
+  visible in the transfers panel, each one pausable and resumable.
+- **Running queries** (the ⚡ button on each database row, which is the only way to
+  open it): a `pg_stat_activity` listing filtered to that one database, with a
+  status light — green for a query that just started, yellow for a query running
+  for more than 5 seconds or an open, idle transaction (`idle in transaction`),
+  red for a query waiting on a lock or running for more than a minute. Each row
+  shows duration, database, user, wait event, the pid blocking it (clickable: it
+  highlights the blocker's row) and the query text, with *Cancel*
+  (`pg_cancel_backend`) and *Terminate* (`pg_terminate_backend`). It refreshes
+  itself every 4 seconds. Requires PostgreSQL 10 or later.
+- **Right-click menu on the terminal**: *Paste password* (inserts the server's
+  password taken from `servers.json`).
 
-## Formato `servers.json`
+## `servers.json` format
 
 ```json
 [
   {
-    "nickname": "Macchina TEST [203.0.113.10]",
+    "nickname": "TEST machine [203.0.113.10]",
     "name": "user@203.0.113.10",
     "host": "203.0.113.10",
     "port": 22,
@@ -84,23 +86,25 @@ npm run dist:mac
 ]
 ```
 
-Vedi `servers.example.json` per altri esempi. **Nota:** le password sono salvate in
-chiaro, quindi `servers.json` è escluso dal versionamento (`.gitignore`).
+See `servers.example.json` for more examples. **Note:** passwords are stored in
+plain text, so `servers.json` is excluded from version control (`.gitignore`).
 
-## Architettura
+## Architecture
 
-- `src/main.js` — processo main Electron: finestra, IPC, lettura/scrittura `servers.json`, dialog.
-- `src/ssh.js` — gestione sessioni SSH (`ssh2`): shell PTY + canale SFTP/exec per le funzioni file.
-- `src/preload.js` — bridge sicuro (contextIsolation) tra renderer e main.
-- `src/transfers.js` — coda dei trasferimenti file (download, upload e copie
-  server → server), con avanzamento, pausa/ripresa e stato persistito su disco.
-- `src/index.html` / `src/styles.css` / `src/renderer.js` — interfaccia (config, schede, terminale).
+- `src/main.js` — Electron main process: window, IPC, reading/writing
+  `servers.json`, dialogs.
+- `src/ssh.js` — SSH session handling (`ssh2`): PTY shell plus an SFTP/exec channel
+  for the file features.
+- `src/preload.js` — secure bridge (contextIsolation) between renderer and main.
+- `src/transfers.js` — file transfer queue (downloads, uploads and server →
+  server copies), with progress, pause/resume and state persisted to disk.
+- `src/index.html` / `src/styles.css` / `src/renderer.js` — the interface (config,
+  tabs, terminal).
 
-Il menu dell'applicazione è quello predefinito di Electron senza le voci di zoom
-della pagina: i loro acceleratori (`Cmd`/`Ctrl` con `+`, `-`, `0`) servono allo
-zoom del carattere del terminale, e un acceleratore di menu scavalcherebbe il
-renderer.
+The application menu is Electron's default one without the page zoom entries:
+their accelerators (`Cmd`/`Ctrl` with `+`, `-`, `0`) are used for the terminal's
+font zoom, and a menu accelerator would take precedence over the renderer.
 
-La cwd corrente viene tracciata in modo affidabile tramite un marker invisibile
-(`OSC 1337;CWD=...`) emesso dalla shell dopo ogni prompt e rimosso dal flusso prima
-di mostrarlo a video.
+The current working directory is tracked reliably through an invisible marker
+(`OSC 1337;CWD=...`) emitted by the shell after every prompt and stripped from the
+stream before it is displayed.
