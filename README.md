@@ -3,6 +3,55 @@
 An SSH browser for the desktop (Electron): browse remote servers with multiple
 tabs, split view and advanced file operations.
 
+## Screenshots
+
+### Connections and settings
+
+| Configuration page | Settings |
+| --- | --- |
+| ![Configuration page](docs/screenshots/01-configuration.png) | ![Settings](docs/screenshots/02-settings.png) |
+
+Connections are grouped, searchable and stored in `servers.json`; the settings
+page covers theme, language, import/export and the keyboard shortcuts.
+
+### Terminal
+
+| Real terminal (PTY) | Buffer search |
+| --- | --- |
+| ![Terminal](docs/screenshots/03-terminal.png) | ![Terminal search](docs/screenshots/04-terminal-search.png) |
+
+Two sessions side by side, with a resizable divider:
+
+![Split view](docs/screenshots/16-split-view.png)
+
+### File browser
+
+| Directory listing | Context menu |
+| --- | --- |
+| ![File browser](docs/screenshots/05-file-browser.png) | ![Context menu](docs/screenshots/06-context-menu.png) |
+
+| Multiple selection | File properties |
+| --- | --- |
+| ![Multiple selection](docs/screenshots/07-multiple-selection.png) | ![Properties](docs/screenshots/09-properties.png) |
+
+| Embedded editor | File transfers |
+| --- | --- |
+| ![Editor](docs/screenshots/10-editor.png) | ![File transfers](docs/screenshots/08-file-transfers.png) |
+
+### Server panels
+
+| Docker containers | Docker images |
+| --- | --- |
+| ![Docker containers](docs/screenshots/11-docker-containers.png) | ![Docker images](docs/screenshots/12-docker-images.png) |
+
+| PostgreSQL databases | Screen sessions |
+| --- | --- |
+| ![Databases](docs/screenshots/13-databases.png) | ![Screen sessions](docs/screenshots/14-screen-sessions.png) |
+
+System monitor (CPU, memory, network, disks and top processes):
+
+![System monitor](docs/screenshots/15-system-monitor.png)
+
 ## Getting started
 
 ```bash
