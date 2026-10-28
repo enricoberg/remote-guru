@@ -1216,10 +1216,11 @@ class SshManager {
    * Elenca i database PostgreSQL installati direttamente sull'host (esclusi i
    * template). Prova prima con l'utente SSH corrente (se ha accesso diretto a
    * psql), poi come utente di sistema `postgres` via sudo.
+   * Ritorna { databases, version }.
    */
   async pgListDatabases(id) {
     // -A: output non allineato, -t: solo le righe dati, separatore di default '|'
-    const psqlCmd = `psql -At -c ${shellQuote(PG_LIST_SQL)}`;
+    const psqlCmd = `psql -At -c ${shellQuote(PG_LIST_SQL)} -c ${shellQuote(PG_VERSION_SQL)}`;
     let out;
     try {
       out = await this.exec(id, psqlCmd);
@@ -1250,7 +1251,7 @@ class SshManager {
   async _pgListInContainer(id, container, user) {
     const cmd =
       `docker exec ${shellQuote(container.id)} ` +
-      `psql -U ${shellQuote(user)} -At -c ${shellQuote(PG_LIST_SQL)}`;
+      `psql -U ${shellQuote(user)} -At -c ${shellQuote(PG_LIST_SQL)} -c ${shellQuote(PG_VERSION_SQL)}`;
     return parsePgList(await this.dockerExec(id, cmd));
   }
 
@@ -1304,15 +1305,15 @@ class SshManager {
    * Elenca tutti i database PostgreSQL raggiungibili sulla macchina, sia quelli
    * installati sull'host sia quelli dentro container Docker basati su immagini
    * Postgres. Ritorna un elenco di gruppi:
-   *   { source: 'host' | 'container', container?, image?, user?, databases: [] }
+   *   { source: 'host' | 'container', container?, image?, user?, version?, databases: [] }
    */
   async pgListAll(id) {
     const groups = [];
 
     // 1. Host
     try {
-      const dbs = await this.pgListDatabases(id);
-      if (dbs.length) groups.push({ source: 'host', databases: dbs });
+      const { databases, version } = await this.pgListDatabases(id);
+      if (databases.length) groups.push({ source: 'host', version, databases });
     } catch (_) { /* nessun Postgres sull'host: ignora */ }
 
     // 2. Container Postgres in esecuzione
@@ -1324,8 +1325,8 @@ class SshManager {
     for (const c of pgContainers) {
       try {
         const user = await this._pgContainerUser(id, c);
-        const dbs = await this._pgListInContainer(id, c, user);
-        groups.push({ source: 'container', container: c.name, image: c.image, user, databases: dbs });
+        const { databases, version } = await this._pgListInContainer(id, c, user);
+        groups.push({ source: 'container', container: c.name, image: c.image, user, version, databases });
       } catch (_) { /* container non pronto o non interrogabile: salta */ }
     }
 
@@ -1514,6 +1515,9 @@ const PG_LIST_SQL =
   'SELECT datname, pg_catalog.pg_get_userbyid(datdba), ' +
   'pg_size_pretty(pg_database_size(datname)) ' +
   'FROM pg_database WHERE datistemplate = false ORDER BY datname;';
+
+// Versione del server, su una riga marcata per distinguerla dall'elenco dei database.
+const PG_VERSION_SQL = "SELECT 'VERSION|' || current_setting('server_version');";
 
 /**
  * SQL per le query in corso di UN database: una riga per connessione client che
@@ -1808,14 +1812,22 @@ function parsePgActivity(out) {
 }
 
 function parsePgList(out) {
-  return String(out)
+  const databases = [];
+  let version = '';
+  String(out)
     .split('\n')
     .map((l) => l.replace(/\r$/, ''))
     .filter((l) => l.trim())
-    .map((line) => {
+    .forEach((line) => {
+      if (line.startsWith('VERSION|')) {
+        // es. "16.4 (Debian 16.4-1.pgdg120+2)" -> "16.4"
+        version = line.slice('VERSION|'.length).trim().split(/\s+/)[0];
+        return;
+      }
       const [name, owner, size] = line.split('|');
-      return { name, owner: owner || '', size: size || '' };
+      databases.push({ name, owner: owner || '', size: size || '' });
     });
+  return { databases, version };
 }
 
 /**

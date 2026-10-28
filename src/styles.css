@@ -606,6 +606,10 @@ body.net-warn { --net-offset: 32px; }
 .docker-group.collapsible { cursor: pointer; user-select: none; }
 .docker-group.collapsible .caret { width: 12px; }
 .docker-group.collapsible:hover { filter: brightness(1.15); }
+.docker-group .pg-version {
+  margin-left: 6px; padding: 1px 6px; border-radius: 9px; font-size: 10px; font-weight: 700;
+  background: var(--accent); color: #11111b; vertical-align: 1px;
+}
 .docker-btn.d-manual:hover { background: var(--accent); color: #11111b; }
 .docker-btn.d-activity:hover { background: var(--yellow); color: #11111b; }
 

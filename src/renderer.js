@@ -2374,10 +2374,11 @@ async function showDatabases(tab) {
   const blocks = [];
   groups.forEach((g) => {
     const header = el('div', 'docker-group');
-    header.innerHTML = g.source === 'container'
+    header.innerHTML = (g.source === 'container'
       ? `<i class="fa-brands fa-docker"></i> ${escapeHtml(g.container)}` +
         (g.image ? ` <span class="cwd">${escapeHtml(g.image)}</span>` : '')
-      : `<i class="fa-solid fa-server"></i> ${i18n.t('db_host')}`;
+      : `<i class="fa-solid fa-server"></i> ${i18n.t('db_host')}`) +
+      (g.version ? ` <span class="pg-version" title="PostgreSQL ${escapeHtml(g.version)}">PostgreSQL ${escapeHtml(g.version)}</span>` : '');
     overlay.appendChild(header);
     const items = g.databases.map((d) => {
       const row = makeDbRow(tab, d, g);
