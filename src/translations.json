@@ -3262,5 +3262,469 @@
     "fr": "Requêtes",
     "de": "Abfragen",
     "pt": "Consultas"
+  },
+  "claude_button_title": {
+    "it": "Chiedi a Claude",
+    "en": "Ask Claude",
+    "es": "Preguntar a Claude",
+    "fr": "Demander à Claude",
+    "de": "Claude fragen",
+    "pt": "Perguntar ao Claude"
+  },
+  "claude_checking": {
+    "it": "Verifica dell'accesso a Claude…",
+    "en": "Checking Claude sign-in…",
+    "es": "Comprobando el acceso a Claude…",
+    "fr": "Vérification de la connexion à Claude…",
+    "de": "Claude-Anmeldung wird geprüft…",
+    "pt": "A verificar o acesso ao Claude…"
+  },
+  "claude_readonly": {
+    "it": "sola lettura",
+    "en": "read-only",
+    "es": "solo lectura",
+    "fr": "lecture seule",
+    "de": "nur lesen",
+    "pt": "só leitura"
+  },
+  "claude_readonly_hint": {
+    "it": "Claude può solo leggere: elencare cartelle, leggere file ed eseguire comandi diagnostici consentiti. Non può modificare nulla sul server.",
+    "en": "Claude can only read: list folders, read files and run allowed diagnostic commands. It cannot change anything on the server.",
+    "es": "Claude solo puede leer: listar carpetas, leer archivos y ejecutar comandos de diagnóstico permitidos. No puede modificar nada en el servidor.",
+    "fr": "Claude peut seulement lire : lister des dossiers, lire des fichiers et exécuter des commandes de diagnostic autorisées. Il ne peut rien modifier sur le serveur.",
+    "de": "Claude kann nur lesen: Ordner auflisten, Dateien lesen und erlaubte Diagnosebefehle ausführen. Auf dem Server kann nichts geändert werden.",
+    "pt": "O Claude só pode ler: listar pastas, ler ficheiros e executar comandos de diagnóstico permitidos. Não pode alterar nada no servidor."
+  },
+  "claude_history": {
+    "it": "Chat precedenti",
+    "en": "Previous chats",
+    "es": "Chats anteriores",
+    "fr": "Discussions précédentes",
+    "de": "Frühere Chats",
+    "pt": "Conversas anteriores"
+  },
+  "claude_new_chat": {
+    "it": "Nuova chat",
+    "en": "New chat",
+    "es": "Nuevo chat",
+    "fr": "Nouvelle discussion",
+    "de": "Neuer Chat",
+    "pt": "Nova conversa"
+  },
+  "claude_logout": {
+    "it": "Esci da Claude ({email})",
+    "en": "Sign out of Claude ({email})",
+    "es": "Cerrar sesión de Claude ({email})",
+    "fr": "Se déconnecter de Claude ({email})",
+    "de": "Von Claude abmelden ({email})",
+    "pt": "Terminar sessão do Claude ({email})"
+  },
+  "claude_logout_confirm": {
+    "it": "Uscire dall'account Claude {email}? Le chat salvate restano su questo computer.",
+    "en": "Sign out of the Claude account {email}? Saved chats stay on this computer.",
+    "es": "¿Cerrar sesión de la cuenta de Claude {email}? Los chats guardados permanecen en este equipo.",
+    "fr": "Se déconnecter du compte Claude {email} ? Les discussions enregistrées restent sur cet ordinateur.",
+    "de": "Vom Claude-Konto {email} abmelden? Gespeicherte Chats bleiben auf diesem Computer.",
+    "pt": "Terminar sessão da conta Claude {email}? As conversas guardadas ficam neste computador."
+  },
+  "claude_login_title": {
+    "it": "Accedi a Claude",
+    "en": "Sign in to Claude",
+    "es": "Inicia sesión en Claude",
+    "fr": "Connectez-vous à Claude",
+    "de": "Bei Claude anmelden",
+    "pt": "Iniciar sessão no Claude"
+  },
+  "claude_login_text": {
+    "it": "Usa il tuo abbonamento Claude (Pro, Max, Team o Enterprise). L'accesso avviene nel browser e le credenziali restano salvate solo su questo computer, mai sul server remoto.",
+    "en": "Use your Claude subscription (Pro, Max, Team or Enterprise). You sign in through the browser, and the credentials are stored only on this computer, never on the remote server.",
+    "es": "Usa tu suscripción de Claude (Pro, Max, Team o Enterprise). El acceso se hace en el navegador y las credenciales se guardan solo en este equipo, nunca en el servidor remoto.",
+    "fr": "Utilisez votre abonnement Claude (Pro, Max, Team ou Enterprise). La connexion se fait dans le navigateur et les identifiants restent uniquement sur cet ordinateur, jamais sur le serveur distant.",
+    "de": "Verwende dein Claude-Abo (Pro, Max, Team oder Enterprise). Die Anmeldung erfolgt im Browser, die Zugangsdaten bleiben nur auf diesem Computer, nie auf dem Remote-Server.",
+    "pt": "Use a sua subscrição Claude (Pro, Max, Team ou Enterprise). O acesso é feito no navegador e as credenciais ficam guardadas só neste computador, nunca no servidor remoto."
+  },
+  "claude_login_button": {
+    "it": "Accedi con il browser",
+    "en": "Sign in with the browser",
+    "es": "Iniciar sesión con el navegador",
+    "fr": "Se connecter avec le navigateur",
+    "de": "Im Browser anmelden",
+    "pt": "Iniciar sessão no navegador"
+  },
+  "claude_login_waiting": {
+    "it": "Completa l'accesso nella finestra del browser…",
+    "en": "Finish signing in in the browser window…",
+    "es": "Completa el acceso en la ventana del navegador…",
+    "fr": "Terminez la connexion dans la fenêtre du navigateur…",
+    "de": "Schließe die Anmeldung im Browserfenster ab…",
+    "pt": "Conclua o acesso na janela do navegador…"
+  },
+  "claude_login_manual": {
+    "it": "Se il browser non si è aperto o non torna all'app, apri la pagina qui sotto e incolla il codice che ti viene mostrato.",
+    "en": "If the browser didn't open or doesn't return to the app, open the page below and paste the code it shows you.",
+    "es": "Si el navegador no se abrió o no vuelve a la app, abre la página de abajo y pega el código que aparece.",
+    "fr": "Si le navigateur ne s'est pas ouvert ou ne revient pas à l'application, ouvrez la page ci-dessous et collez le code affiché.",
+    "de": "Falls sich der Browser nicht geöffnet hat oder nicht zur App zurückkehrt, öffne die Seite unten und füge den angezeigten Code ein.",
+    "pt": "Se o navegador não abriu ou não regressa à app, abra a página abaixo e cole o código apresentado."
+  },
+  "claude_login_open_page": {
+    "it": "Apri la pagina di accesso",
+    "en": "Open the sign-in page",
+    "es": "Abrir la página de acceso",
+    "fr": "Ouvrir la page de connexion",
+    "de": "Anmeldeseite öffnen",
+    "pt": "Abrir a página de acesso"
+  },
+  "claude_login_code_placeholder": {
+    "it": "Codice di autorizzazione",
+    "en": "Authorization code",
+    "es": "Código de autorización",
+    "fr": "Code d'autorisation",
+    "de": "Autorisierungscode",
+    "pt": "Código de autorização"
+  },
+  "claude_login_code_send": {
+    "it": "Invia codice",
+    "en": "Submit code",
+    "es": "Enviar código",
+    "fr": "Envoyer le code",
+    "de": "Code senden",
+    "pt": "Enviar código"
+  },
+  "claude_login_cancel": {
+    "it": "Annulla",
+    "en": "Cancel",
+    "es": "Cancelar",
+    "fr": "Annuler",
+    "de": "Abbrechen",
+    "pt": "Cancelar"
+  },
+  "claude_login_done": {
+    "it": "Accesso a Claude eseguito {email}",
+    "en": "Signed in to Claude {email}",
+    "es": "Sesión iniciada en Claude {email}",
+    "fr": "Connecté à Claude {email}",
+    "de": "Bei Claude angemeldet {email}",
+    "pt": "Sessão iniciada no Claude {email}"
+  },
+  "claude_login_failed": {
+    "it": "Accesso non riuscito: {error}",
+    "en": "Sign-in failed: {error}",
+    "es": "Error al iniciar sesión: {error}",
+    "fr": "Échec de la connexion : {error}",
+    "de": "Anmeldung fehlgeschlagen: {error}",
+    "pt": "Falha no acesso: {error}"
+  },
+  "claude_auth_expired": {
+    "it": "L'accesso a Claude non è più valido: accedi di nuovo.",
+    "en": "Your Claude sign-in is no longer valid: please sign in again.",
+    "es": "El acceso a Claude ya no es válido: inicia sesión de nuevo.",
+    "fr": "La connexion à Claude n'est plus valide : reconnectez-vous.",
+    "de": "Die Claude-Anmeldung ist nicht mehr gültig: bitte erneut anmelden.",
+    "pt": "O acesso ao Claude já não é válido: inicie sessão novamente."
+  },
+  "claude_input_placeholder": {
+    "it": "Chiedi qualcosa su questo server… (Invio per inviare, Maiusc+Invio per andare a capo)",
+    "en": "Ask something about this server… (Enter to send, Shift+Enter for a new line)",
+    "es": "Pregunta algo sobre este servidor… (Intro para enviar, Mayús+Intro para nueva línea)",
+    "fr": "Posez une question sur ce serveur… (Entrée pour envoyer, Maj+Entrée pour aller à la ligne)",
+    "de": "Frag etwas zu diesem Server… (Enter zum Senden, Umschalt+Enter für neue Zeile)",
+    "pt": "Pergunte algo sobre este servidor… (Enter para enviar, Shift+Enter para nova linha)"
+  },
+  "claude_model": {
+    "it": "Modello",
+    "en": "Model",
+    "es": "Modelo",
+    "fr": "Modèle",
+    "de": "Modell",
+    "pt": "Modelo"
+  },
+  "claude_effort": {
+    "it": "Effort (quanto ragiona prima di rispondere)",
+    "en": "Effort (how much it reasons before answering)",
+    "es": "Esfuerzo (cuánto razona antes de responder)",
+    "fr": "Effort (à quel point il réfléchit avant de répondre)",
+    "de": "Aufwand (wie viel vor der Antwort nachgedacht wird)",
+    "pt": "Esforço (quanto raciocina antes de responder)"
+  },
+  "claude_effort_low": {
+    "it": "Effort basso",
+    "en": "Low effort",
+    "es": "Esfuerzo bajo",
+    "fr": "Effort faible",
+    "de": "Geringer Aufwand",
+    "pt": "Esforço baixo"
+  },
+  "claude_effort_medium": {
+    "it": "Effort medio",
+    "en": "Medium effort",
+    "es": "Esfuerzo medio",
+    "fr": "Effort moyen",
+    "de": "Mittlerer Aufwand",
+    "pt": "Esforço médio"
+  },
+  "claude_effort_high": {
+    "it": "Effort alto",
+    "en": "High effort",
+    "es": "Esfuerzo alto",
+    "fr": "Effort élevé",
+    "de": "Hoher Aufwand",
+    "pt": "Esforço alto"
+  },
+  "claude_effort_xhigh": {
+    "it": "Effort molto alto",
+    "en": "Extra-high effort",
+    "es": "Esfuerzo muy alto",
+    "fr": "Effort très élevé",
+    "de": "Sehr hoher Aufwand",
+    "pt": "Esforço muito alto"
+  },
+  "claude_effort_max": {
+    "it": "Effort massimo",
+    "en": "Max effort",
+    "es": "Esfuerzo máximo",
+    "fr": "Effort maximal",
+    "de": "Maximaler Aufwand",
+    "pt": "Esforço máximo"
+  },
+  "claude_send": {
+    "it": "Invia",
+    "en": "Send",
+    "es": "Enviar",
+    "fr": "Envoyer",
+    "de": "Senden",
+    "pt": "Enviar"
+  },
+  "claude_stop": {
+    "it": "Ferma",
+    "en": "Stop",
+    "es": "Detener",
+    "fr": "Arrêter",
+    "de": "Stopp",
+    "pt": "Parar"
+  },
+  "claude_stopped": {
+    "it": "interrotta",
+    "en": "stopped",
+    "es": "detenida",
+    "fr": "interrompue",
+    "de": "abgebrochen",
+    "pt": "interrompida"
+  },
+  "claude_no_session": {
+    "it": "La connessione SSH di questa scheda non è attiva.",
+    "en": "This tab's SSH connection is not active.",
+    "es": "La conexión SSH de esta pestaña no está activa.",
+    "fr": "La connexion SSH de cet onglet n'est pas active.",
+    "de": "Die SSH-Verbindung dieses Tabs ist nicht aktiv.",
+    "pt": "A ligação SSH deste separador não está ativa."
+  },
+  "claude_thinking": {
+    "it": "Claude sta ragionando…",
+    "en": "Claude is thinking…",
+    "es": "Claude está pensando…",
+    "fr": "Claude réfléchit…",
+    "de": "Claude denkt nach…",
+    "pt": "O Claude está a pensar…"
+  },
+  "claude_working": {
+    "it": "Claude sta lavorando…",
+    "en": "Claude is working…",
+    "es": "Claude está trabajando…",
+    "fr": "Claude travaille…",
+    "de": "Claude arbeitet…",
+    "pt": "O Claude está a trabalhar…"
+  },
+  "claude_empty_title": {
+    "it": "Chiedi a Claude di analizzare {server}.",
+    "en": "Ask Claude to look into {server}.",
+    "es": "Pide a Claude que analice {server}.",
+    "fr": "Demandez à Claude d'analyser {server}.",
+    "de": "Bitte Claude, {server} zu untersuchen.",
+    "pt": "Peça ao Claude para analisar {server}."
+  },
+  "claude_empty_hint": {
+    "it": "Può esplorare cartelle, leggere file e log ed eseguire comandi diagnostici, ma non può modificare nulla.",
+    "en": "It can browse folders, read files and logs and run diagnostic commands, but it cannot change anything.",
+    "es": "Puede explorar carpetas, leer archivos y logs y ejecutar comandos de diagnóstico, pero no puede modificar nada.",
+    "fr": "Il peut parcourir les dossiers, lire fichiers et journaux et exécuter des commandes de diagnostic, mais ne peut rien modifier.",
+    "de": "Es kann Ordner durchsuchen, Dateien und Logs lesen und Diagnosebefehle ausführen, aber nichts ändern.",
+    "pt": "Pode explorar pastas, ler ficheiros e logs e executar comandos de diagnóstico, mas não pode alterar nada."
+  },
+  "claude_suggest_disk": {
+    "it": "Quanto spazio libero c'è sui dischi e cosa occupa di più?",
+    "en": "How much free disk space is there and what uses the most?",
+    "es": "¿Cuánto espacio libre hay en los discos y qué ocupa más?",
+    "fr": "Combien d'espace disque reste-t-il et qu'est-ce qui en occupe le plus ?",
+    "de": "Wie viel Speicherplatz ist frei und was belegt am meisten?",
+    "pt": "Quanto espaço livre há nos discos e o que ocupa mais?"
+  },
+  "claude_suggest_docker": {
+    "it": "Quali container Docker sono attivi e sono tutti in salute?",
+    "en": "Which Docker containers are running, and are they all healthy?",
+    "es": "¿Qué contenedores Docker están activos y están todos sanos?",
+    "fr": "Quels conteneurs Docker tournent et sont-ils tous en bonne santé ?",
+    "de": "Welche Docker-Container laufen und sind alle gesund?",
+    "pt": "Que contentores Docker estão ativos e estão todos saudáveis?"
+  },
+  "claude_suggest_logs": {
+    "it": "Ci sono errori recenti nei log di sistema?",
+    "en": "Are there recent errors in the system logs?",
+    "es": "¿Hay errores recientes en los logs del sistema?",
+    "fr": "Y a-t-il des erreurs récentes dans les journaux système ?",
+    "de": "Gibt es aktuelle Fehler in den Systemlogs?",
+    "pt": "Há erros recentes nos logs do sistema?"
+  },
+  "claude_suggest_services": {
+    "it": "Quali servizi sono in errore o si sono riavviati?",
+    "en": "Which services have failed or restarted?",
+    "es": "¿Qué servicios han fallado o se han reiniciado?",
+    "fr": "Quels services sont en échec ou ont redémarré ?",
+    "de": "Welche Dienste sind fehlgeschlagen oder neu gestartet?",
+    "pt": "Que serviços falharam ou reiniciaram?"
+  },
+  "claude_from_line": {
+    "it": "dalla riga {n}",
+    "en": "from line {n}",
+    "es": "desde la línea {n}",
+    "fr": "à partir de la ligne {n}",
+    "de": "ab Zeile {n}",
+    "pt": "a partir da linha {n}"
+  },
+  "claude_confirm_sensitive_path": {
+    "it": "Claude vuole leggere un file sensibile: {path}",
+    "en": "Claude wants to read a sensitive file: {path}",
+    "es": "Claude quiere leer un archivo sensible: {path}",
+    "fr": "Claude veut lire un fichier sensible : {path}",
+    "de": "Claude möchte eine sensible Datei lesen: {path}",
+    "pt": "O Claude quer ler um ficheiro sensível: {path}"
+  },
+  "claude_confirm_sensitive_command": {
+    "it": "Claude vuole eseguire un comando il cui output può contenere segreti (es. variabili d'ambiente):",
+    "en": "Claude wants to run a command whose output may contain secrets (e.g. environment variables):",
+    "es": "Claude quiere ejecutar un comando cuya salida puede contener secretos (p. ej. variables de entorno):",
+    "fr": "Claude veut exécuter une commande dont la sortie peut contenir des secrets (ex. variables d'environnement) :",
+    "de": "Claude möchte einen Befehl ausführen, dessen Ausgabe Geheimnisse enthalten kann (z. B. Umgebungsvariablen):",
+    "pt": "O Claude quer executar um comando cuja saída pode conter segredos (ex. variáveis de ambiente):"
+  },
+  "claude_confirm_sudo": {
+    "it": "Claude vuole usare sudo (in sola lettura) per: {command}",
+    "en": "Claude wants to use sudo (read-only) for: {command}",
+    "es": "Claude quiere usar sudo (solo lectura) para: {command}",
+    "fr": "Claude veut utiliser sudo (lecture seule) pour : {command}",
+    "de": "Claude möchte sudo (nur lesend) verwenden für: {command}",
+    "pt": "O Claude quer usar sudo (só leitura) para: {command}"
+  },
+  "claude_confirm_generic": {
+    "it": "Claude chiede l'autorizzazione per un'operazione bloccata.",
+    "en": "Claude is asking permission for a blocked operation.",
+    "es": "Claude pide permiso para una operación bloqueada.",
+    "fr": "Claude demande l'autorisation pour une opération bloquée.",
+    "de": "Claude bittet um Erlaubnis für einen gesperrten Vorgang.",
+    "pt": "O Claude pede autorização para uma operação bloqueada."
+  },
+  "claude_confirm_waiting": {
+    "it": "Claude attende un'autorizzazione su {server}: apri il pannello Claude.",
+    "en": "Claude is waiting for permission on {server}: open the Claude panel.",
+    "es": "Claude espera una autorización en {server}: abre el panel de Claude.",
+    "fr": "Claude attend une autorisation sur {server} : ouvrez le panneau Claude.",
+    "de": "Claude wartet auf eine Erlaubnis auf {server}: öffne das Claude-Panel.",
+    "pt": "O Claude aguarda uma autorização em {server}: abra o painel do Claude."
+  },
+  "claude_allow_once": {
+    "it": "Consenti una volta",
+    "en": "Allow once",
+    "es": "Permitir una vez",
+    "fr": "Autoriser une fois",
+    "de": "Einmal erlauben",
+    "pt": "Permitir uma vez"
+  },
+  "claude_allow_chat": {
+    "it": "Consenti per questa chat",
+    "en": "Allow for this chat",
+    "es": "Permitir en este chat",
+    "fr": "Autoriser pour cette discussion",
+    "de": "Für diesen Chat erlauben",
+    "pt": "Permitir nesta conversa"
+  },
+  "claude_deny": {
+    "it": "Nega",
+    "en": "Deny",
+    "es": "Denegar",
+    "fr": "Refuser",
+    "de": "Ablehnen",
+    "pt": "Negar"
+  },
+  "claude_confirm_allowed": {
+    "it": "Consentito",
+    "en": "Allowed",
+    "es": "Permitido",
+    "fr": "Autorisé",
+    "de": "Erlaubt",
+    "pt": "Permitido"
+  },
+  "claude_confirm_denied": {
+    "it": "Negato",
+    "en": "Denied",
+    "es": "Denegado",
+    "fr": "Refusé",
+    "de": "Abgelehnt",
+    "pt": "Negado"
+  },
+  "claude_confirm_expired": {
+    "it": "Richiesta scaduta",
+    "en": "Request expired",
+    "es": "Solicitud caducada",
+    "fr": "Demande expirée",
+    "de": "Anfrage abgelaufen",
+    "pt": "Pedido expirado"
+  },
+  "claude_back_to_chat": {
+    "it": "Torna alla chat",
+    "en": "Back to chat",
+    "es": "Volver al chat",
+    "fr": "Retour à la discussion",
+    "de": "Zurück zum Chat",
+    "pt": "Voltar à conversa"
+  },
+  "claude_history_title": {
+    "it": "Chat salvate per questo server",
+    "en": "Saved chats for this server",
+    "es": "Chats guardados de este servidor",
+    "fr": "Discussions enregistrées pour ce serveur",
+    "de": "Gespeicherte Chats für diesen Server",
+    "pt": "Conversas guardadas deste servidor"
+  },
+  "claude_history_empty": {
+    "it": "Nessuna chat salvata per questo server.",
+    "en": "No saved chats for this server.",
+    "es": "No hay chats guardados para este servidor.",
+    "fr": "Aucune discussion enregistrée pour ce serveur.",
+    "de": "Keine gespeicherten Chats für diesen Server.",
+    "pt": "Nenhuma conversa guardada para este servidor."
+  },
+  "claude_history_messages": {
+    "it": "{n} domande",
+    "en": "{n} questions",
+    "es": "{n} preguntas",
+    "fr": "{n} questions",
+    "de": "{n} Fragen",
+    "pt": "{n} perguntas"
+  },
+  "claude_untitled": {
+    "it": "Chat senza titolo",
+    "en": "Untitled chat",
+    "es": "Chat sin título",
+    "fr": "Discussion sans titre",
+    "de": "Chat ohne Titel",
+    "pt": "Conversa sem título"
+  },
+  "claude_delete_confirm": {
+    "it": "Eliminare la chat \"{title}\"?",
+    "en": "Delete the chat \"{title}\"?",
+    "es": "¿Eliminar el chat \"{title}\"?",
+    "fr": "Supprimer la discussion « {title} » ?",
+    "de": "Chat „{title}“ löschen?",
+    "pt": "Eliminar a conversa \"{title}\"?"
   }
 }

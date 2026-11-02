@@ -95,6 +95,22 @@ contextBridge.exposeInMainWorld('api', {
   cronRead: (id) => ipcRenderer.invoke('cron:read', id),
   cronWrite: (id, content) => ipcRenderer.invoke('cron:write', { id, content }),
 
+  // assistente Claude (login locale, chat in sola lettura sul server della scheda)
+  claudeAuthStatus: () => ipcRenderer.invoke('claude:authStatus'),
+  claudeLogin: () => ipcRenderer.invoke('claude:login'),
+  claudeLoginCode: (code) => ipcRenderer.invoke('claude:loginCode', code),
+  claudeCancelLogin: () => ipcRenderer.invoke('claude:cancelLogin'),
+  claudeLogout: () => ipcRenderer.invoke('claude:logout'),
+  claudeSend: (req) => ipcRenderer.invoke('claude:send', req),
+  claudeStop: (chatId) => ipcRenderer.invoke('claude:stop', chatId),
+  claudeConfirm: (confirmId, decision) => ipcRenderer.invoke('claude:confirm', { confirmId, decision }),
+  claudeListChats: (serverKey) => ipcRenderer.invoke('claude:listChats', serverKey),
+  claudeGetChat: (serverKey, chatId) => ipcRenderer.invoke('claude:getChat', { serverKey, chatId }),
+  claudeSaveChat: (serverKey, chat) => ipcRenderer.invoke('claude:saveChat', { serverKey, chat }),
+  claudeDeleteChat: (serverKey, chatId) => ipcRenderer.invoke('claude:deleteChat', { serverKey, chatId }),
+  onClaudeEvent: (cb) => ipcRenderer.on('claude:event', (_e, p) => cb(p)),
+  onClaudeLogin: (cb) => ipcRenderer.on('claude:login', (_e, p) => cb(p)),
+
   // eventi dal main
   onData: (cb) => ipcRenderer.on('ssh:data', (_e, p) => cb(p)),
   onCwd: (cb) => ipcRenderer.on('ssh:cwd', (_e, p) => cb(p)),

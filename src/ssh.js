@@ -680,6 +680,53 @@ class SshManager {
     });
   }
 
+  /**
+   * Esegue un comando senza mai rifiutare per il codice di uscita (grep che non
+   * trova nulla esce con 1): restituisce stdout, stderr e codice. L'output oltre
+   * `maxBytes` viene troncato chiudendo il canale, e dopo `timeoutMs` il comando
+   * viene interrotto. Con `sudo` passa da `sudo -S` come `sudoExec`.
+   * Usato dall'assistente Claude, che non deve poter bloccare la sessione.
+   * @returns {Promise<{code:number|null, stdout:string, stderr:string, truncated:boolean, timedOut:boolean}>}
+   */
+  execCapture(id, cmd, { timeoutMs = 30000, maxBytes = 200000, sudo = false } = {}) {
+    const s = this.get(id);
+    const full = sudo ? `sudo -S -p '' bash -c ${shellQuote(cmd)}` : cmd;
+    return new Promise((resolve, reject) => {
+      s.client.exec(full, (err, stream) => {
+        if (err) return reject(err);
+        const out = [];
+        const errOut = [];
+        let outLen = 0;
+        let errLen = 0;
+        let truncated = false;
+        let timedOut = false;
+        const timer = setTimeout(() => { timedOut = true; stream.close(); }, timeoutMs);
+        stream.on('data', (d) => {
+          if (truncated) return;
+          out.push(d);
+          outLen += d.length;
+          if (outLen > maxBytes) { truncated = true; stream.close(); }
+        });
+        stream.stderr.on('data', (d) => {
+          if (errLen > maxBytes) return;
+          errOut.push(d);
+          errLen += d.length;
+        });
+        stream.on('close', (code) => {
+          clearTimeout(timer);
+          let stdout = Buffer.concat(out).toString('utf8');
+          if (stdout.length > maxBytes) stdout = stdout.slice(0, maxBytes);
+          let stderr = Buffer.concat(errOut).toString('utf8');
+          if (sudo) stderr = stderr.replace(/\[sudo\][^\n]*\n?/g, '');
+          resolve({ code: typeof code === 'number' ? code : null, stdout, stderr: stderr.trim(), truncated, timedOut });
+        });
+        if (sudo && s.server.password) stream.write(s.server.password + '\n');
+        // stdin chiuso: un comando che lo legge (es. cat senza argomenti) termina subito
+        stream.end();
+      });
+    });
+  }
+
   sudoExec(id, cmd) {
     const s = this.get(id);
     const password = s.server.password || '';

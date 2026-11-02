@@ -117,6 +117,42 @@ npm run dist:mac
   itself every 4 seconds. Requires PostgreSQL 10 or later.
 - **Right-click menu on the terminal**: *Paste password* (inserts the server's
   password taken from `servers.json`).
+- **Claude assistant** (the Claude icon in the tab bar, `Cmd`/`Ctrl+Shift`+`O`):
+  a chat with Claude about the tab's server. See [Claude assistant](#claude-assistant).
+
+## Claude assistant
+
+The Claude button opens a chat panel tied to the tab's server. Claude can
+investigate the machine on its own — list directories, read files and logs,
+search by name or content, run diagnostic commands — but it is **strictly
+read-only**: it cannot change anything on the server, and it has no access to the
+local computer.
+
+- **Sign-in**: the first time, *Sign in with the browser* opens the Claude login
+  page; it works with a Claude subscription (Pro, Max, Team or Enterprise). The
+  credentials are kept by the Claude Code runtime bundled with the app, in the
+  app's own data folder on this computer (separate from any personal Claude Code
+  installation), and are never sent to the remote server. If the browser cannot
+  return to the app, the page shows a code to paste into the panel.
+- **Model and effort**: chosen from the menus under the message box (Opus, Sonnet,
+  Haiku, Fable; effort from *low* to *max*). The last choice is remembered.
+- **History**: chats are saved locally per server (`user@host:port`), in
+  `claude-chats.json` inside the app's data folder, and can be reopened and
+  continued from the history button.
+- **What Claude can run**: only the commands in an allow list (`ls`, `cat`,
+  `tail`, `grep`, `find`, `df`, `du`, `ps`, `ss`, `ip`, `free`, `uptime`,
+  `systemctl status`/`list-*`/`show`/`cat`, `journalctl`, `docker ps`/`logs`/
+  `inspect`/`stats`/..., `docker compose ps`/`logs`/`config`, `crontab -l`,
+  package queries, version checks and so on — see `src/claude-tools.js`).
+  Arguments are passed one by one and never go through a shell, so pipes,
+  redirections, `;` and `$()` are impossible; subcommands and flags that write
+  (`find -delete`, `systemctl restart`, `docker rm`, `tail -f`, ...) are rejected.
+- **Sensitive files are blocked by default**: SSH keys, `.env` files, `*.pem` /
+  `*.key`, `/etc/shadow`, cloud and database credentials, `wp-config.php`,
+  shell histories and similar. When Claude needs one, the chat asks for
+  permission (*Allow once*, *Allow for this chat*, *Deny*); the same applies to
+  `sudo` and to commands whose output can contain secrets (`docker inspect`,
+  `docker compose config`). Recursive searches always skip secret files.
 
 ## `servers.json` format
 
@@ -145,6 +181,10 @@ plain text, so `servers.json` is excluded from version control (`.gitignore`).
 - `src/ssh.js` — SSH session handling (`ssh2`): PTY shell plus an SFTP/exec channel
   for the file features.
 - `src/preload.js` — secure bridge (contextIsolation) between renderer and main.
+- `src/claude.js` — Claude assistant (Agent SDK): sign-in through the bundled
+  Claude Code, chat runs and the local chat history.
+- `src/claude-tools.js` — the assistant's read-only tools, command allow list and
+  sensitive-path rules.
 - `src/transfers.js` — file transfer queue (downloads, uploads and server →
   server copies), with progress, pause/resume and state persisted to disk.
 - `src/index.html` / `src/styles.css` / `src/renderer.js` — the interface (config,

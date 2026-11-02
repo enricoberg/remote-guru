@@ -5,6 +5,7 @@ const fs = require('fs');
 const path = require('path');
 const ssh = require('./ssh');
 const transfers = require('./transfers');
+const claude = require('./claude');
 
 // In sviluppo si usa il servers.json del repo; nell'app pacchettizzata
 // app.getAppPath() punta dentro app.asar (sola lettura), quindi si salva
@@ -74,12 +75,22 @@ app.whenReady().then(() => {
     // area di transito delle copie server -> server (drag&drop fra due schede)
     tmpRoot: path.join(app.getPath('temp'), 'remote-guru'),
   });
+  // assistente Claude: login, sessioni e cronologia restano nella cartella dati utente
+  claude.init({
+    ssh,
+    emit: send,
+    userDataDir: app.getPath('userData'),
+    appPath: app.getAppPath(),
+    version: app.getVersion(),
+  });
   buildAppMenu();
   createWindow();
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) createWindow();
   });
 });
+
+app.on('before-quit', () => claude.shutdown());
 
 app.on('window-all-closed', () => {
   if (process.platform !== 'darwin') app.quit();
@@ -395,6 +406,21 @@ ipcMain.handle('screen:clearStatus', (_e, { id, target }) => ssh.screenClearStat
 ipcMain.handle('cron:read', (_e, id) => ssh.cronRead(id));
 
 ipcMain.handle('cron:write', (_e, { id, content }) => ssh.cronWrite(id, content));
+
+// --- Claude -------------------------------------------------------------------
+
+ipcMain.handle('claude:authStatus', () => claude.authStatus());
+ipcMain.handle('claude:login', () => claude.login());
+ipcMain.handle('claude:loginCode', (_e, code) => claude.loginCode(code));
+ipcMain.handle('claude:cancelLogin', () => claude.cancelLogin());
+ipcMain.handle('claude:logout', () => claude.logout());
+ipcMain.handle('claude:send', (_e, req) => claude.send(req));
+ipcMain.handle('claude:stop', (_e, chatId) => claude.stop(chatId));
+ipcMain.handle('claude:confirm', (_e, { confirmId, decision }) => claude.answerConfirm(confirmId, decision));
+ipcMain.handle('claude:listChats', (_e, serverKey) => claude.listChats(serverKey));
+ipcMain.handle('claude:getChat', (_e, { serverKey, chatId }) => claude.getChat(serverKey, chatId));
+ipcMain.handle('claude:saveChat', (_e, { serverKey, chat }) => claude.saveChat(serverKey, chat));
+ipcMain.handle('claude:deleteChat', (_e, { serverKey, chatId }) => claude.deleteChat(serverKey, chatId));
 
 ipcMain.handle('shell:openExternal', (_e, url) => shell.openExternal(url));
 

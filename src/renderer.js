@@ -725,6 +725,27 @@ function zoomTerm(tab, delta) {
 }
 
 /**
+ * Icona di Claude (raggiera arancione): Font Awesome non ne ha una, quindi è un
+ * SVG disegnato qui, che eredita la dimensione del testo come le icone <i>.
+ */
+const CLAUDE_ICON_SVG = (() => {
+  const rays = [9.6, 7.4, 9.1, 8, 9.8, 7.1, 9.3, 8.3, 9.6, 7.7, 9, 8.2];
+  const lines = rays.map((len, i) => {
+    const a = (i / rays.length) * Math.PI * 2 - Math.PI / 2 + (i % 2 ? 0.1 : 0);
+    const x = 12 + Math.cos(a) * len;
+    const y = 12 + Math.sin(a) * len;
+    return `<line x1="12" y1="12" x2="${x.toFixed(2)}" y2="${y.toFixed(2)}"/>`;
+  }).join('');
+  return '<svg class="claude-icon" viewBox="0 0 24 24" aria-hidden="true">' +
+    `<g stroke="currentColor" stroke-width="2.3" stroke-linecap="round">${lines}</g></svg>`;
+})();
+
+/** HTML dell'icona di un'azione: classe Font Awesome oppure SVG proprio. */
+function actionIconHtml(a) {
+  return a.iconHtml || `<i class="${a.icon}"></i>`;
+}
+
+/**
  * Azioni della barra di una scheda: usate sia per costruire i pulsanti del pane
  * sia dal motore delle scorciatoie da tastiera (vedi SCORCIATOIE DA TASTIERA),
  * così i due percorsi restano sempre allineati.
@@ -739,6 +760,7 @@ const TAB_ACTIONS = [
   { id: 'screens',   icon: 'fa-brands fa-buffer',    labelKey: 'screen_sessions_button_title',   run: (tab) => showScreens(tab) },
   { id: 'cron',      icon: 'fa-solid fa-clock',      labelKey: 'cron_button_title',              run: (tab) => showCrontab(tab) },
   { id: 'monitor',   icon: 'fa-solid fa-gauge-high', labelKey: 'monitor_button_title',           run: (tab) => showMonitor(tab) },
+  { id: 'claude',    iconHtml: CLAUDE_ICON_SVG,      labelKey: 'claude_button_title',            run: (tab) => showClaude(tab) },
 ];
 
 function buildPane(tab) {
@@ -758,7 +780,7 @@ function buildPane(tab) {
     const label = i18n.t(a.labelKey);
     const keys = shortcutFor(a.id);
     const btn = el('button', 'btn-ll tip');
-    btn.innerHTML = `<i class="${a.icon}"></i>`;
+    btn.innerHTML = actionIconHtml(a);
     btn.dataset.tip = keys ? `${label}  ·  ${formatBinding(keys)}` : label;
     btn.setAttribute('aria-label', label);
     btn.addEventListener('click', () => a.run(tab));
@@ -1180,6 +1202,7 @@ async function closeTab(id) {
   if (!tab) return;
   // se era in corso un ripristino va fermato prima di chiudere la sessione
   stopReconnect(tab);
+  stopClaude(tab);
   await window.api.disconnect(id);
   tab.term.dispose();
   tab.paneEl.remove();
@@ -5432,6 +5455,896 @@ async function initTransfers() {
 }
 
 // ============================================================================
+// ASSISTENTE CLAUDE (chat in sola lettura sul server della scheda)
+// ============================================================================
+
+const CLAUDE_MODELS = [
+  { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+  { id: 'claude-sonnet-5-5', label: 'Sonnet 5.5' },
+  { id: 'claude-haiku-5-5', label: 'Haiku 5.5' },
+  { id: 'claude-fable-5-1', label: 'Fable 5.1' },
+];
+const CLAUDE_EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max'];
+const CLAUDE_PREFS_KEY = 'claudePrefs'; // ultimo modello/effort scelti
+
+/** Stato del login, unico per tutta l'app (le credenziali sono di Claude Code). */
+const claudeAuth = {
+  checked: false, checking: false, loggedIn: false, email: null, plan: null,
+  pending: false, url: null, error: null,
+};
+/** chatId -> scheda: dove recapitare gli eventi di una risposta in corso. */
+const claudeRuns = new Map();
+/** cache dell'HTML dei blocchi di testo: segmento -> { len, html } */
+const claudeMdCache = new WeakMap();
+
+/** Stessa forma di serverKey() in ssh.js: la cronologia è per utente@host:porta. */
+function claudeServerKey(server) {
+  return `${server.username || ''}@${server.host || ''}:${server.port || 22}`;
+}
+
+function claudeModelLabel(id) {
+  const m = CLAUDE_MODELS.find((x) => x.id === id);
+  return m ? m.label : id || '';
+}
+
+function claudePrefs() {
+  let p = {};
+  try { p = JSON.parse(localStorage.getItem(CLAUDE_PREFS_KEY) || '{}') || {}; } catch (_) {}
+  return {
+    model: CLAUDE_MODELS.some((m) => m.id === p.model) ? p.model : CLAUDE_MODELS[0].id,
+    effort: CLAUDE_EFFORTS.includes(p.effort) ? p.effort : 'medium',
+  };
+}
+
+function newClaudeChat() {
+  const p = claudePrefs();
+  const id = window.crypto && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Date.now().toString(36) + Math.random().toString(36).slice(2);
+  return { id, title: '', sessionId: null, model: p.model, effort: p.effort,
+    createdAt: Date.now(), updatedAt: Date.now(), messages: [] };
+}
+
+/** Messaggio di un errore IPC senza il prefisso "Error invoking remote method". */
+function ipcErrorText(e) {
+  return String((e && e.message) || e).replace(/^Error invoking remote method '[^']+': (\w*Error: )?/, '');
+}
+
+// ---- apertura e struttura del pannello ------------------------------------------
+
+function showClaude(tab) {
+  if (!tab.claude) tab.claude = { chat: newClaudeChat(), view: 'chat', history: null, draft: '', busy: false };
+  const open = tab.hostEl.querySelector('.ll-overlay.claude-overlay');
+  if (open) {
+    focusClaudeInput(tab);
+    return;
+  }
+  bumpOverlaySeq(tab);
+  const old = tab.hostEl.querySelector('.ll-overlay');
+  if (old) old.remove();
+
+  const overlay = el('div', 'll-overlay claude-overlay');
+  overlay.dataset.panel = 'claude';
+  const grip = el('div', 'll-resize');
+  overlay.appendChild(grip);
+  setupOverlayResize(grip, overlay, tab);
+  if (tab.llHeight) { overlay.style.height = tab.llHeight + 'px'; overlay.style.maxHeight = 'none'; }
+  tab.hostEl.appendChild(overlay);
+  tab.claudeEl = overlay;
+
+  renderClaude(tab);
+  if (!claudeAuth.checked) refreshClaudeAuth();
+  focusClaudeInput(tab);
+}
+
+function focusClaudeInput(tab) {
+  setTimeout(() => { if (tab.claudeInput && tab.claudeInput.isConnected) tab.claudeInput.focus(); }, 0);
+}
+
+/** Ridisegna tutto il pannello (intestazione + vista corrente). */
+function renderClaude(tab) {
+  const overlay = tab.claudeEl;
+  if (!overlay || !overlay.isConnected) return;
+  [...overlay.children].forEach((c) => { if (!c.classList.contains('ll-resize')) c.remove(); });
+  tab.claudeMsgsEl = null;
+  tab.claudeInput = null;
+  overlay.appendChild(claudeHead(tab));
+
+  let body;
+  if (!claudeAuth.checked) {
+    body = el('div', 'claude-center');
+    body.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${escapeHtml(i18n.t('claude_checking'))}`;
+  } else if (!claudeAuth.loggedIn) {
+    body = claudeLoginView();
+  } else if (tab.claude.view === 'history') {
+    body = claudeHistoryView(tab);
+  } else {
+    body = claudeChatView(tab);
+  }
+  overlay.appendChild(body);
+  if (tab.claudeMsgsEl) renderClaudeMessages(tab, true);
+}
+
+function renderAllClaude() {
+  tabs.forEach((t) => { if (t.claudeEl && t.claudeEl.isConnected) renderClaude(t); });
+}
+
+function claudeHead(tab) {
+  const head = el('div', 'll-head claude-head');
+  const info = el('span', 'claude-title');
+  const label = tab.server.nickname || tab.server.name || tab.server.host;
+  info.innerHTML = `${CLAUDE_ICON_SVG} <b>Claude</b> · ${escapeHtml(label)}` +
+    ` <span class="claude-ro" title="${escapeHtml(i18n.t('claude_readonly_hint'))}">` +
+    `<i class="fa-solid fa-lock"></i> ${escapeHtml(i18n.t('claude_readonly'))}</span>`;
+  const actions = el('span', 'll-head-actions');
+  const busy = tab.claude.busy;
+
+  const button = (icon, title, onClick, disabled = false) => {
+    const b = el('button');
+    b.innerHTML = `<i class="${icon}"></i>`;
+    b.title = title;
+    b.disabled = disabled;
+    b.addEventListener('click', onClick);
+    actions.appendChild(b);
+    return b;
+  };
+
+  if (claudeAuth.loggedIn) {
+    button('fa-solid fa-clock-rotate-left', i18n.t('claude_history'), () => showClaudeHistory(tab), busy);
+    button('fa-solid fa-plus', i18n.t('claude_new_chat'), () => newClaudeConversation(tab), busy);
+    button('fa-solid fa-right-from-bracket',
+      i18n.t('claude_logout', { email: claudeAuth.email || '' }), () => logoutClaude(), busy);
+  }
+  button('fa-solid fa-xmark', i18n.t('tf_close'), () => { tab.claudeEl.remove(); tab.term.focus(); });
+  head.appendChild(info);
+  head.appendChild(actions);
+  return head;
+}
+
+// ---- login --------------------------------------------------------------------
+
+async function refreshClaudeAuth() {
+  if (claudeAuth.checking) return;
+  claudeAuth.checking = true;
+  try {
+    const st = await window.api.claudeAuthStatus();
+    claudeAuth.loggedIn = !!st.loggedIn;
+    claudeAuth.email = st.email || null;
+    claudeAuth.plan = st.subscription || null;
+    claudeAuth.error = st.loggedIn ? null : st.error || null;
+  } catch (e) {
+    claudeAuth.loggedIn = false;
+    claudeAuth.error = ipcErrorText(e);
+  }
+  claudeAuth.checked = true;
+  claudeAuth.checking = false;
+  renderAllClaude();
+}
+
+function claudeLoginView() {
+  const box = el('div', 'claude-login');
+  box.innerHTML =
+    `<div class="claude-login-logo">${CLAUDE_ICON_SVG}</div>` +
+    `<h3>${escapeHtml(i18n.t('claude_login_title'))}</h3>` +
+    `<p>${escapeHtml(i18n.t('claude_login_text'))}</p>`;
+
+  if (claudeAuth.error && !claudeAuth.pending) {
+    const err = el('p', 'claude-error');
+    err.textContent = claudeAuth.error;
+    box.appendChild(err);
+  }
+
+  if (!claudeAuth.pending) {
+    const btn = el('button', 'claude-primary');
+    btn.innerHTML = `<i class="fa-solid fa-arrow-up-right-from-square"></i> ${escapeHtml(i18n.t('claude_login_button'))}`;
+    btn.addEventListener('click', startClaudeLogin);
+    box.appendChild(btn);
+    return box;
+  }
+
+  const wait = el('p', 'claude-wait');
+  wait.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${escapeHtml(i18n.t('claude_login_waiting'))}`;
+  box.appendChild(wait);
+
+  // ripiego: pagina di login aperta a mano + codice incollato qui
+  if (claudeAuth.url) {
+    const manual = el('p', 'claude-muted');
+    manual.textContent = i18n.t('claude_login_manual');
+    box.appendChild(manual);
+    const row = el('div', 'claude-code-row');
+    const link = el('button', 'docker-btn');
+    link.innerHTML = `<i class="fa-solid fa-link"></i> ${escapeHtml(i18n.t('claude_login_open_page'))}`;
+    link.addEventListener('click', () => window.api.openExternal(claudeAuth.url));
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'claude-code-input';
+    input.placeholder = i18n.t('claude_login_code_placeholder');
+    const send = el('button', 'docker-btn d-up');
+    send.innerHTML = `<i class="fa-solid fa-check"></i> ${escapeHtml(i18n.t('claude_login_code_send'))}`;
+    const submit = () => {
+      if (!input.value.trim()) return;
+      window.api.claudeLoginCode(input.value);
+      input.value = '';
+    };
+    send.addEventListener('click', submit);
+    input.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (e.key === 'Enter') { e.preventDefault(); submit(); }
+    });
+    row.appendChild(link);
+    row.appendChild(input);
+    row.appendChild(send);
+    box.appendChild(row);
+  }
+
+  const cancel = el('button', 'docker-btn');
+  cancel.textContent = i18n.t('claude_login_cancel');
+  cancel.addEventListener('click', () => {
+    claudeAuth.pending = false;
+    window.api.claudeCancelLogin();
+    renderAllClaude();
+  });
+  box.appendChild(cancel);
+  return box;
+}
+
+async function startClaudeLogin() {
+  claudeAuth.pending = true;
+  claudeAuth.url = null;
+  claudeAuth.error = null;
+  renderAllClaude();
+  try {
+    await window.api.claudeLogin();
+  } catch (e) {
+    claudeAuth.pending = false;
+    claudeAuth.error = ipcErrorText(e);
+    renderAllClaude();
+  }
+}
+
+function onClaudeLogin(ev) {
+  if (ev.state === 'url') {
+    claudeAuth.url = ev.url;
+  } else if (ev.state === 'done') {
+    claudeAuth.pending = false;
+    claudeAuth.loggedIn = true;
+    claudeAuth.checked = true;
+    claudeAuth.email = ev.status.email || null;
+    claudeAuth.plan = ev.status.subscription || null;
+    claudeAuth.error = null;
+    toast(i18n.t('claude_login_done', { email: claudeAuth.email || '' }));
+  } else if (ev.state === 'failed') {
+    // error null = login annullato dall'utente
+    if (!claudeAuth.pending) return;
+    claudeAuth.pending = false;
+    claudeAuth.error = ev.error ? i18n.t('claude_login_failed', { error: ev.error }) : null;
+  }
+  renderAllClaude();
+  tabs.forEach((t) => { if (t.claudeEl && t.claudeEl.isConnected) focusClaudeInput(t); });
+}
+
+async function logoutClaude() {
+  if (!confirm(i18n.t('claude_logout_confirm', { email: claudeAuth.email || '' }))) return;
+  try {
+    await window.api.claudeLogout();
+  } catch (e) {
+    return toast(ipcErrorText(e), true);
+  }
+  claudeAuth.loggedIn = false;
+  claudeAuth.email = null;
+  renderAllClaude();
+}
+
+// ---- chat ---------------------------------------------------------------------
+
+function claudeChatView(tab) {
+  const st = tab.claude;
+  const chat = st.chat;
+  const wrap = el('div', 'claude-chat');
+
+  const msgs = el('div', 'claude-msgs');
+  // i link nelle risposte si aprono nel browser, non nella finestra dell'app
+  msgs.addEventListener('click', (e) => {
+    const a = e.target.closest('a.md-link');
+    if (!a) return;
+    e.preventDefault();
+    window.api.openExternal(a.getAttribute('href'));
+  });
+  tab.claudeMsgsEl = msgs;
+
+  const composer = el('div', 'claude-composer');
+  const input = document.createElement('textarea');
+  input.className = 'claude-input';
+  input.rows = 2;
+  input.placeholder = i18n.t('claude_input_placeholder');
+  input.value = st.draft;
+  input.addEventListener('input', () => { st.draft = input.value; });
+  input.addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+      e.preventDefault();
+      sendClaude(tab);
+    }
+  });
+  tab.claudeInput = input;
+
+  const bar = el('div', 'claude-bar');
+  const modelSel = claudeSelect(
+    CLAUDE_MODELS.map((m) => [m.id, m.label]), chat.model, i18n.t('claude_model'),
+    (v) => { chat.model = v; saveClaudePrefs(chat); },
+  );
+  const effortSel = claudeSelect(
+    CLAUDE_EFFORTS.map((x) => [x, i18n.t('claude_effort_' + x)]), chat.effort, i18n.t('claude_effort'),
+    (v) => { chat.effort = v; saveClaudePrefs(chat); },
+  );
+  const spacer = el('span', 'claude-spacer');
+  const sendBtn = el('button', 'claude-send');
+  sendBtn.addEventListener('click', () => (st.busy ? stopClaude(tab) : sendClaude(tab)));
+  tab.claudeSendBtn = sendBtn;
+
+  bar.appendChild(modelSel);
+  bar.appendChild(effortSel);
+  bar.appendChild(spacer);
+  bar.appendChild(sendBtn);
+  composer.appendChild(input);
+  composer.appendChild(bar);
+
+  wrap.appendChild(msgs);
+  wrap.appendChild(composer);
+  updateClaudeSendBtn(tab);
+  return wrap;
+}
+
+function claudeSelect(options, value, title, onChange) {
+  const wrap = el('label', 'claude-select');
+  wrap.title = title;
+  const sel = document.createElement('select');
+  options.forEach(([v, label]) => {
+    const o = document.createElement('option');
+    o.value = v;
+    o.textContent = label;
+    sel.appendChild(o);
+  });
+  sel.value = value;
+  sel.addEventListener('change', () => onChange(sel.value));
+  sel.addEventListener('keydown', (e) => e.stopPropagation());
+  wrap.appendChild(sel);
+  return wrap;
+}
+
+function saveClaudePrefs(chat) {
+  try { localStorage.setItem(CLAUDE_PREFS_KEY, JSON.stringify({ model: chat.model, effort: chat.effort })); } catch (_) {}
+}
+
+function updateClaudeSendBtn(tab) {
+  const b = tab.claudeSendBtn;
+  if (!b) return;
+  const busy = tab.claude.busy;
+  b.classList.toggle('stop', busy);
+  b.innerHTML = busy
+    ? `<i class="fa-solid fa-stop"></i> ${escapeHtml(i18n.t('claude_stop'))}`
+    : `<i class="fa-solid fa-paper-plane"></i> ${escapeHtml(i18n.t('claude_send'))}`;
+}
+
+/** Aggiorna bottone e intestazione senza ricreare la casella di testo. */
+function refreshClaudeChrome(tab) {
+  updateClaudeSendBtn(tab);
+  const overlay = tab.claudeEl;
+  if (!overlay || !overlay.isConnected) return;
+  const old = overlay.querySelector('.claude-head');
+  if (old) old.replaceWith(claudeHead(tab));
+}
+
+function newClaudeConversation(tab) {
+  if (tab.claude.busy) return;
+  tab.claude.chat = newClaudeChat();
+  tab.claude.view = 'chat';
+  renderClaude(tab);
+  focusClaudeInput(tab);
+}
+
+async function sendClaude(tab, preset) {
+  const st = tab.claude;
+  const chat = st.chat;
+  const text = String(preset != null ? preset : st.draft).trim();
+  if (!text || st.busy) return;
+  if (tab.dead) return toast(i18n.t('claude_no_session'), true);
+
+  chat.messages.push({ role: 'user', text, at: Date.now() });
+  const msg = { role: 'assistant', segments: [], model: chat.model, effort: chat.effort, at: Date.now() };
+  chat.messages.push(msg);
+  if (!chat.title) chat.title = text.replace(/\s+/g, ' ').slice(0, 80);
+  chat.updatedAt = Date.now();
+  if (preset == null) {
+    st.draft = '';
+    if (tab.claudeInput) tab.claudeInput.value = '';
+  }
+  st.busy = true;
+  claudeRuns.set(chat.id, tab);
+  refreshClaudeChrome(tab);
+  renderClaudeMessages(tab, true);
+  saveClaudeChat(tab, chat);
+
+  try {
+    await window.api.claudeSend({
+      chatId: chat.id,
+      sshId: tab.id,
+      prompt: text,
+      model: chat.model,
+      effort: chat.effort,
+      sessionId: chat.sessionId,
+      context: {
+        label: tab.server.nickname || tab.server.name,
+        host: tab.server.host,
+        username: tab.server.username,
+        cwd: tab.cwd,
+        language: i18n.getLanguage(),
+      },
+    });
+  } catch (e) {
+    msg.error = ipcErrorText(e);
+    finishClaude(tab, chat);
+  }
+}
+
+function stopClaude(tab) {
+  const st = tab.claude;
+  if (st && st.busy) window.api.claudeStop(st.chat.id);
+}
+
+function saveClaudeChat(tab, chat) {
+  window.api.claudeSaveChat(claudeServerKey(tab.server), chat).catch(() => {});
+}
+
+/** Fine di una risposta: chiude gli strumenti rimasti a metà e salva la chat. */
+function finishClaude(tab, chat) {
+  const msg = chat.messages[chat.messages.length - 1];
+  if (msg && msg.role === 'assistant') {
+    delete msg.thinking;
+    msg.segments.forEach((s) => {
+      if (s.kind === 'tool' && s.status === 'running') s.status = 'stopped';
+      if (s.kind === 'confirm' && s.state === 'pending') s.state = 'expired';
+    });
+  }
+  tab.claude.busy = false;
+  claudeRuns.delete(chat.id);
+  chat.updatedAt = Date.now();
+  saveClaudeChat(tab, chat);
+  refreshClaudeChrome(tab);
+  renderClaudeMessages(tab);
+}
+
+function onClaudeEvent(ev) {
+  const tab = claudeRuns.get(ev.chatId);
+  if (!tab || !tab.claude || tab.claude.chat.id !== ev.chatId) return;
+  const chat = tab.claude.chat;
+  const msg = chat.messages[chat.messages.length - 1];
+  if (!msg || msg.role !== 'assistant') return;
+
+  switch (ev.type) {
+    case 'session':
+      chat.sessionId = ev.sessionId;
+      break;
+    case 'thinking':
+      msg.thinking = true;
+      break;
+    case 'text': {
+      msg.thinking = false;
+      const last = msg.segments[msg.segments.length - 1];
+      if (last && last.kind === 'text') last.text += ev.text;
+      else msg.segments.push({ kind: 'text', text: ev.text });
+      break;
+    }
+    case 'tool':
+      msg.thinking = false;
+      msg.segments.push({ kind: 'tool', id: ev.toolId, name: ev.name, input: ev.input, status: 'running' });
+      break;
+    case 'tool_result': {
+      const seg = msg.segments.find((s) => s.kind === 'tool' && s.id === ev.toolId);
+      if (seg) {
+        seg.status = ev.isError ? 'error' : 'done';
+        seg.output = ev.text;
+      }
+      break;
+    }
+    case 'confirm':
+      msg.segments.push({
+        kind: 'confirm', confirmId: ev.confirmId, confirmKind: ev.kind,
+        path: ev.path, command: ev.command, state: 'pending',
+      });
+      if (!tab.claudeEl || !tab.claudeEl.isConnected || activeTabId !== tab.id) {
+        toast(i18n.t('claude_confirm_waiting', { server: tab.server.nickname || tab.server.host }));
+      }
+      break;
+    case 'result':
+      if (ev.isError) msg.error = ev.error;
+      msg.durationMs = ev.durationMs;
+      break;
+    case 'error':
+      msg.error = ev.message;
+      break;
+    case 'auth_required':
+      claudeAuth.loggedIn = false;
+      msg.error = i18n.t('claude_auth_expired');
+      break;
+    case 'end':
+      if (ev.aborted) msg.aborted = true;
+      finishClaude(tab, chat);
+      if (!claudeAuth.loggedIn) renderAllClaude();
+      return;
+    default:
+      return;
+  }
+  scheduleClaudeRender(tab);
+}
+
+/** Durante lo streaming si ridisegna al massimo una volta per frame. */
+function scheduleClaudeRender(tab) {
+  if (tab.claudeRaf) return;
+  tab.claudeRaf = requestAnimationFrame(() => {
+    tab.claudeRaf = null;
+    renderClaudeMessages(tab);
+  });
+}
+
+// ---- rendering dei messaggi ------------------------------------------------------
+
+function renderClaudeMessages(tab, toBottom = false) {
+  const box = tab.claudeMsgsEl;
+  if (!box || !box.isConnected) return;
+  const stick = toBottom || box.scrollHeight - box.scrollTop - box.clientHeight < 60;
+  const chat = tab.claude.chat;
+  box.innerHTML = '';
+
+  if (!chat.messages.length) {
+    box.appendChild(claudeEmptyState(tab));
+    return;
+  }
+  chat.messages.forEach((m, i) => {
+    const live = tab.claude.busy && i === chat.messages.length - 1;
+    box.appendChild(m.role === 'user' ? claudeUserMsg(m) : claudeAssistantMsg(tab, m, live));
+  });
+  if (stick) box.scrollTop = box.scrollHeight;
+}
+
+function claudeEmptyState(tab) {
+  const box = el('div', 'claude-empty');
+  const label = tab.server.nickname || tab.server.name || tab.server.host;
+  box.innerHTML =
+    `<div class="claude-login-logo">${CLAUDE_ICON_SVG}</div>` +
+    `<p>${escapeHtml(i18n.t('claude_empty_title', { server: label }))}</p>` +
+    `<p class="claude-muted">${escapeHtml(i18n.t('claude_empty_hint'))}</p>`;
+  const chips = el('div', 'claude-chips');
+  ['claude_suggest_disk', 'claude_suggest_docker', 'claude_suggest_logs', 'claude_suggest_services'].forEach((k) => {
+    const c = el('button', 'claude-chip');
+    c.textContent = i18n.t(k);
+    c.addEventListener('click', () => sendClaude(tab, c.textContent));
+    chips.appendChild(c);
+  });
+  box.appendChild(chips);
+  return box;
+}
+
+function claudeUserMsg(m) {
+  const row = el('div', 'claude-msg user');
+  const bubble = el('div', 'claude-bubble');
+  bubble.textContent = m.text;
+  row.appendChild(bubble);
+  return row;
+}
+
+function claudeAssistantMsg(tab, m, live) {
+  const row = el('div', 'claude-msg assistant');
+  m.segments.forEach((seg) => {
+    if (seg.kind === 'text') {
+      const div = el('div', 'claude-md');
+      div.innerHTML = claudeMarkdownCached(seg);
+      row.appendChild(div);
+    } else if (seg.kind === 'tool') {
+      row.appendChild(claudeToolRow(tab, seg));
+    } else if (seg.kind === 'confirm') {
+      row.appendChild(claudeConfirmCard(tab, seg));
+    }
+  });
+
+  if (live) {
+    const last = m.segments[m.segments.length - 1];
+    const waitingConfirm = last && last.kind === 'confirm' && last.state === 'pending';
+    if (!waitingConfirm && !(last && last.kind === 'text' && !m.thinking)) {
+      const wait = el('div', 'claude-working');
+      wait.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> ${escapeHtml(i18n.t(m.thinking ? 'claude_thinking' : 'claude_working'))}`;
+      row.appendChild(wait);
+    }
+  }
+  if (m.error) {
+    const err = el('div', 'claude-error');
+    err.innerHTML = `<i class="fa-solid fa-triangle-exclamation"></i> ${escapeHtml(m.error)}`;
+    row.appendChild(err);
+  }
+  if (!live) {
+    const meta = el('div', 'claude-meta');
+    const parts = [claudeModelLabel(m.model), i18n.t('claude_effort_' + m.effort)];
+    if (m.durationMs) parts.push(`${(m.durationMs / 1000).toFixed(1)}s`);
+    if (m.aborted) parts.push(i18n.t('claude_stopped'));
+    meta.textContent = parts.filter(Boolean).join(' · ');
+    row.appendChild(meta);
+  }
+  return row;
+}
+
+/** Icona e testo sintetico di una chiamata a uno strumento. */
+function claudeToolSummary(seg) {
+  const i = seg.input || {};
+  switch (seg.name) {
+    case 'list_directory':
+      return { icon: 'fa-solid fa-folder-open', text: i.path };
+    case 'read_file':
+      return { icon: 'fa-solid fa-file-lines', text: i.path + (i.offset > 1 ? ` (${i18n.t('claude_from_line', { n: i.offset })})` : '') };
+    case 'search_files':
+      return { icon: 'fa-solid fa-magnifying-glass', text: `${i.name}  ·  ${i.path}` };
+    case 'grep':
+      return { icon: 'fa-solid fa-filter', text: `/${i.pattern}/  ·  ${i.path}` };
+    case 'run_command':
+      return {
+        icon: 'fa-solid fa-terminal',
+        text: [i.sudo ? 'sudo' : '', i.command, ...(i.args || [])].filter(Boolean).join(' ') + (i.cwd ? `   (${i.cwd})` : ''),
+      };
+    default:
+      return { icon: 'fa-solid fa-wrench', text: `${seg.name} ${JSON.stringify(i)}` };
+  }
+}
+
+function claudeToolRow(tab, seg) {
+  const row = el('div', `claude-tool ${seg.status}${seg.open ? ' open' : ''}`);
+  const head = el('div', 'claude-tool-head');
+  const sum = claudeToolSummary(seg);
+  const state = {
+    running: '<i class="fa-solid fa-circle-notch fa-spin"></i>',
+    done: '<i class="fa-solid fa-check"></i>',
+    error: '<i class="fa-solid fa-xmark"></i>',
+    stopped: '<i class="fa-solid fa-minus"></i>',
+  }[seg.status] || '';
+  head.innerHTML = `<span class="claude-tool-state">${state}</span><i class="${sum.icon}"></i>` +
+    `<span class="claude-tool-text">${escapeHtml(sum.text || '')}</span>` +
+    (seg.output ? '<i class="fa-solid fa-chevron-down claude-tool-caret"></i>' : '');
+  if (seg.output) {
+    head.addEventListener('click', () => {
+      seg.open = !seg.open;
+      renderClaudeMessages(tab);
+    });
+  }
+  row.appendChild(head);
+  if (seg.open && seg.output) {
+    const out = el('pre', 'claude-tool-out');
+    out.textContent = seg.output;
+    row.appendChild(out);
+  }
+  return row;
+}
+
+function claudeConfirmCard(tab, seg) {
+  const card = el('div', 'claude-confirm ' + seg.state);
+  const msg = el('div', 'claude-confirm-text');
+  const key = {
+    sensitive_path: 'claude_confirm_sensitive_path',
+    sensitive_command: 'claude_confirm_sensitive_command',
+    sudo: 'claude_confirm_sudo',
+  }[seg.confirmKind] || 'claude_confirm_generic';
+  msg.innerHTML = `<i class="fa-solid fa-shield-halved"></i> ` +
+    escapeHtml(i18n.t(key, { path: seg.path || '', command: seg.command || '' }));
+  card.appendChild(msg);
+  if (seg.command && seg.confirmKind === 'sensitive_command') {
+    const cmd = el('code', 'claude-confirm-cmd');
+    cmd.textContent = seg.command;
+    card.appendChild(cmd);
+  }
+
+  if (seg.state === 'pending') {
+    const btns = el('div', 'claude-confirm-btns');
+    const make = (label, cls, decision) => {
+      const b = el('button', 'docker-btn ' + cls);
+      b.textContent = i18n.t(label);
+      b.addEventListener('click', async () => {
+        seg.state = decision === 'deny' ? 'denied' : 'allowed';
+        renderClaudeMessages(tab);
+        try { await window.api.claudeConfirm(seg.confirmId, decision); } catch (_) {}
+      });
+      btns.appendChild(b);
+    };
+    make('claude_allow_once', 'd-up', 'once');
+    make('claude_allow_chat', 'd-up', 'chat');
+    make('claude_deny', 'd-down', 'deny');
+    card.appendChild(btns);
+  } else {
+    const st = el('div', 'claude-confirm-state');
+    st.textContent = i18n.t('claude_confirm_' + seg.state);
+    card.appendChild(st);
+  }
+  return card;
+}
+
+// ---- cronologia --------------------------------------------------------------------
+
+async function showClaudeHistory(tab) {
+  if (tab.claude.busy) return;
+  tab.claude.view = 'history';
+  tab.claude.history = null;
+  renderClaude(tab);
+  try {
+    tab.claude.history = await window.api.claudeListChats(claudeServerKey(tab.server));
+  } catch (e) {
+    tab.claude.history = [];
+    toast(ipcErrorText(e), true);
+  }
+  if (tab.claude.view === 'history') renderClaude(tab);
+}
+
+function claudeHistoryView(tab) {
+  const box = el('div', 'claude-history');
+  const top = el('div', 'claude-history-top');
+  const back = el('button', 'docker-btn');
+  back.innerHTML = `<i class="fa-solid fa-arrow-left"></i> ${escapeHtml(i18n.t('claude_back_to_chat'))}`;
+  back.addEventListener('click', () => {
+    tab.claude.view = 'chat';
+    renderClaude(tab);
+    focusClaudeInput(tab);
+  });
+  const title = el('span', 'claude-muted');
+  title.textContent = i18n.t('claude_history_title');
+  top.appendChild(back);
+  top.appendChild(title);
+  box.appendChild(top);
+
+  const list = tab.claude.history;
+  if (!list) {
+    for (let i = 0; i < 4; i++) box.appendChild(el('div', 'll-skeleton'));
+    return box;
+  }
+  if (!list.length) {
+    const empty = el('div', 'docker-empty');
+    empty.textContent = i18n.t('claude_history_empty');
+    box.appendChild(empty);
+    return box;
+  }
+  list.forEach((c) => {
+    const row = el('div', 'claude-hist-row' + (c.id === tab.claude.chat.id ? ' current' : ''));
+    const meta = el('div', 'claude-hist-meta');
+    const name = el('div', 'claude-hist-title');
+    name.textContent = c.title || i18n.t('claude_untitled');
+    const sub = el('div', 'claude-muted');
+    sub.textContent = [
+      new Date(c.updatedAt || c.createdAt).toLocaleString(i18n.getLanguage()),
+      i18n.t('claude_history_messages', { n: Math.ceil((c.count || 0) / 2) }),
+      claudeModelLabel(c.model),
+    ].join(' · ');
+    meta.appendChild(name);
+    meta.appendChild(sub);
+    meta.addEventListener('click', () => openClaudeChat(tab, c.id));
+    const del = el('button', 'docker-btn d-down');
+    del.innerHTML = '<i class="fa-solid fa-trash"></i>';
+    del.title = i18n.t('delete');
+    del.addEventListener('click', async () => {
+      if (!confirm(i18n.t('claude_delete_confirm', { title: c.title || i18n.t('claude_untitled') }))) return;
+      await window.api.claudeDeleteChat(claudeServerKey(tab.server), c.id);
+      if (tab.claude.chat.id === c.id) tab.claude.chat = newClaudeChat();
+      showClaudeHistory(tab);
+    });
+    row.appendChild(meta);
+    row.appendChild(del);
+    box.appendChild(row);
+  });
+  return box;
+}
+
+async function openClaudeChat(tab, chatId) {
+  let chat;
+  try {
+    chat = await window.api.claudeGetChat(claudeServerKey(tab.server), chatId);
+  } catch (e) {
+    return toast(ipcErrorText(e), true);
+  }
+  if (!chat) return;
+  tab.claude.chat = chat;
+  tab.claude.view = 'chat';
+  renderClaude(tab);
+  focusClaudeInput(tab);
+}
+
+// ---- markdown minimale (le risposte di Claude) -------------------------------------
+
+function claudeMarkdownCached(seg) {
+  const c = claudeMdCache.get(seg);
+  if (c && c.len === seg.text.length) return c.html;
+  const html = renderMarkdown(seg.text);
+  claudeMdCache.set(seg, { len: seg.text.length, html });
+  return html;
+}
+
+/**
+ * Markdown essenziale: blocchi di codice, titoli, elenchi, citazioni, tabelle,
+ * grassetto/corsivo/codice in linea e link. Il testo viene sempre escapato prima.
+ */
+function renderMarkdown(src) {
+  const lines = String(src || '').replace(/\r\n/g, '\n').split('\n');
+  let html = '';
+  let para = [];
+  let list = null;
+  const flushPara = () => {
+    if (para.length) html += `<p>${para.map(mdInline).join('<br>')}</p>`;
+    para = [];
+  };
+  const closeList = () => {
+    if (list) html += `</${list}>`;
+    list = null;
+  };
+  const splitRow = (l) => l.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
+    if (/^\s*```/.test(line)) {
+      flushPara(); closeList();
+      const buf = [];
+      i++;
+      while (i < lines.length && !/^\s*```\s*$/.test(lines[i])) buf.push(lines[i++]);
+      html += `<pre class="md-code"><code>${escapeHtml(buf.join('\n'))}</code></pre>`;
+      continue;
+    }
+    if (/^\s*\|.*\|\s*$/.test(line) && i + 1 < lines.length && /^\s*\|?\s*:?-{3,}/.test(lines[i + 1])) {
+      flushPara(); closeList();
+      const headCells = splitRow(line);
+      i += 2;
+      let rows = '';
+      while (i < lines.length && /^\s*\|.*\|\s*$/.test(lines[i])) {
+        rows += `<tr>${splitRow(lines[i]).map((c) => `<td>${mdInline(c)}</td>`).join('')}</tr>`;
+        i++;
+      }
+      i--;
+      html += `<table class="md-table"><thead><tr>${headCells.map((c) => `<th>${mdInline(c)}</th>`).join('')}</tr></thead><tbody>${rows}</tbody></table>`;
+      continue;
+    }
+    let m;
+    if ((m = line.match(/^(#{1,6})\s+(.*)$/))) {
+      flushPara(); closeList();
+      html += `<div class="md-h md-h${Math.min(m[1].length, 3)}">${mdInline(m[2])}</div>`;
+    } else if ((m = line.match(/^\s*[-*+]\s+(.*)$/))) {
+      flushPara();
+      if (list !== 'ul') { closeList(); html += '<ul>'; list = 'ul'; }
+      html += `<li>${mdInline(m[1])}</li>`;
+    } else if ((m = line.match(/^\s*\d+[.)]\s+(.*)$/))) {
+      flushPara();
+      if (list !== 'ol') { closeList(); html += '<ol>'; list = 'ol'; }
+      html += `<li>${mdInline(m[1])}</li>`;
+    } else if ((m = line.match(/^>\s?(.*)$/))) {
+      flushPara(); closeList();
+      html += `<blockquote>${mdInline(m[1])}</blockquote>`;
+    } else if (/^\s*(---+|\*\*\*+)\s*$/.test(line)) {
+      flushPara(); closeList();
+      html += '<hr>';
+    } else if (!line.trim()) {
+      flushPara(); closeList();
+    } else {
+      closeList();
+      para.push(line);
+    }
+  }
+  flushPara();
+  closeList();
+  return html;
+}
+
+function mdInline(s) {
+  return String(s).split(/(`[^`]+`)/).map((part) => {
+    if (part.length > 1 && part.startsWith('`') && part.endsWith('`')) {
+      return `<code>${escapeHtml(part.slice(1, -1))}</code>`;
+    }
+    return escapeHtml(part)
+      .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
+      .replace(/(^|[^*\w])\*(?!\s)([^*]+?)\*(?!\w)/g, '$1<em>$2</em>')
+      .replace(/\[([^\]]+)\]\((https?:\/\/[^\s)]+)\)/g, '<a class="md-link" href="$2">$1</a>');
+  }).join('');
+}
+
+// ============================================================================
 // EVENTI DAL MAIN
 // ============================================================================
 
@@ -5469,6 +6382,9 @@ window.api.onPullProgress((p) => {
 window.api.onDumpProgress((p) => {
   pgProgressHandlers.forEach((h) => h(p));
 });
+
+window.api.onClaudeEvent(onClaudeEvent);
+window.api.onClaudeLogin(onClaudeLogin);
 
 window.api.onClosed(({ id, clean, reason }) => {
   const tab = tabs.get(id);
@@ -6015,6 +6931,7 @@ const DEFAULT_SHORTCUTS = {
   screens: `${MOD}+E`,
   cron: `${MOD}+J`,
   monitor: `${MOD}+G`,
+  claude: `${MOD}+O`,
   split: `${MOD}+L`,
   transfers: `${MOD}+U`,
   nextTab: 'Ctrl+Tab',
@@ -6254,7 +7171,7 @@ function renderShortcutsSettings() {
     const row = el('div', 'sc-row');
 
     const name = el('span', 'sc-name');
-    name.innerHTML = `<i class="${a.icon}"></i> ${escapeHtml(i18n.t(a.labelKey))}`;
+    name.innerHTML = `${actionIconHtml(a)} ${escapeHtml(i18n.t(a.labelKey))}`;
 
     const btn = el('button', 'sc-key' + (binding ? '' : ' sc-empty') + (isRec ? ' recording' : ''));
     btn.textContent = isRec ? i18n.t('shortcut_press_keys') : formatBinding(binding);
