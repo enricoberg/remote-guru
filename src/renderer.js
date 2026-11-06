@@ -4600,6 +4600,17 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd, row) {
 
   if (!entry.isDir) {
     items.push({
+      icon: 'fa-solid fa-eye',
+      label: i18n.t('view_cat'),
+      action: () => {
+        bumpOverlaySeq(tab);
+        const ov = tab.hostEl.querySelector('.ll-overlay');
+        if (ov) ov.remove();
+        tab.term.focus();
+        window.api.write(tab.id, `cat ${shQuote(fullPath)}\r`);
+      },
+    });
+    items.push({
       icon: 'fa-solid fa-file-pen',
       label: i18n.t('edit_with_editor'),
       action: () => openEmbeddedEditor(tab, entry, fullPath),

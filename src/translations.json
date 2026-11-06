@@ -327,6 +327,14 @@
     "de": "Bearbeiten",
     "pt": "Editar"
   },
+  "view_cat": {
+    "it": "Visualizza",
+    "en": "View",
+    "es": "Ver",
+    "fr": "Afficher",
+    "de": "Anzeigen",
+    "pt": "Visualizar"
+  },
   "make_executable": {
     "it": "Rendi eseguibile",
     "en": "Make executable",
