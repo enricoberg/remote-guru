@@ -21,6 +21,17 @@ let activeTabId = null;
 let splitIds = [];
 let splitWeights = new Map(); // id -> peso flex (somma qualsiasi, conta il rapporto)
 
+// posizione del pannello inferiore (file browser, docker, editor…): 'bottom'
+// oppure 'right'. L'aggancio a destra vale solo a schermo intero (non in split).
+const LL_DOCK_KEY = 'llDock';
+const LL_DOCK_WIDTH_KEY = 'llDockWidth';
+let llDock = 'bottom';
+let llDockWidth = 0; // px; 0 = predefinito (40% della larghezza)
+try {
+  llDock = localStorage.getItem(LL_DOCK_KEY) === 'right' ? 'right' : 'bottom';
+  llDockWidth = parseInt(localStorage.getItem(LL_DOCK_WIDTH_KEY), 10) || 0;
+} catch (_) {}
+
 // appunti del file browser: copia o taglia di una o più voci della stessa sessione
 let remoteClipboard = null; // { sessionId, mode: 'copy'|'cut', items: [{ path, name, isDir, parentDir }] }
 
@@ -853,6 +864,18 @@ function buildPane(tab) {
 
   tab.term.open(host);
 
+  // pannello agganciato a destra: maniglia per la larghezza e terminale che
+  // si restringe/allarga quando il pannello compare o si chiude
+  const sideGrip = el('div', 'll-side-grip');
+  host.appendChild(sideGrip);
+  setupSideGripResize(sideGrip, tab);
+  new MutationObserver(() => {
+    host.classList.toggle('has-ov', !!host.querySelector(':scope > .ll-overlay'));
+    if ($('#panes').classList.contains('dock-right') && pane.classList.contains('visible')) {
+      requestAnimationFrame(() => { try { tab.fit.fit(); } catch (_) {} });
+    }
+  }).observe(host, { childList: true });
+
   // menu contestuale sul terminale (incolla password)
   host.addEventListener('contextmenu', (e) => {
     e.preventDefault();
@@ -1046,6 +1069,7 @@ function layout() {
     }
   });
 
+  applyDock();
   setTimeout(fitAll, 30);
 }
 
@@ -1130,6 +1154,7 @@ function edgeSide(e) {
 function showEdgeHint(side) {
   const hint = $('#edge-hint');
   if (!hint) return;
+  hint.removeAttribute('style'); // eventuale posizione lasciata da showDockHint
   hint.classList.toggle('hidden', !side);
   hint.classList.toggle('right', side === 'right');
 }
@@ -1480,24 +1505,139 @@ function openPendingOverlay(tab, message, opts = {}) {
   };
 }
 
-/** Permette di ridimensionare verticalmente il pannello file browser trascinando la maniglia in alto. */
+/** True se il pannello è agganciato a destra (scelta salvata e vista singola, non split). */
+function isDockRight() {
+  return llDock === 'right' && !splitOrder().length;
+}
+
+/** Applica la posizione del pannello ai pane (chiamata da layout()). */
+function applyDock() {
+  const panes = $('#panes');
+  if (!panes) return;
+  panes.classList.toggle('dock-right', isDockRight());
+  if (llDockWidth) panes.style.setProperty('--ll-w', llDockWidth + 'px');
+  else panes.style.removeProperty('--ll-w');
+}
+
+/** Cambia la posizione del pannello e ridimensiona terminali ed editor. */
+function setDock(side) {
+  llDock = side === 'right' ? 'right' : 'bottom';
+  try { localStorage.setItem(LL_DOCK_KEY, llDock); } catch (_) {}
+  applyDock();
+  // il resize della finestra rifà il fit dei terminali e il refresh di CodeMirror
+  setTimeout(() => window.dispatchEvent(new Event('resize')), 30);
+}
+
+/** Larghezza effettiva (px) del pannello agganciato a destra in un host largo `hostW`. */
+function dockWidthPx(hostW) {
+  return Math.min(llDockWidth || hostW * 0.4, hostW - 160);
+}
+
+/**
+ * Anteprima della posizione di destinazione mentre si trascina la maniglia:
+ * riusa il riquadro #edge-hint, posizionato sull'area che il pannello occuperà.
+ */
+function showDockHint(target, hostRect, tab) {
+  const hint = $('#edge-hint');
+  if (!hint) return;
+  if (!target) {
+    hint.classList.add('hidden');
+    hint.removeAttribute('style');
+    return;
+  }
+  const view = $('#terminal-view').getBoundingClientRect();
+  let r;
+  if (target === 'right') {
+    const w = dockWidthPx(hostRect.width);
+    r = { left: hostRect.right - w, top: hostRect.top, width: w, height: hostRect.height };
+  } else {
+    const h = Math.min(tab.llHeight || hostRect.height * 0.55, hostRect.height - 30);
+    r = { left: hostRect.left, top: hostRect.bottom - h, width: hostRect.width, height: h };
+  }
+  hint.classList.remove('hidden', 'right');
+  Object.assign(hint.style, {
+    left: `${r.left - view.left}px`, top: `${r.top - view.top}px`,
+    width: `${r.width}px`, height: `${r.height}px`, right: 'auto', bottom: 'auto',
+  });
+}
+
+/**
+ * Maniglia in cima al pannello. In basso: trascinata ridimensiona l'altezza;
+ * portata sul bordo destro (solo a schermo intero) aggancia il pannello a lato.
+ * Agganciato a destra: trascinata sul bordo inferiore lo riporta in basso.
+ */
 function setupOverlayResize(grip, overlay, tab) {
+  grip.addEventListener('mouseenter', () => {
+    grip.title = splitOrder().length ? ''
+      : i18n.t(isDockRight() ? 'll_dock_grip_right' : 'll_dock_grip_bottom');
+  });
   grip.addEventListener('mousedown', (e) => {
     e.preventDefault();
+    const docked = isDockRight();
+    const canDock = !splitOrder().length;
     const startY = e.clientY;
     const startH = overlay.getBoundingClientRect().height;
-    const hostH = tab.hostEl.getBoundingClientRect().height;
-    overlay.style.maxHeight = 'none';
+    const prevH = tab.llHeight;
+    const prevStyle = { height: overlay.style.height, maxHeight: overlay.style.maxHeight };
+    const hostRect = tab.hostEl.getBoundingClientRect();
+    let target = null;
+    if (!docked) overlay.style.maxHeight = 'none';
     const onMove = (ev) => {
+      target = null;
+      if (canDock) {
+        if (!docked && ev.clientX >= hostRect.right - EDGE_SNAP_PX) target = 'right';
+        else if (docked && ev.clientY >= hostRect.bottom - EDGE_SNAP_PX) target = 'bottom';
+      }
+      showDockHint(target, hostRect, tab);
+      if (docked || target) return;
       // trascinando verso l'alto il pannello si espande
       let h = startH + (startY - ev.clientY);
-      h = Math.max(80, Math.min(hostH - 30, h));
+      h = Math.max(80, Math.min(hostRect.height - 30, h));
       overlay.style.height = h + 'px';
       tab.llHeight = h;
     };
     const onUp = () => {
       document.removeEventListener('mousemove', onMove);
       document.removeEventListener('mouseup', onUp);
+      showDockHint(null);
+      if (!target) return;
+      if (target === 'right') {
+        // lo spostamento verso il bordo non deve alterare l'altezza scelta in basso
+        tab.llHeight = prevH;
+        overlay.style.height = prevStyle.height;
+        overlay.style.maxHeight = prevStyle.maxHeight;
+      }
+      setDock(target);
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+/** Maniglia sul bordo sinistro del pannello agganciato a destra: ne regola la larghezza. */
+function setupSideGripResize(grip, tab) {
+  grip.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const hostRect = tab.hostEl.getBoundingClientRect();
+    const panes = $('#panes');
+    let frame = 0;
+    grip.classList.add('dragging');
+    const onMove = (ev) => {
+      llDockWidth = Math.round(Math.max(220, Math.min(hostRect.width - 160, hostRect.right - ev.clientX)));
+      panes.style.setProperty('--ll-w', llDockWidth + 'px');
+      if (!frame) {
+        frame = requestAnimationFrame(() => {
+          frame = 0;
+          try { tab.fit.fit(); } catch (_) {}
+        });
+      }
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      grip.classList.remove('dragging');
+      try { localStorage.setItem(LL_DOCK_WIDTH_KEY, String(llDockWidth)); } catch (_) {}
+      window.dispatchEvent(new Event('resize'));
     };
     document.addEventListener('mousemove', onMove);
     document.addEventListener('mouseup', onUp);

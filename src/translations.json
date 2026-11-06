@@ -3742,5 +3742,21 @@
     "fr": "Supprimer la discussion « {title} » ?",
     "de": "Chat „{title}“ löschen?",
     "pt": "Eliminar a conversa \"{title}\"?"
+  },
+  "ll_dock_grip_bottom": {
+    "it": "Trascina per ridimensionare · portalo sul bordo destro per agganciare il pannello a lato",
+    "en": "Drag to resize · drop on the right edge to dock the panel to the side",
+    "es": "Arrastra para redimensionar · suéltalo en el borde derecho para acoplar el panel al lado",
+    "fr": "Faites glisser pour redimensionner · déposez sur le bord droit pour ancrer le panneau sur le côté",
+    "de": "Ziehen zum Ändern der Größe · am rechten Rand ablegen, um das Panel seitlich anzudocken",
+    "pt": "Arraste para redimensionar · solte na borda direita para encaixar o painel ao lado"
+  },
+  "ll_dock_grip_right": {
+    "it": "Trascina sul bordo inferiore per riportare il pannello in basso",
+    "en": "Drag to the bottom edge to move the panel back down",
+    "es": "Arrastra al borde inferior para devolver el panel abajo",
+    "fr": "Faites glisser vers le bord inférieur pour remettre le panneau en bas",
+    "de": "Zum unteren Rand ziehen, um das Panel wieder nach unten zu verschieben",
+    "pt": "Arraste para a borda inferior para devolver o painel para baixo"
   }
 }

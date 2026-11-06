@@ -332,6 +332,27 @@ body.net-warn { --net-offset: 32px; }
 .term-host { flex: 1; min-height: 0; position: relative; }
 .term-host .terminal { padding: 6px; height: 100%; }
 
+/* pannello agganciato sul lato destro (solo a schermo intero, vedi applyDock):
+   il terminale si restringe invece di finire sotto al pannello. La larghezza
+   scelta resta comunque entro la finestra (almeno 160px per il terminale). */
+.panes.dock-right { --ll-dw: min(var(--ll-w, 40%), calc(100% - 160px)); }
+.panes.dock-right .term-host.has-ov .terminal { padding-right: calc(var(--ll-dw) + 6px); }
+.panes.dock-right .ll-overlay {
+  top: 0; left: auto; right: 0; bottom: 0; width: var(--ll-dw);
+  height: auto !important; max-height: none !important;
+  border-top: none; border-left: 2px solid var(--accent);
+}
+/* in alto la maniglia diventa "sposta": trascinata sul bordo inferiore riporta il pannello giù */
+.panes.dock-right .ll-overlay .ll-resize { cursor: grab; }
+/* maniglia di ridimensionamento orizzontale, sul bordo sinistro del pannello */
+.ll-side-grip { display: none; }
+.panes.dock-right .term-host.has-ov > .ll-side-grip {
+  display: block; position: absolute; top: 0; bottom: 0; z-index: 6;
+  right: calc(var(--ll-dw) - 4px); width: 8px; cursor: col-resize;
+}
+.panes.dock-right .term-host.has-ov > .ll-side-grip:hover,
+.ll-side-grip.dragging { background: color-mix(in srgb, var(--accent) 45%, transparent); }
+
 /* barra di ricerca nel buffer del terminale (Cmd+F): sta sopra il terminale,
    in alto a destra, come nei browser */
 .term-find {
