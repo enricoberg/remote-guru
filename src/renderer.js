@@ -2226,6 +2226,19 @@ async function showDocker(tab) {
     header.innerHTML = key
       ? `<i class="fa-solid fa-folder"></i> ${escapeHtml(key)}`
       : `<i class="fa-solid fa-layer-group"></i> ${i18n.t('group_without_name')}`;
+    // clic sulla cartella del compose -> cd nel terminale
+    if (key) {
+      header.classList.add('clickable');
+      header.title = i18n.t('docker_cd_folder', { path: key });
+      header.addEventListener('click', () => {
+        overlay.remove();
+        window.api.write(tab.id, `cd ${shQuote(key)}\r`);
+        tab.cwd = key;
+        if (tab.cwdEl) tab.cwdEl.textContent = key;
+        // apre il file browser nella cartella (listing via SFTP, non dipende dalla cd)
+        showListing(tab, key);
+      });
+    }
     overlay.appendChild(header);
     const items = groups.get(key).map((c) => {
       const row = makeDockerRow(tab, c);

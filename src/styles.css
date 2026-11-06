@@ -604,6 +604,8 @@ body.net-warn { --net-offset: 32px; }
 .docker-group i { margin-right: 6px; }
 .docker-group:first-child { margin-top: 0; }
 .docker-group.collapsible { cursor: pointer; user-select: none; }
+.docker-group.clickable { cursor: pointer; }
+.docker-group.clickable:hover { filter: brightness(1.15); text-decoration: underline; }
 .docker-group.collapsible .caret { width: 12px; }
 .docker-group.collapsible:hover { filter: brightness(1.15); }
 .docker-group .pg-version {

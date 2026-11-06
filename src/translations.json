@@ -543,6 +543,14 @@
     "de": "Container filtern…",
     "pt": "Filtrar contêineres…"
   },
+  "docker_cd_folder": {
+    "it": "Vai alla cartella {path}",
+    "en": "Go to folder {path}",
+    "es": "Ir a la carpeta {path}",
+    "fr": "Aller au dossier {path}",
+    "de": "Zum Ordner {path} wechseln",
+    "pt": "Ir para a pasta {path}"
+  },
   "docker_no_results": {
     "it": "Nessun risultato.",
     "en": "No results.",
