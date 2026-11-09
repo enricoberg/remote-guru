@@ -1974,16 +1974,15 @@ function selectedItems(tab, cwd) {
   }).filter(Boolean);
 }
 
-/** Barra delle azioni di gruppo, presente solo quando c'è una selezione. */
+/** Barra delle azioni di gruppo: sempre presente per riservarle lo spazio
+ *  (così le voci sotto non traslano), ma visibile solo con una selezione. */
 function refreshSelBar(tab) {
   const ov = tab.hostEl && tab.hostEl.querySelector('.ll-overlay.ll-files');
   if (!ov) return;
   const old = ov.querySelector('.ll-selbar');
   const count = tab.sel ? tab.sel.size : 0;
-  if (!count) { if (old) old.remove(); return; }
-
   const cwd = tab.llDir;
-  const bar = el('div', 'll-selbar');
+  const bar = el('div', 'll-selbar' + (count ? '' : ' empty'));
   const label = el('span', 'sel-count');
   label.textContent = i18n.t('sel_count', { count: count });
   bar.appendChild(label);
@@ -4755,13 +4754,8 @@ function openEntryContextMenu(e, tab, entry, fullPath, cwd, row) {
     items.push({
       icon: 'fa-solid fa-eye',
       label: i18n.t('view_cat'),
-      action: () => {
-        bumpOverlaySeq(tab);
-        const ov = tab.hostEl.querySelector('.ll-overlay');
-        if (ov) ov.remove();
-        tab.term.focus();
-        window.api.write(tab.id, `cat ${shQuote(fullPath)}\r`);
-      },
+      // come il doppio clic: cat nel terminale, il file browser resta aperto
+      action: () => window.api.write(tab.id, `cat ${shQuote(fullPath)}\r`),
     });
     items.push({
       icon: 'fa-solid fa-file-pen',
