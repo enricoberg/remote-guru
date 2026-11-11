@@ -869,11 +869,38 @@ function buildPane(tab) {
   const sideGrip = el('div', 'll-side-grip');
   host.appendChild(sideGrip);
   setupSideGripResize(sideGrip, tab);
+  // pannello in basso: il terminale riserva sotto di sé lo spazio occupato dal
+  // pannello (--ll-dh), così le due aree non si sovrappongono e restano
+  // entrambe scorrevoli per intero
+  let fitFrame = 0;
+  const refit = () => {
+    if (fitFrame || !pane.classList.contains('visible')) return;
+    fitFrame = requestAnimationFrame(() => {
+      fitFrame = 0;
+      try { tab.fit.fit(); } catch (_) {}
+    });
+  };
+  let ovH = 0;
+  const syncOverlayHeight = () => {
+    const ov = host.querySelector(':scope > .ll-overlay');
+    const h = ov ? Math.ceil(ov.getBoundingClientRect().height) : 0;
+    if (h === ovH) return;
+    ovH = h;
+    host.style.setProperty('--ll-dh', h + 'px');
+    refit();
+  };
+  const ovResize = new ResizeObserver(syncOverlayHeight);
+  let observedOv = null;
   new MutationObserver(() => {
-    host.classList.toggle('has-ov', !!host.querySelector(':scope > .ll-overlay'));
-    if ($('#panes').classList.contains('dock-right') && pane.classList.contains('visible')) {
-      requestAnimationFrame(() => { try { tab.fit.fit(); } catch (_) {} });
+    const ov = host.querySelector(':scope > .ll-overlay');
+    host.classList.toggle('has-ov', !!ov);
+    if (ov !== observedOv) {
+      if (observedOv) ovResize.unobserve(observedOv);
+      if (ov) ovResize.observe(ov);
+      observedOv = ov;
     }
+    syncOverlayHeight();
+    refit();
   }).observe(host, { childList: true });
 
   // menu contestuale sul terminale (incolla password)

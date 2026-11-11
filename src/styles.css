@@ -331,6 +331,10 @@ body.net-warn { --net-offset: 32px; }
 
 .term-host { flex: 1; min-height: 0; position: relative; }
 .term-host .terminal { padding: 6px; height: 100%; }
+/* pannello in basso: il terminale si ferma sopra al pannello invece di finirci
+   sotto (--ll-dh = altezza reale del pannello, aggiornata da renderer.js) */
+.term-host.has-ov .terminal { padding-bottom: calc(var(--ll-dh, 0px) + 6px); }
+.panes.dock-right .term-host.has-ov .terminal { padding-bottom: 6px; }
 
 /* pannello agganciato sul lato destro (solo a schermo intero, vedi applyDock):
    il terminale si restringe invece di finire sotto al pannello. La larghezza
