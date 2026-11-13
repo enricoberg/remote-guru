@@ -742,6 +742,21 @@ body.net-warn { --net-offset: 32px; }
 #toast.show { opacity: 1; }
 #toast.err { border-color: var(--red); }
 
+/* connessioni SSH in corso: restano visibili (con spinner) finché la connect non termina */
+#conn-pending {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  display: flex; flex-direction: column; gap: 6px; align-items: center;
+  z-index: 1999; pointer-events: none;
+}
+/* se compare anche un toast, le righe salgono per non sovrapporsi */
+#toast.show ~ #conn-pending { bottom: 70px; }
+.conn-pending-row {
+  background: var(--panel); border: 1px solid var(--border); padding: 10px 18px;
+  border-radius: 8px; box-shadow: 0 2px 10px rgba(0, 0, 0, .35);
+  max-width: min(560px, 90vw); white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+.conn-pending-row i { color: var(--accent); margin-right: 6px; }
+
 /* ---------- Stato della rete e ripristino delle sessioni ---------- */
 
 /* fascia globale in cima alla finestra: linea assente / riconnessione in corso */

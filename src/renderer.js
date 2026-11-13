@@ -467,13 +467,49 @@ function buildTerminalTheme() {
   };
 }
 
+// ---------- Indicatore "connessione in corso" ----------
+// Più connessioni possono essere in corso insieme (doppio clic ripetuto,
+// "duplica sessione"...): ognuna ha la sua riga con lo spinner, che sparisce
+// quando la connect termina, con successo o errore.
+function showConnecting(server) {
+  let box = $('#conn-pending');
+  if (!box) {
+    // il #toast deve precedere il box nel DOM: il CSS (#toast.show ~ #conn-pending)
+    // sposta le righe più in alto quando c'è un toast visibile
+    if (!$('#toast')) { const t = el('div'); t.id = 'toast'; document.body.appendChild(t); }
+    box = el('div'); box.id = 'conn-pending'; document.body.appendChild(box);
+  }
+  const row = el('div');
+  row.className = 'conn-pending-row';
+  row.innerHTML = `<i class="fa-solid fa-circle-notch fa-spin"></i> <span></span>`;
+  row.querySelector('span').textContent = i18n.t('connecting', { host: server.nickname || server.name || server.host });
+  box.appendChild(row);
+  // il pulsante "Connetti" del form resta bloccato finché c'è almeno una connessione in corso
+  const btn = $('#btn-connect');
+  if (btn) {
+    btn.disabled = true;
+    btn.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${i18n.t('form_btn_connect')}`;
+  }
+  return () => {
+    row.remove();
+    if (box.children.length) return;
+    box.remove();
+    if (btn) {
+      btn.disabled = false;
+      btn.innerHTML = `<i class="fa-solid fa-plug"></i> ${i18n.t('form_btn_connect')}`;
+    }
+  };
+}
+
 async function openConnection(server) {
-  toast(i18n.t('connecting', { host: server.host }));
+  const done = showConnecting(server);
   let res;
   try {
     res = await window.api.connect(server);
   } catch (e) {
     return toast(i18n.t('connection_error', { error: e.message }), true);
+  } finally {
+    done();
   }
   const id = res.id;
 
