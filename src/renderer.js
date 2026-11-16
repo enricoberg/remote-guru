@@ -6981,11 +6981,20 @@ function applyUITexts() {
   const splitBtn = $('#btn-split');
   if (splitBtn) splitBtn.dataset.tip = i18n.t('split_view_button_title');
   const termSettingsBtn = $('#btn-term-settings');
-  if (termSettingsBtn) termSettingsBtn.dataset.tip = i18n.t('settings_title');
+  if (termSettingsBtn) {
+    // settings_title contiene l'icona in HTML: per il tooltip serve solo il testo
+    const tmp = document.createElement('div');
+    tmp.innerHTML = i18n.t('settings_title');
+    termSettingsBtn.dataset.tip = tmp.textContent.trim();
+  }
 
   // Bottone settings
   const settingsBtn = $('#btn-settings');
-  if (settingsBtn) settingsBtn.title = i18n.t('settings_title');
+  if (settingsBtn) {
+    const tmp = document.createElement('div');
+    tmp.innerHTML = i18n.t('settings_title');
+    settingsBtn.title = tmp.textContent.trim();
+  }
 
   // Bottone nuovo server
   const newBtn = $('#btn-new');
