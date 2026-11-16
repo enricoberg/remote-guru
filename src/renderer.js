@@ -436,8 +436,22 @@ function applyTheme(name) {
   document.documentElement.setAttribute('data-theme', name || DEFAULT_THEME);
   localStorage.setItem('theme', name || DEFAULT_THEME);
   // Allinea i colori dei terminali aperti al tema selezionato
+  if (window.TermBg) window.TermBg.refreshColors();
+  refreshTerminalThemes();
+}
+
+function refreshTerminalThemes() {
   const theme = buildTerminalTheme();
   tabs.forEach((tab) => { tab.term.options.theme = theme; });
+}
+
+// ---------- Sfondo animato del terminale ----------
+// salvato come nome della scena; stringa vuota/assente = disattivato
+function applyTermBg(enabled, sceneName) {
+  localStorage.setItem('termBgEnabled', enabled ? '1' : '0');
+  if (sceneName) localStorage.setItem('termBgScene', sceneName);
+  window.TermBg.set(enabled ? (sceneName || localStorage.getItem('termBgScene') || 'starfield') : null);
+  refreshTerminalThemes();
 }
 
 // Costruisce il theme di xterm.js leggendo le variabili CSS del tema attivo,
@@ -458,7 +472,8 @@ function buildTerminalTheme() {
   const magenta = v('--magenta', accent);
   const cyan = v('--cyan', green);
   return {
-    background: bg,
+    // con lo sfondo animato attivo il terminale è trasparente e lascia vedere il canvas
+    background: window.TermBg && window.TermBg.isOn() ? 'rgba(0,0,0,0)' : bg,
     foreground: text,
     cursor: accent,
     cursorAccent: bg,
@@ -524,6 +539,7 @@ async function openConnection(server) {
     // marker e decorazioni sono API "proposed" di xterm: senza questa opzione
     // l'addon di ricerca solleva un'eccezione appena evidenzia i risultati
     allowProposedApi: true,
+    allowTransparency: true, // necessario per lo sfondo animato (term-bg.js)
     theme: buildTerminalTheme(),
   });
   const fit = new FitAddon();
@@ -7063,6 +7079,15 @@ function applyUITexts() {
     });
   }
 
+  const termBgLabel = $('#termbg-label');
+  if (termBgLabel) termBgLabel.textContent = i18n.t('settings_termbg_label');
+  const termBgSelect = $('#termbg-select');
+  if (termBgSelect) {
+    termBgSelect.querySelectorAll('option').forEach((opt) => {
+      opt.textContent = i18n.t('settings_termbg_' + opt.value);
+    });
+  }
+
   // Update language options
   const langSelect = $('#language-select');
   if (langSelect) {
@@ -7509,6 +7534,19 @@ window.addEventListener('DOMContentLoaded', async () => {
   applyTheme(getSavedTheme());
   themeSelect.value = getSavedTheme();
   themeSelect.addEventListener('change', (e) => applyTheme(e.target.value));
+
+  // sfondo animato del terminale: toggle + scelta della scena
+  const tbToggle = $('#termbg-toggle');
+  const tbSelect = $('#termbg-select');
+  tbToggle.checked = localStorage.getItem('termBgEnabled') === '1';
+  tbSelect.value = localStorage.getItem('termBgScene') || 'starfield';
+  tbSelect.disabled = !tbToggle.checked;
+  applyTermBg(tbToggle.checked, tbSelect.value);
+  tbToggle.addEventListener('change', () => {
+    tbSelect.disabled = !tbToggle.checked;
+    applyTermBg(tbToggle.checked, tbSelect.value);
+  });
+  tbSelect.addEventListener('change', () => applyTermBg(tbToggle.checked, tbSelect.value));
 
   // lingua: applica quella salvata e collega la dropdown
   const langSelect = $('#language-select');

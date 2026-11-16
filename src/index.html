@@ -147,6 +147,22 @@
 
       <div class="settings-card">
         <div class="settings-row">
+          <label for="termbg-toggle" id="termbg-label">Sfondo animato del terminale</label>
+          <div class="termbg-controls">
+            <label class="switch"><input type="checkbox" id="termbg-toggle"><span class="slider"></span></label>
+            <select id="termbg-select">
+              <option value="starfield">Starfield</option>
+              <option value="grid">Retro grid</option>
+              <option value="torus">Torus</option>
+              <option value="wave">Wave</option>
+              <option value="tunnel">Tunnel</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <div class="settings-card">
+        <div class="settings-row">
           <label for="language-select">Lingua</label>
           <select id="language-select">
             <option value="it">Italiano</option>
@@ -254,6 +270,7 @@
   <script src="../node_modules/codemirror/mode/powershell/powershell.js"></script>
   <script src="../node_modules/codemirror/mode/rust/rust.js"></script>
   <script src="i18n.js"></script>
+  <script src="term-bg.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

@@ -1328,3 +1328,26 @@ body.net-warn { --net-offset: 32px; }
 .claude-msgs::-webkit-scrollbar-track, .claude-history::-webkit-scrollbar-track, .claude-tool-out::-webkit-scrollbar-track { background: transparent; }
 .claude-msgs::-webkit-scrollbar-thumb, .claude-history::-webkit-scrollbar-thumb, .claude-tool-out::-webkit-scrollbar-thumb { background: var(--border); border-radius: 5px; }
 .claude-msgs::-webkit-scrollbar-thumb:hover, .claude-history::-webkit-scrollbar-thumb:hover { background: var(--muted); }
+
+/* --- Sfondo animato del terminale (term-bg.js) --- */
+.term-host > canvas.term-bg {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  pointer-events: none; z-index: 0; opacity: 0.45;
+}
+.term-bg-on .term-host { background: var(--bg); }
+.term-host > .terminal { position: relative; z-index: 1; }
+.termbg-controls { display: flex; align-items: center; gap: 12px; }
+.termbg-controls select { flex: 1; }
+.termbg-controls select:disabled { opacity: 0.5; }
+.switch { position: relative; display: inline-block; width: 40px; height: 22px; flex: none; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.switch .slider {
+  position: absolute; inset: 0; cursor: pointer; border-radius: 22px;
+  background: var(--border); transition: background 0.2s;
+}
+.switch .slider::before {
+  content: ""; position: absolute; width: 16px; height: 16px; left: 3px; top: 3px;
+  border-radius: 50%; background: var(--text); transition: transform 0.2s;
+}
+.switch input:checked + .slider { background: var(--accent); }
+.switch input:checked + .slider::before { transform: translateX(18px); background: var(--bg); }

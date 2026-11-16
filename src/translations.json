@@ -3806,5 +3806,53 @@
     "fr": "Faites glisser vers le bord inférieur pour remettre le panneau en bas",
     "de": "Zum unteren Rand ziehen, um das Panel wieder nach unten zu verschieben",
     "pt": "Arraste para a borda inferior para devolver o painel para baixo"
+  },
+  "settings_termbg_label": {
+    "it": "Sfondo animato del terminale",
+    "en": "Animated terminal background",
+    "es": "Fondo animado del terminal",
+    "fr": "Arrière-plan animé du terminal",
+    "de": "Animierter Terminal-Hintergrund",
+    "pt": "Fundo animado do terminal"
+  },
+  "settings_termbg_starfield": {
+    "it": "Campo stellare",
+    "en": "Starfield",
+    "es": "Campo de estrellas",
+    "fr": "Champ d'étoiles",
+    "de": "Sternenfeld",
+    "pt": "Campo estelar"
+  },
+  "settings_termbg_grid": {
+    "it": "Griglia retrò",
+    "en": "Retro grid",
+    "es": "Cuadrícula retro",
+    "fr": "Grille rétro",
+    "de": "Retro-Gitter",
+    "pt": "Grade retrô"
+  },
+  "settings_termbg_torus": {
+    "it": "Toro 3D",
+    "en": "3D torus",
+    "es": "Toro 3D",
+    "fr": "Tore 3D",
+    "de": "3D-Torus",
+    "pt": "Toro 3D"
+  },
+  "settings_termbg_wave": {
+    "it": "Onda di particelle",
+    "en": "Particle wave",
+    "es": "Onda de partículas",
+    "fr": "Vague de particules",
+    "de": "Partikelwelle",
+    "pt": "Onda de partículas"
+  },
+  "settings_termbg_tunnel": {
+    "it": "Tunnel",
+    "en": "Tunnel",
+    "es": "Túnel",
+    "fr": "Tunnel",
+    "de": "Tunnel",
+    "pt": "Túnel"
   }
 }
