@@ -6980,6 +6980,8 @@ function applyUITexts() {
   // Bottone split view nella barra delle schede
   const splitBtn = $('#btn-split');
   if (splitBtn) splitBtn.dataset.tip = i18n.t('split_view_button_title');
+  const termSettingsBtn = $('#btn-term-settings');
+  if (termSettingsBtn) termSettingsBtn.dataset.tip = i18n.t('settings_title');
 
   // Bottone settings
   const settingsBtn = $('#btn-settings');
@@ -7572,8 +7574,13 @@ window.addEventListener('DOMContentLoaded', async () => {
     renderShortcutsSettings();
     toast(i18n.t('shortcut_reset_done'));
   });
-  $('#btn-settings').addEventListener('click', () => showView('settings'));
-  $('#btn-settings-back').addEventListener('click', () => showView('config'));
+  // "indietro" dalle impostazioni torna alla vista da cui sono state aperte
+  let settingsReturnView = 'config';
+  $('#btn-settings').addEventListener('click', () => { settingsReturnView = 'config'; showView('settings'); });
+  $('#btn-term-settings').addEventListener('click', () => { settingsReturnView = 'terminal'; showView('settings'); });
+  $('#btn-settings-back').addEventListener('click', () => {
+    showView(settingsReturnView === 'terminal' && tabs.size ? 'terminal' : 'config');
+  });
   $('#btn-toggle-groups').addEventListener('click', toggleAllGroups);
 
   $('#btn-new').addEventListener('click', newServer);
