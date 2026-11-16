@@ -1375,6 +1375,54 @@
     "de": "Matrix",
     "pt": "Matrix"
   },
+  "settings_theme_cyberpunk": {
+    "it": "Cyberpunk",
+    "en": "Cyberpunk",
+    "es": "Cyberpunk",
+    "fr": "Cyberpunk",
+    "de": "Cyberpunk",
+    "pt": "Cyberpunk"
+  },
+  "settings_theme_aurora": {
+    "it": "Aurora",
+    "en": "Aurora",
+    "es": "Aurora",
+    "fr": "Aurora",
+    "de": "Aurora",
+    "pt": "Aurora"
+  },
+  "settings_theme_abyss": {
+    "it": "Abyss",
+    "en": "Abyss",
+    "es": "Abyss",
+    "fr": "Abyss",
+    "de": "Abyss",
+    "pt": "Abyss"
+  },
+  "settings_theme_ember": {
+    "it": "Ember",
+    "en": "Ember",
+    "es": "Ember",
+    "fr": "Ember",
+    "de": "Ember",
+    "pt": "Ember"
+  },
+  "settings_theme_sakura": {
+    "it": "Sakura",
+    "en": "Sakura",
+    "es": "Sakura",
+    "fr": "Sakura",
+    "de": "Sakura",
+    "pt": "Sakura"
+  },
+  "settings_theme_neon_noir": {
+    "it": "Neon Noir",
+    "en": "Neon Noir",
+    "es": "Neon Noir",
+    "fr": "Neon Noir",
+    "de": "Neon Noir",
+    "pt": "Neon Noir"
+  },
   "settings_language_label": {
     "it": "Lingua",
     "en": "Language",

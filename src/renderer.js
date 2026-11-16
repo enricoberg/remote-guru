@@ -453,6 +453,10 @@ function buildTerminalTheme() {
   const yellow = v('--yellow', '#f9e2af');
   const muted = v('--muted', '#9399b2');
   const border = v('--border', '#313244');
+  // colori ANSI opzionali: i temi che non li definiscono ricadono su accent/green
+  const blue = v('--blue', accent);
+  const magenta = v('--magenta', accent);
+  const cyan = v('--cyan', green);
   return {
     background: bg,
     foreground: text,
@@ -461,9 +465,9 @@ function buildTerminalTheme() {
     selectionBackground: border,
     // palette ANSI derivata dai colori del tema
     black: border, red, green, yellow,
-    blue: accent, magenta: accent, cyan: green, white: text,
+    blue, magenta, cyan, white: text,
     brightBlack: muted, brightRed: red, brightGreen: green, brightYellow: yellow,
-    brightBlue: accent, brightMagenta: accent, brightCyan: green, brightWhite: text,
+    brightBlue: blue, brightMagenta: magenta, brightCyan: cyan, brightWhite: text,
   };
 }
 
@@ -4958,6 +4962,9 @@ function detectEditorMode(name, content) {
  * "Salva ed esci" e "Esci senza salvare".
  */
 async function openEmbeddedEditor(tab, entry, fullPath) {
+  // se l'editor è aperto dal file browser, dopo il salvataggio si torna lì
+  const fromBrowser = !!tab.hostEl.querySelector('.ll-overlay.ll-files');
+  const browserDir = tab.cwd;
   // il pannello dell'editor compare subito, il contenuto arriva via SFTP
   const pending = openPendingOverlay(tab, i18n.t('editor_loading', { name: entry.name }));
 
@@ -5028,6 +5035,7 @@ async function openEmbeddedEditor(tab, entry, fullPath) {
       await window.api.writeFile(tab.id, fullPath, getValue());
       toast(i18n.t('editor_saved', { name: entry.name }));
       close();
+      if (fromBrowser) showListing(tab, browserDir, { fresh: true });
     } catch (e) {
       saveBtn.disabled = false;
       toast(i18n.t('editor_save_error', { error: e.message }), true);
@@ -7043,6 +7051,12 @@ function applyUITexts() {
       'tokyo-night': i18n.t('settings_theme_tokyo'),
       gruvbox: i18n.t('settings_theme_gruvbox'),
       matrix: i18n.t('settings_theme_matrix'),
+      'cyberpunk': i18n.t('settings_theme_cyberpunk'),
+      'aurora': i18n.t('settings_theme_aurora'),
+      'abyss': i18n.t('settings_theme_abyss'),
+      'ember': i18n.t('settings_theme_ember'),
+      'sakura': i18n.t('settings_theme_sakura'),
+      'neon-noir': i18n.t('settings_theme_neon_noir'),
     };
     themeSelect.querySelectorAll('option').forEach(opt => {
       if (options[opt.value]) opt.textContent = options[opt.value];
