@@ -3127,6 +3127,70 @@
     "de": "{total} Treffer",
     "pt": "{total} resultados"
   },
+  "find_in_file_placeholder": {
+    "it": "Cerca nel file…",
+    "en": "Find in file…",
+    "es": "Buscar en el archivo…",
+    "fr": "Rechercher dans le fichier…",
+    "de": "In Datei suchen…",
+    "pt": "Pesquisar no arquivo…"
+  },
+  "find_word": {
+    "it": "Parola intera",
+    "en": "Match whole word",
+    "es": "Palabra completa",
+    "fr": "Mot entier",
+    "de": "Ganzes Wort",
+    "pt": "Palavra inteira"
+  },
+  "find_regex_invalid": {
+    "it": "regex non valida",
+    "en": "invalid regex",
+    "es": "regex no válida",
+    "fr": "regex invalide",
+    "de": "ungültige Regex",
+    "pt": "regex inválida"
+  },
+  "find_toggle_replace": {
+    "it": "Mostra/nascondi sostituzione",
+    "en": "Toggle replace",
+    "es": "Mostrar/ocultar reemplazo",
+    "fr": "Afficher/masquer le remplacement",
+    "de": "Ersetzen ein-/ausblenden",
+    "pt": "Mostrar/ocultar substituição"
+  },
+  "replace_placeholder": {
+    "it": "Sostituisci con…",
+    "en": "Replace with…",
+    "es": "Reemplazar por…",
+    "fr": "Remplacer par…",
+    "de": "Ersetzen durch…",
+    "pt": "Substituir por…"
+  },
+  "replace_one": {
+    "it": "Sostituisci",
+    "en": "Replace",
+    "es": "Reemplazar",
+    "fr": "Remplacer",
+    "de": "Ersetzen",
+    "pt": "Substituir"
+  },
+  "replace_all": {
+    "it": "Sostituisci tutto",
+    "en": "Replace all",
+    "es": "Reemplazar todo",
+    "fr": "Tout remplacer",
+    "de": "Alle ersetzen",
+    "pt": "Substituir tudo"
+  },
+  "replace_done": {
+    "it": "{count} occorrenze sostituite",
+    "en": "{count} occurrences replaced",
+    "es": "{count} coincidencias reemplazadas",
+    "fr": "{count} occurrences remplacées",
+    "de": "{count} Vorkommen ersetzt",
+    "pt": "{count} ocorrências substituídas"
+  },
   "shortcut_zoom_in": {
     "it": "Ingrandisci il carattere",
     "en": "Increase font size",

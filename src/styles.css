@@ -605,6 +605,57 @@ body.net-warn { --net-offset: 32px; }
   white-space: pre; tab-size: 4;
 }
 .editor-textarea:focus { border-color: var(--accent); }
+/* contenitore dell'editor: riferimento per la barra di ricerca flottante */
+.editor-body {
+  position: relative; flex: 1; min-height: 200px; min-width: 0;
+  display: flex; flex-direction: column;
+}
+
+/* barra di ricerca/sostituzione dell'editor (Cmd+F / Cmd+Alt+F) */
+.editor-find {
+  position: absolute; top: 6px; right: 18px; z-index: 7;
+  display: flex; align-items: stretch; gap: 4px;
+  padding: 4px 6px 4px 3px; border-radius: 6px;
+  background: var(--panel); border: 1px solid var(--border);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+  font-family: "SFMono-Regular", Menlo, monospace; font-size: 12px;
+}
+.editor-find[hidden] { display: none; }
+.editor-find button {
+  background: none; border: 1px solid transparent; color: var(--muted); cursor: pointer;
+  padding: 2px 5px; border-radius: 4px; font-family: inherit; font-size: 12px; line-height: 1.2;
+}
+.editor-find button:hover:not(:disabled) { color: var(--accent); background: var(--border); }
+.editor-find button:disabled { opacity: 0.4; cursor: default; }
+/* pulsante che apre/chiude la riga di sostituzione */
+.editor-find .ef-toggle { padding: 0 4px; }
+.editor-find .ef-toggle i { transition: transform .15s ease; font-size: 10px; }
+.editor-find.expanded .ef-toggle i { transform: rotate(90deg); }
+.editor-find .ef-rows { display: flex; flex-direction: column; gap: 4px; }
+.editor-find .ef-row { display: flex; align-items: center; gap: 3px; }
+.editor-find .ef-replace-row { display: none; }
+.editor-find.expanded .ef-replace-row { display: flex; }
+/* campo con gli interruttori (Aa, ab, .*) incorporati a destra */
+.editor-find .ef-field {
+  display: flex; align-items: center; gap: 1px; width: 250px;
+  background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 2px 1px 0;
+}
+.editor-find .ef-field:focus-within { border-color: var(--accent); }
+.editor-find.no-match .ef-rows > .ef-row:first-child .ef-field { border-color: var(--red); }
+.editor-find .ef-field input {
+  flex: 1; min-width: 0; background: transparent; border: none; outline: none; color: var(--text);
+  padding: 3px 7px; font-family: inherit; font-size: 12px;
+}
+.editor-find .ef-flag { font-weight: 600; padding: 1px 4px; }
+.editor-find .ef-flag.on { color: var(--accent); border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 15%, transparent); }
+.editor-find .ef-word { text-decoration: underline; text-underline-offset: 2px; }
+.editor-find .ef-count {
+  color: var(--muted); min-width: 64px; text-align: center; white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.editor-find.no-match .ef-count { color: var(--red); }
+.editor-find .ef-text { white-space: nowrap; color: var(--text); border-color: var(--border); }
 
 /* ---------- Editor CodeMirror (syntax highlighting) ----------
    Il tema "remote-guru" usa solo le variabili colore del tema attivo,
@@ -628,6 +679,14 @@ body.net-warn { --net-offset: 32px; }
 .cm-s-remote-guru .CodeMirror-matchingbracket { color: var(--yellow) !important; font-weight: 700; text-decoration: none; }
 .cm-s-remote-guru .CodeMirror-nonmatchingbracket { color: var(--red) !important; }
 .cm-s-remote-guru .CodeMirror-matchingtag { background: var(--border); }
+/* risultati della ricerca: tutti tenui, quello corrente pieno con bordo */
+.cm-s-remote-guru .cm-searching {
+  background: color-mix(in srgb, var(--yellow) 22%, transparent); border-radius: 2px;
+}
+.cm-s-remote-guru .cm-search-current {
+  background: color-mix(in srgb, var(--yellow) 50%, transparent);
+  outline: 1px solid var(--yellow); border-radius: 2px;
+}
 
 .cm-s-remote-guru .cm-comment { color: var(--muted); font-style: italic; }
 .cm-s-remote-guru .cm-keyword,

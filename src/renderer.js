@@ -5019,11 +5019,14 @@ async function openEmbeddedEditor(tab, entry, fullPath) {
   head.appendChild(actions);
   overlay.appendChild(head);
 
+  // contenitore dell'editor: fa da riferimento per la barra di ricerca flottante
+  const body = el('div', 'editor-body');
   const ta = document.createElement('textarea');
   ta.className = 'editor-textarea';
   ta.value = content;
   ta.spellcheck = false;
-  overlay.appendChild(ta);
+  body.appendChild(ta);
+  overlay.appendChild(body);
 
   const original = content;
 
@@ -5031,10 +5034,12 @@ async function openEmbeddedEditor(tab, entry, fullPath) {
   // se la libreria non fosse disponibile si continua con la textarea semplice.
   let cm = null;
   let cmResizeObs = null;
+  let finder = null;
   const getValue = () => (cm ? cm.getValue() : ta.value);
   const isDirty = () => getValue() !== original;
 
   const close = () => {
+    if (finder) finder.destroy();
     if (cmResizeObs) cmResizeObs.disconnect();
     overlay.remove();
     tab.term.focus();
@@ -5072,8 +5077,16 @@ async function openEmbeddedEditor(tab, entry, fullPath) {
 
   tab.hostEl.appendChild(overlay);
 
+  const confirmClose = () => { if (!isDirty() || confirm(i18n.t('editor_unsaved_confirm'))) close(); };
+
   if (window.CodeMirror) {
     const mode = detectEditorMode(entry.name, content);
+    // le scorciatoie di ricerca sostituiscono quelle dell'addon search.js
+    // (il cui dialog si chiude a ogni Invio)
+    const openFind = () => finder.open(false);
+    const openReplace = () => finder.open(true);
+    const findNext = () => finder.step(1);
+    const findPrev = () => finder.step(-1);
     cm = window.CodeMirror.fromTextArea(ta, {
       mode: mode || null,
       theme: 'remote-guru',
@@ -5089,13 +5102,33 @@ async function openEmbeddedEditor(tab, entry, fullPath) {
         'Ctrl-S': () => save(),
         'Cmd-/': 'toggleComment',
         'Ctrl-/': 'toggleComment',
-        Esc: () => { if (!isDirty() || confirm(i18n.t('editor_unsaved_confirm'))) close(); },
+        // su macOS Ctrl-F/Ctrl-H restano i comandi di editing in stile emacs
+        ...(IS_MAC ? {
+          'Cmd-F': openFind,
+          'Cmd-Alt-F': openReplace,
+          'Shift-Cmd-F': openReplace,
+          'Shift-Cmd-Alt-F': openReplace,
+          'Cmd-G': findNext,
+          'Shift-Cmd-G': findPrev,
+        } : {
+          'Ctrl-F': openFind,
+          'Ctrl-H': openReplace,
+          'Shift-Ctrl-F': openReplace,
+          'Shift-Ctrl-R': openReplace,
+          'Ctrl-G': findNext,
+          'Shift-Ctrl-G': findPrev,
+        }),
+        F3: findNext,
+        'Shift-F3': findPrev,
+        // Esc chiude prima la barra di ricerca, poi l'editor
+        Esc: () => { if (finder && finder.isOpen()) finder.close(); else confirmClose(); },
         Tab: (editor) => {
           if (editor.somethingSelected()) editor.indentSelection('add');
           else editor.replaceSelection(' '.repeat(editor.getOption('indentUnit')), 'end');
         },
       },
     });
+    finder = createEditorFinder(cm, body, { save });
     // l'overlay è ridimensionabile: mantieni l'editor allineato all'altezza corrente
     cmResizeObs = new ResizeObserver(() => cm.refresh());
     cmResizeObs.observe(overlay);
@@ -5104,6 +5137,404 @@ async function openEmbeddedEditor(tab, entry, fullPath) {
   } else {
     ta.focus();
   }
+}
+
+// ============================================================================
+// RICERCA E SOSTITUZIONE NELL'EDITOR (CodeMirror)
+// ============================================================================
+//
+// Barra flottante in alto a destra dell'editor, sul modello di VS Code: resta
+// aperta mentre si naviga tra i risultati, mostra "n/totale", ha gli
+// interruttori maiuscole / parola intera / regex e una seconda riga
+// collassabile per sostituire il risultato corrente o tutti.
+//
+// I risultati si calcolano sull'intero testo (così le regex possono attraversare
+// più righe); l'evidenziazione di tutte le occorrenze usa un overlay di
+// CodeMirror, quella del risultato corrente un marker dedicato.
+
+/** Oltre questo numero di risultati il conteggio si ferma (mostra "N+"). */
+const EDITOR_FIND_LIMIT = 10000;
+
+/**
+ * Espande il testo di sostituzione per un risultato regex:
+ * $& / $0 = intero risultato, $1…$99 = gruppi, $<nome> = gruppi con nome,
+ * $$ = "$", \n e \t = a capo e tabulazione, \\ = barra rovesciata.
+ */
+function expandReplacement(tpl, m) {
+  return tpl.replace(/\$(?:(\$)|(&)|(\d{1,2})|<([^>]*)>)|\\([nt\\])/g,
+    (all, dollar, amp, num, name, esc) => {
+      if (dollar) return '$';
+      if (amp) return m[0];
+      if (num !== undefined) {
+        const n = Number(num);
+        if (n < m.length) return m[n] == null ? '' : m[n];
+        // "$12" con un solo gruppo = gruppo 1 seguito da "2"
+        const n1 = Number(num[0]);
+        if (num.length === 2 && n1 < m.length) return (m[n1] == null ? '' : m[n1]) + num[1];
+        return all;
+      }
+      if (name !== undefined) {
+        return m.groups && name in m.groups ? (m.groups[name] == null ? '' : m.groups[name]) : all;
+      }
+      return esc === 'n' ? '\n' : esc === 't' ? '\t' : '\\';
+    });
+}
+
+/**
+ * Crea la barra di ricerca/sostituzione per un'istanza CodeMirror.
+ * `host` è il contenitore (position: relative) in cui viene agganciata.
+ */
+function createEditorFinder(cm, host, { save }) {
+  const st = {
+    caseSensitive: false,
+    word: false,
+    regex: false,
+    expanded: false,   // riga di sostituzione visibile
+    matches: [],       // [{ from, to, m }]
+    index: -1,         // risultato corrente
+    capped: false,     // conteggio interrotto a EDITOR_FIND_LIMIT
+    error: false,      // regex non valida
+    re: null,
+  };
+  let bar = null;
+  let findInput, replaceInput, countEl, toggleBtn, replaceOneBtn, replaceAllBtn, prevBtn, nextBtn;
+  let overlay = null;
+  let currentMark = null;
+  let changeTimer = null;
+
+  const mod = IS_MAC ? '⌘' : 'Ctrl+';
+  const alt = IS_MAC ? '⌥' : 'Alt+';
+  const cmpPos = window.CodeMirror.cmpPos;
+
+  const mkBtn = (cls, html, title, fn) => {
+    const b = el('button', cls);
+    b.type = 'button';
+    b.innerHTML = html;
+    b.title = title;
+    // mousedown non deve togliere il fuoco al campo di ricerca
+    b.addEventListener('mousedown', (e) => e.preventDefault());
+    b.addEventListener('click', fn);
+    return b;
+  };
+
+  // ---------- costruzione della barra ----------
+
+  function build() {
+    bar = el('div', 'editor-find');
+
+    toggleBtn = mkBtn('ef-toggle', '<i class="fa-solid fa-chevron-right"></i>',
+      i18n.t('find_toggle_replace'), () => setExpanded(!st.expanded, true));
+
+    const rows = el('div', 'ef-rows');
+
+    // riga 1: campo di ricerca con interruttori, contatore, frecce, chiudi
+    const findRow = el('div', 'ef-row');
+    const findField = el('div', 'ef-field');
+    findInput = document.createElement('input');
+    findInput.type = 'text';
+    findInput.spellcheck = false;
+    findInput.placeholder = i18n.t('find_in_file_placeholder');
+    const flag = (key, label, title, shortcut) => {
+      const b = mkBtn('ef-flag' + (st[key] ? ' on' : ''), label, `${title} (${alt}${shortcut})`, () => {
+        st[key] = !st[key];
+        b.classList.toggle('on', st[key]);
+        refresh({ select: true });
+      });
+      return b;
+    };
+    const caseBtn = flag('caseSensitive', 'Aa', i18n.t('find_case'), 'C');
+    const wordBtn = flag('word', '<span class="ef-word">ab</span>', i18n.t('find_word'), 'W');
+    const reBtn = flag('regex', '.*', i18n.t('find_regex'), 'R');
+    findField.append(findInput, caseBtn, wordBtn, reBtn);
+    countEl = el('span', 'ef-count');
+    prevBtn = mkBtn('', '<i class="fa-solid fa-arrow-up"></i>', i18n.t('find_prev'), () => step(-1));
+    nextBtn = mkBtn('', '<i class="fa-solid fa-arrow-down"></i>', i18n.t('find_next'), () => step(1));
+    const closeBtn = mkBtn('', '<i class="fa-solid fa-xmark"></i>', i18n.t('find_close'), () => close());
+    findRow.append(findField, countEl, prevBtn, nextBtn, closeBtn);
+
+    // riga 2 (collassabile): campo di sostituzione e azioni
+    const replaceRow = el('div', 'ef-row ef-replace-row');
+    const replaceField = el('div', 'ef-field');
+    replaceInput = document.createElement('input');
+    replaceInput.type = 'text';
+    replaceInput.spellcheck = false;
+    replaceInput.placeholder = i18n.t('replace_placeholder');
+    replaceField.appendChild(replaceInput);
+    replaceOneBtn = mkBtn('ef-text', i18n.t('replace_one'),
+      `${i18n.t('replace_one')} (${IS_MAC ? '⏎' : 'Enter'})`, () => replaceOne());
+    replaceAllBtn = mkBtn('ef-text', i18n.t('replace_all'),
+      `${i18n.t('replace_all')} (${mod}${IS_MAC ? '⏎' : 'Enter'})`, () => replaceAll());
+    replaceRow.append(replaceField, replaceOneBtn, replaceAllBtn);
+
+    rows.append(findRow, replaceRow);
+    bar.append(toggleBtn, rows);
+    host.appendChild(bar);
+
+    // flag con Alt+C / Alt+W / Alt+R (su macOS e.key è "ç", "∑"…: si usa e.code)
+    const flagKeys = { KeyC: caseBtn, KeyW: wordBtn, KeyR: reBtn };
+
+    // stesse scorciatoie dell'editor anche mentre il fuoco è nei campi
+    // (e.code perché su macOS Alt cambia e.key: Alt+F = "ƒ")
+    const commonKeys = (e) => {
+      const cmd = IS_MAC ? e.metaKey : e.ctrlKey;
+      if (e.key === 'Escape') { e.preventDefault(); close(); return true; }
+      if (cmd && !e.altKey && e.code === 'KeyS') { e.preventDefault(); save(); return true; }
+      if (cmd && e.code === 'KeyF') {
+        e.preventDefault();
+        open(e.altKey || e.shiftKey);
+        return true;
+      }
+      if (!IS_MAC && e.ctrlKey && e.code === 'KeyH') { e.preventDefault(); open(true); return true; }
+      if (cmd && e.code === 'KeyG') { e.preventDefault(); step(e.shiftKey ? -1 : 1); return true; }
+      if (e.key === 'F3') { e.preventDefault(); step(e.shiftKey ? -1 : 1); return true; }
+      if (e.altKey && !cmd && flagKeys[e.code]) { e.preventDefault(); flagKeys[e.code].click(); return true; }
+      return false;
+    };
+
+    findInput.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (commonKeys(e)) return;
+      if (e.key === 'Enter') { e.preventDefault(); step(e.shiftKey ? -1 : 1); }
+    });
+    replaceInput.addEventListener('keydown', (e) => {
+      e.stopPropagation();
+      if (commonKeys(e)) return;
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (IS_MAC ? e.metaKey : e.ctrlKey) replaceAll(); else replaceOne();
+      }
+    });
+    findInput.addEventListener('input', () => refresh({ select: true }));
+  }
+
+  function setExpanded(on, focus) {
+    st.expanded = on;
+    bar.classList.toggle('expanded', on);
+    if (focus) (on ? replaceInput : findInput).focus();
+  }
+
+  // ---------- ricerca ----------
+
+  /** Costruisce la RegExp dalla query; null se vuota, { error } se non valida. */
+  function buildRegExp() {
+    const text = findInput.value;
+    if (!text) return null;
+    let src = st.regex ? text : text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    if (st.word) src = `\\b(?:${src})\\b`;
+    try {
+      return new RegExp(src, 'gm' + (st.caseSensitive ? '' : 'i'));
+    } catch (_) {
+      return { error: true };
+    }
+  }
+
+  /** Tutte le occorrenze nel documento (le corrispondenze vuote si saltano). */
+  function collect(re, limit) {
+    const text = cm.getValue();
+    const out = [];
+    re.lastIndex = 0;
+    let m;
+    while ((m = re.exec(text))) {
+      if (!m[0]) { re.lastIndex++; continue; }
+      out.push({ from: cm.posFromIndex(m.index), to: cm.posFromIndex(m.index + m[0].length), m });
+      if (out.length >= limit) break;
+    }
+    return out;
+  }
+
+  /** Overlay che colora tutte le occorrenze visibili (riga per riga). */
+  function makeOverlay(re) {
+    const r = new RegExp(re.source, re.flags);
+    return {
+      token(stream) {
+        r.lastIndex = stream.pos;
+        const m = r.exec(stream.string);
+        if (!m) { stream.skipToEnd(); return null; }
+        if (m.index > stream.pos) { stream.pos = m.index; return null; }
+        if (!m[0]) { stream.next(); return null; }
+        stream.pos += m[0].length;
+        return 'searching';
+      },
+    };
+  }
+
+  /** Indice del primo risultato che inizia da `pos` in poi (con ritorno all'inizio). */
+  function indexFrom(pos) {
+    const i = st.matches.findIndex((x) => cmpPos(x.from, pos) >= 0);
+    return i >= 0 ? i : (st.matches.length ? 0 : -1);
+  }
+
+  /**
+   * Ricalcola i risultati. Con `select` il risultato corrente viene selezionato
+   * e portato in vista (mentre si scrive nel campo di ricerca); senza, si
+   * aggiornano solo conteggio ed evidenziazioni (modifiche al testo).
+   */
+  function refresh({ select }) {
+    clearTimeout(changeTimer);
+    changeTimer = null;
+    const re = buildRegExp();
+    if (overlay) { cm.removeOverlay(overlay); overlay = null; }
+    st.error = !!(re && re.error);
+    st.re = re && !re.error ? re : null;
+    if (st.re) {
+      st.matches = collect(st.re, EDITOR_FIND_LIMIT);
+      st.capped = st.matches.length >= EDITOR_FIND_LIMIT;
+      overlay = makeOverlay(st.re);
+      cm.addOverlay(overlay);
+    } else {
+      st.matches = [];
+      st.capped = false;
+    }
+    st.index = indexFrom(cm.getCursor('from'));
+    showCurrent(select);
+  }
+
+  /** Aggiorna marker, selezione e contatore per il risultato corrente. */
+  function showCurrent(select) {
+    if (currentMark) { currentMark.clear(); currentMark = null; }
+    const cur = st.matches[st.index];
+    if (cur) {
+      currentMark = cm.markText(cur.from, cur.to, { className: 'cm-search-current' });
+      if (select) {
+        cm.setSelection(cur.from, cur.to, { scroll: false });
+        cm.scrollIntoView({ from: cur.from, to: cur.to }, 80);
+      }
+    }
+    updateCount();
+  }
+
+  function updateCount() {
+    const n = st.matches.length;
+    const hasQuery = !!findInput.value;
+    bar.classList.toggle('no-match', hasQuery && !n);
+    prevBtn.disabled = nextBtn.disabled = !n;
+    replaceOneBtn.disabled = replaceAllBtn.disabled = !n;
+    if (!hasQuery) countEl.textContent = '';
+    else if (st.error) countEl.textContent = i18n.t('find_regex_invalid');
+    else if (!n) countEl.textContent = i18n.t('find_no_results');
+    else {
+      countEl.textContent = i18n.t('find_count', {
+        index: st.index + 1,
+        total: st.capped ? `${n}+` : n,
+      });
+    }
+  }
+
+  /** Avanza (+1) o torna indietro (-1) tra i risultati, ciclicamente. */
+  function step(dir) {
+    // a barra chiusa (Cmd+G) la si riapre: l'apertura seleziona già il primo risultato
+    if (!isOpen()) { open(false); return; }
+    if (changeTimer) refresh({ select: false });
+    const n = st.matches.length;
+    if (!n) return;
+    const cur = st.matches[st.index];
+    const from = cm.getCursor('from');
+    const to = cm.getCursor('to');
+    let i;
+    if (cur && cmpPos(cur.from, from) === 0 && cmpPos(cur.to, to) === 0) {
+      // la selezione è sul risultato corrente: passa al vicino
+      i = (st.index + dir + n) % n;
+    } else if (dir > 0) {
+      // il cursore è stato spostato a mano: si riparte da lì
+      i = st.matches.findIndex((x) => cmpPos(x.from, to) >= 0);
+      if (i < 0) i = 0;
+    } else {
+      i = -1;
+      for (let k = n - 1; k >= 0; k--) {
+        if (cmpPos(st.matches[k].to, from) <= 0) { i = k; break; }
+      }
+      if (i < 0) i = n - 1;
+    }
+    st.index = i;
+    showCurrent(true);
+  }
+
+  // ---------- sostituzione ----------
+
+  const replacementFor = (match) =>
+    (st.regex ? expandReplacement(replaceInput.value, match.m) : replaceInput.value);
+
+  function replaceOne() {
+    if (changeTimer) refresh({ select: false });
+    const cur = st.matches[st.index];
+    if (!cur) return;
+    const from = cm.getCursor('from');
+    const to = cm.getCursor('to');
+    // come in VS Code: se la selezione non è sul risultato, il primo Invio lo seleziona
+    if (cmpPos(cur.from, from) !== 0 || cmpPos(cur.to, to) !== 0) { showCurrent(true); return; }
+    const text = replacementFor(cur);
+    const startIdx = cm.indexFromPos(cur.from);
+    cm.replaceRange(text, cur.from, cur.to, '+replace');
+    // il prossimo risultato è il primo dopo il testo appena inserito
+    cm.setCursor(cm.posFromIndex(startIdx + text.length));
+    refresh({ select: true });
+  }
+
+  function replaceAll() {
+    if (!st.re) return;
+    // conteggio completo, senza il limite usato per l'evidenziazione
+    const all = collect(new RegExp(st.re.source, st.re.flags), Infinity);
+    if (!all.length) return;
+    // un'unica operazione = un solo passo di annulla (Cmd+Z)
+    cm.operation(() => {
+      for (let i = all.length - 1; i >= 0; i--) {
+        cm.replaceRange(replacementFor(all[i]), all[i].from, all[i].to, '+replace');
+      }
+    });
+    toast(i18n.t('replace_done', { count: all.length }));
+    refresh({ select: false });
+  }
+
+  // ---------- apertura / chiusura ----------
+
+  const onChanges = () => {
+    clearTimeout(changeTimer);
+    changeTimer = setTimeout(() => refresh({ select: false }), 150);
+  };
+
+  function isOpen() { return !!bar && !bar.hidden; }
+
+  function open(withReplace) {
+    const wasOpen = isOpen();
+    if (!bar) build();
+    bar.hidden = false;
+    if (withReplace) setExpanded(true);
+    else if (!wasOpen) setExpanded(st.expanded);
+
+    // la selezione (su una riga) diventa la ricerca, se non è già il risultato corrente
+    const sel = cm.getSelection();
+    const cur = st.matches[st.index];
+    const selIsCurrent = cur && cmpPos(cur.from, cm.getCursor('from')) === 0
+      && cmpPos(cur.to, cm.getCursor('to')) === 0;
+    const seeded = sel && !sel.includes('\n') && !selIsCurrent && sel !== findInput.value;
+    if (seeded) findInput.value = sel;
+
+    if (!wasOpen) cm.on('changes', onChanges);
+    if (!wasOpen || seeded) refresh({ select: !!findInput.value && !seeded });
+
+    const target = withReplace ? replaceInput : findInput;
+    target.focus();
+    target.select();
+  }
+
+  function close() {
+    if (!isOpen()) return;
+    clearTimeout(changeTimer);
+    changeTimer = null;
+    cm.off('changes', onChanges);
+    if (overlay) { cm.removeOverlay(overlay); overlay = null; }
+    if (currentMark) { currentMark.clear(); currentMark = null; }
+    bar.hidden = true;
+    cm.focus();
+  }
+
+  function destroy() {
+    clearTimeout(changeTimer);
+    cm.off('changes', onChanges);
+    if (bar) bar.remove();
+  }
+
+  return { open, close, step, isOpen, destroy };
 }
 
 function openTermContextMenu(e, tab) {
