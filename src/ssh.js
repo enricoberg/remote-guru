@@ -770,7 +770,7 @@ class SshManager {
   /** Elenca tutti i container docker, anche quelli fermi (docker ps -a). */
   async dockerPs(id) {
     const fmt =
-      '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.State}}\t{{.Status}}\t{{.Ports}}\t' +
+      '{{.ID}}\t{{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}\t' +
       '{{.Label "com.docker.compose.project.working_dir"}}';
     const out = await this.dockerExec(id, `docker ps -a --no-trunc --format ${shellQuote(fmt)}`);
     return out
@@ -778,7 +778,9 @@ class SshManager {
       .map((l) => l.replace(/\r$/, ''))
       .filter((l) => l.trim())
       .map((line) => {
-        const [cid, name, image, state, status, ports, workdir] = line.split('\t');
+        // `{{.State}}` esiste solo da Docker 20.10: lo stato si ricava da Status
+        const [cid, name, image, status, ports, workdir] = line.split('\t');
+        const state = dockerStateFromStatus(status);
         return {
           id: cid,
           name,
@@ -1546,6 +1548,14 @@ function missingToolError(tool, hint) {
  */
 function sqlLiteral(v) {
   return `'${String(v).replace(/'/g, "''")}'`;
+}
+
+/** Ricava running|paused|exited|created|restarting|dead da una colonna Status di `docker ps`. */
+function dockerStateFromStatus(status) {
+  const st = String(status || '');
+  if (/^Up\b/i.test(st)) return /\(Paused\)/i.test(st) ? 'paused' : 'running';
+  const m = st.match(/^[A-Za-z]+/);
+  return m ? m[0].toLowerCase() : '';
 }
 
 function shellQuote(s) {
