@@ -3207,6 +3207,14 @@
     "de": "Schrift verkleinern",
     "pt": "Reduzir a fonte"
   },
+  "shortcut_back": {
+    "it": "Indietro (come il tasto indietro del mouse)",
+    "en": "Back (like the mouse back button)",
+    "es": "Atrás (como el botón atrás del ratón)",
+    "fr": "Retour (comme le bouton retour de la souris)",
+    "de": "Zurück (wie die Zurück-Taste der Maus)",
+    "pt": "Voltar (como o botão voltar do mouse)"
+  },
   "shortcut_zoom_reset": {
     "it": "Ripristina il carattere",
     "en": "Reset font size",
@@ -3870,6 +3878,14 @@
     "fr": "Faites glisser vers le bord inférieur pour remettre le panneau en bas",
     "de": "Zum unteren Rand ziehen, um das Panel wieder nach unten zu verschieben",
     "pt": "Arraste para a borda inferior para devolver o painel para baixo"
+  },
+  "settings_dblclick_label": {
+    "it": "Doppio clic su un file",
+    "en": "Double-click on a file",
+    "es": "Doble clic en un archivo",
+    "fr": "Double-clic sur un fichier",
+    "de": "Doppelklick auf eine Datei",
+    "pt": "Duplo clique em um arquivo"
   },
   "settings_termbg_label": {
     "it": "Sfondo animato del terminale",

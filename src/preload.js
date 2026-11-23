@@ -116,4 +116,5 @@ contextBridge.exposeInMainWorld('api', {
   onCwd: (cb) => ipcRenderer.on('ssh:cwd', (_e, p) => cb(p)),
   onSty: (cb) => ipcRenderer.on('ssh:sty', (_e, p) => cb(p)),
   onClosed: (cb) => ipcRenderer.on('ssh:closed', (_e, p) => cb(p)),
+  onNavBack: (cb) => ipcRenderer.on('nav:back', () => cb()),
 });

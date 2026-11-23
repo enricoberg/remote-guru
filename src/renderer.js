@@ -427,6 +427,14 @@ function showView(name) {
   if (name === 'terminal') setTimeout(fitAll, 50);
 }
 
+// ---------- Azione al doppio clic su un file (persistita in localStorage) ----------
+const DBLCLICK_KEY = 'fileDblClickAction';
+function getDblClickAction() {
+  let v = null;
+  try { v = localStorage.getItem(DBLCLICK_KEY); } catch (_) {}
+  return v === 'edit' ? 'edit' : 'view';
+}
+
 // ---------- Tema (persistito in localStorage) ----------
 const DEFAULT_THEME = 'mocha';
 function getSavedTheme() {
@@ -1392,6 +1400,17 @@ async function showListing(tab, dir, opts = {}) {
   const current = tab.hostEl.querySelector('.ll-overlay.ll-files');
   let skeleton = false;
 
+  // cronologia delle cartelle per il tasto "indietro" del mouse: si registra
+  // la cartella che si sta lasciando; un'apertura da zero del browser riparte
+  // da capo (tranne quando si rientra dall'editor)
+  if (!opts.back) {
+    if (current && tab.llDir && tab.llDir !== target) {
+      tab.llHist = (tab.llHist || []).concat(tab.llDir).slice(-50);
+    } else if (!current && !opts.keepHistory) {
+      tab.llHist = [];
+    }
+  }
+
   if (cached) renderListing(tab, cached, true);
   else if (current && tab.llDir === target) current.classList.add('ll-loading');
   else { renderListingSkeleton(tab, target); skeleton = true; }
@@ -1419,6 +1438,40 @@ async function showListing(tab, dir, opts = {}) {
   // già a schermo e identico: niente da ridisegnare, basta spegnere lo spinner
   if (cached && cached.sig === res.sig && tab.llDir === res.cwd) return stopListingSpinner(tab);
   renderListing(tab, res);
+}
+
+/** Naviga il file browser in `target`, allineando anche la shell con una `cd`. */
+function browseTo(tab, target, opts = {}) {
+  window.api.write(tab.id, `cd ${shQuote(target)}\r`);
+  tab.cwd = target;
+  if (tab.cwdEl) tab.cwdEl.textContent = target;
+  // il listing usa un percorso assoluto via SFTP: non dipende dalla `cd`
+  // sulla shell, quindi parte subito in parallelo senza attese fisse
+  showListing(tab, target, opts);
+}
+
+/**
+ * Tasto "indietro" del mouse: torna alla vista precedente.
+ * - impostazioni -> vista da cui sono state aperte
+ * - editor -> file browser da cui è stato aperto (chiede conferma se ci sono modifiche)
+ * - file browser -> cartella visitata in precedenza (o la cartella superiore)
+ */
+function navigateBack() {
+  if ($('#settings-view').classList.contains('active')) {
+    $('#btn-settings-back').click();
+    return;
+  }
+  if (!$('#terminal-view').classList.contains('active')) return;
+  const tab = tabs.get(activeTabId);
+  if (!tab) return;
+  const ov = tab.hostEl.querySelector('.ll-overlay');
+  if (!ov) return;
+  if (typeof ov.goBack === 'function') { ov.goBack(); return; }
+  if (ov.classList.contains('ll-files')) {
+    const cur = tab.llDir || tab.cwd;
+    const prev = (tab.llHist && tab.llHist.length) ? tab.llHist.pop() : parentPath(cur);
+    if (prev && prev !== cur) browseTo(tab, prev, { back: true });
+  }
 }
 
 /** Contenitore dell'overlay file browser: maniglia di resize e altezza salvata. */
@@ -1946,18 +1999,14 @@ function makeEntry(tab, entry, cwd) {
   if (entry.isDir) {
     nm.addEventListener('click', (e) => {
       if (e.metaKey || e.ctrlKey || e.shiftKey) return; // selezione, non navigazione
-      const target = entry.name === '..' ? parentPath(cwd) : fullPath;
-      window.api.write(tab.id, `cd '${target.replace(/'/g, `'\\''`)}'\r`);
-      tab.cwd = target;
-      if (tab.cwdEl) tab.cwdEl.textContent = target;
-      // il listing usa un percorso assoluto via SFTP: non dipende dalla `cd`
-      // sulla shell, quindi parte subito in parallelo senza attese fisse
-      showListing(tab, target);
+      browseTo(tab, entry.name === '..' ? parentPath(cwd) : fullPath);
     });
   } else {
-    // doppio clic su file -> cat automatico (il file browser resta aperto)
+    // doppio clic su file: comportamento scelto nelle impostazioni
+    // ("view" = cat nel terminale, il file browser resta aperto; "edit" = editor integrato)
     row.addEventListener('dblclick', () => {
-      window.api.write(tab.id, `cat ${shQuote(fullPath)}\r`);
+      if (getDblClickAction() === 'edit') openEmbeddedEditor(tab, entry, fullPath);
+      else window.api.write(tab.id, `cat ${shQuote(fullPath)}\r`);
     });
   }
 
@@ -5056,7 +5105,7 @@ async function openEmbeddedEditor(tab, entry, fullPath) {
       await window.api.writeFile(tab.id, fullPath, getValue());
       toast(i18n.t('editor_saved', { name: entry.name }));
       close();
-      if (fromBrowser) showListing(tab, browserDir, { fresh: true });
+      if (fromBrowser) showListing(tab, browserDir, { fresh: true, keepHistory: true });
     } catch (e) {
       saveBtn.disabled = false;
       toast(i18n.t('editor_save_error', { error: e.message }), true);
@@ -5078,6 +5127,13 @@ async function openEmbeddedEditor(tab, entry, fullPath) {
   tab.hostEl.appendChild(overlay);
 
   const confirmClose = () => { if (!isDirty() || confirm(i18n.t('editor_unsaved_confirm'))) close(); };
+
+  // tasto "indietro" del mouse: chiude l'editor e torna al file browser
+  overlay.goBack = () => {
+    if (isDirty() && !confirm(i18n.t('editor_unsaved_confirm'))) return;
+    close();
+    if (fromBrowser) showListing(tab, browserDir, { keepHistory: true });
+  };
 
   if (window.CodeMirror) {
     const mode = detectEditorMode(entry.name, content);
@@ -7521,6 +7577,16 @@ function applyUITexts() {
     });
   }
 
+  const dblLabel = $('#dblclick-label');
+  if (dblLabel) dblLabel.textContent = i18n.t('settings_dblclick_label');
+  const dblSelect = $('#dblclick-select');
+  if (dblSelect) {
+    const opts = { view: i18n.t('view_cat'), edit: i18n.t('edit_with_editor') };
+    dblSelect.querySelectorAll('option').forEach((opt) => {
+      if (opts[opt.value]) opt.textContent = opts[opt.value];
+    });
+  }
+
   const termBgLabel = $('#termbg-label');
   if (termBgLabel) termBgLabel.textContent = i18n.t('settings_termbg_label');
   const termBgSelect = $('#termbg-select');
@@ -7618,6 +7684,9 @@ const TAB_EXTRA_ACTIONS = [
   { id: 'zoomIn',    icon: 'fa-solid fa-magnifying-glass-plus',  labelKey: 'shortcut_zoom_in',    run: (tab) => zoomTerm(tab, 1) },
   { id: 'zoomOut',   icon: 'fa-solid fa-magnifying-glass-minus', labelKey: 'shortcut_zoom_out',   run: (tab) => zoomTerm(tab, -1) },
   { id: 'zoomReset', icon: 'fa-solid fa-arrows-rotate',          labelKey: 'shortcut_zoom_reset', run: (tab) => zoomTerm(tab, 0) },
+  // come il tasto "indietro" del mouse: utile su macOS, dove Logi Options+ e
+  // simili non inviano il pulsante laterale ma una combinazione di tasti
+  { id: 'back',      icon: 'fa-solid fa-arrow-left-long',        labelKey: 'shortcut_back',       run: () => navigateBack() },
 ];
 
 /** Elenco completo delle azioni associabili a una scorciatoia. */
@@ -7642,6 +7711,8 @@ const DEFAULT_SHORTCUTS = {
   zoomIn: `${MOD}+=`,
   zoomOut: `${MOD}+-`,
   zoomReset: `${MOD}+0`,
+  // ⌘[ è il "indietro" standard di macOS; altrove il tasto laterale del mouse arriva già
+  back: IS_MAC ? 'Meta+[' : '',
 };
 
 const SHORTCUTS_KEY = 'shortcuts';
@@ -7719,6 +7790,10 @@ function normalizeKeyName(key, code) {
     // tasti dello zoom: il tasto fisico non cambia con Shift (Shift+= -> "+")
     if (code === 'Equal') return '=';
     if (code === 'Minus') return '-';
+    // parentesi quadre per tasto fisico: su layout non US (es. italiano)
+    // ⌘[ produrrebbe un altro carattere
+    if (code === 'BracketLeft') return '[';
+    if (code === 'BracketRight') return ']';
     return key.toUpperCase();
   }
   return key; // Tab, Enter, Backspace, Escape, ArrowLeft, F5, …
@@ -7820,6 +7895,20 @@ function shortcutsAllowed(e) {
   return true;
 }
 
+/**
+ * "Indietro" vale anche fuori dal terminale (impostazioni) e dentro l'editor,
+ * che usa una textarea: lì le altre scorciatoie sono bloccate.
+ */
+function backShortcutAllowed(e) {
+  if (recording) return false;
+  const t = e.target;
+  if (t && t.closest) {
+    const field = t.closest('input, textarea, select, [contenteditable="true"]');
+    if (field && !field.classList.contains('xterm-helper-textarea') && !field.closest('.editor-overlay .CodeMirror, .editor-overlay .editor-body')) return false;
+  }
+  return true;
+}
+
 function runShortcut(binding) {
   const action = activeBindings.get(binding);
   const tab = tabs.get(activeTabId);
@@ -7840,6 +7929,13 @@ function setupShortcuts() {
     // si riprova senza, così Cmd+Shift+= vale come Cmd+= (solo per = e -)
     if (binding && !activeBindings.has(binding) && /^(Equal|Minus)$/.test(e.code || '')) {
       binding = binding.replace('Shift+', '');
+    }
+    if (binding && activeBindings.has(binding) && activeBindings.get(binding).id === 'back') {
+      if (!backShortcutAllowed(e)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      navigateBack();
+      return;
     }
     if (!binding || !activeBindings.has(binding) || !shortcutsAllowed(e)) return;
     e.preventDefault();
@@ -7989,6 +8085,28 @@ window.addEventListener('DOMContentLoaded', async () => {
     applyTermBg(tbToggle.checked, tbSelect.value);
   });
   tbSelect.addEventListener('change', () => applyTermBg(tbToggle.checked, tbSelect.value));
+
+  // tasto "indietro" del mouse (pulsante 3): torna alla vista precedente.
+  // In cattura, così funziona anche sopra terminale ed editor; si bloccano
+  // anche mousedown/auxclick dei tasti laterali per evitare effetti di default.
+  const isSideButton = (e) => e.button === 3 || e.button === 4;
+  window.addEventListener('mousedown', (e) => { if (isSideButton(e)) e.preventDefault(); }, true);
+  window.addEventListener('auxclick', (e) => { if (isSideButton(e)) e.preventDefault(); }, true);
+  window.addEventListener('mouseup', (e) => {
+    if (e.button !== 3) return;
+    e.preventDefault();
+    e.stopPropagation();
+    navigateBack();
+  }, true);
+  // swipe "indietro" su macOS, inoltrato dal processo main
+  if (window.api.onNavBack) window.api.onNavBack(() => navigateBack());
+
+  // doppio clic su file: visualizza (cat) o modifica con l'editor integrato
+  const dblSelect = $('#dblclick-select');
+  dblSelect.value = getDblClickAction();
+  dblSelect.addEventListener('change', (e) => {
+    try { localStorage.setItem(DBLCLICK_KEY, e.target.value); } catch (_) {}
+  });
 
   // lingua: applica quella salvata e collega la dropdown
   const langSelect = $('#language-select');

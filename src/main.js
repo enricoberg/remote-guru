@@ -35,6 +35,12 @@ function createWindow() {
 
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
   mainWindow.on('closed', () => (mainWindow = null));
+
+  // macOS: lo swipe "indietro" (gesture di trackpad o emulata dal software
+  // del mouse) arriva come evento di finestra, non come pulsante del mouse
+  mainWindow.on('swipe', (_e, direction) => {
+    if (direction === 'left' && mainWindow) mainWindow.webContents.send('nav:back');
+  });
 }
 
 /**
