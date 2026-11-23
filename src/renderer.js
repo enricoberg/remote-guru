@@ -453,6 +453,51 @@ function refreshTerminalThemes() {
   tabs.forEach((tab) => { tab.term.options.theme = theme; });
 }
 
+// ---------- Selettore del tema con anteprima dei colori ----------
+// La <select> resta la fonte di verità (valore + evento change): la griglia di
+// schede è solo una vista sopra di essa, come il selettore dell'app mobile.
+// Ogni anteprima prende i colori del proprio tema tramite [data-swatch] (styles.css).
+function syncThemePicker() {
+  const select = $('#theme-select');
+  if (!select) return;
+  let grid = $('#theme-picker');
+  if (!grid) {
+    grid = el('div', 'theme-picker');
+    grid.id = 'theme-picker';
+    grid.setAttribute('role', 'radiogroup');
+    select.classList.add('theme-select-native');
+    select.insertAdjacentElement('afterend', grid);
+    grid.addEventListener('click', (e) => {
+      const card = e.target.closest('.theme-card');
+      if (!card || card.dataset.value === select.value) return;
+      select.value = card.dataset.value;
+      select.dispatchEvent(new Event('change'));
+      syncThemePicker();
+    });
+  }
+  grid.innerHTML = '';
+  select.querySelectorAll('option').forEach((opt) => {
+    const selected = opt.value === select.value;
+    const card = el('button', 'theme-card' + (selected ? ' selected' : ''));
+    card.type = 'button';
+    card.dataset.value = opt.value;
+    card.setAttribute('role', 'radio');
+    card.setAttribute('aria-checked', String(selected));
+    const swatch = el('span', 'theme-swatch');
+    swatch.dataset.swatch = opt.value;
+    swatch.innerHTML = '<span class="ts-card"><span class="ts-line"></span><span class="ts-line muted"></span>'
+      + '<span class="ts-dots"><i class="c-accent"></i><i class="c-green"></i><i class="c-red"></i><i class="c-yellow"></i></span></span>';
+    const name = el('span', 'theme-card-name');
+    const label = el('span');
+    label.textContent = opt.textContent;
+    name.appendChild(label);
+    name.insertAdjacentHTML('beforeend', '<i class="fa-solid fa-circle-check"></i>');
+    card.appendChild(swatch);
+    card.appendChild(name);
+    grid.appendChild(card);
+  });
+}
+
 // ---------- Sfondo animato del terminale ----------
 // salvato come nome della scena; stringa vuota/assente = disattivato
 function applyTermBg(enabled, sceneName) {
@@ -7586,6 +7631,7 @@ function applyUITexts() {
     themeSelect.querySelectorAll('option').forEach(opt => {
       if (options[opt.value]) opt.textContent = options[opt.value];
     });
+    syncThemePicker(); // le schede di anteprima riprendono le etichette tradotte
   }
 
   const dblLabel = $('#dblclick-label');
@@ -8097,6 +8143,7 @@ window.addEventListener('DOMContentLoaded', async () => {
   applyTheme(getSavedTheme());
   themeSelect.value = getSavedTheme();
   themeSelect.addEventListener('change', (e) => applyTheme(e.target.value));
+  syncThemePicker();
 
   // sfondo animato del terminale: toggle + scelta della scena
   const tbToggle = $('#termbg-toggle');
