@@ -2412,6 +2412,29 @@ async function uploadLocalPaths(tab, destDir, paths) {
 }
 
 // ============================================================================
+// AGGIORNAMENTO DEI PANNELLI
+// ============================================================================
+
+/**
+ * Tasto "aggiorna" nell'intestazione di un pannello (docker, database, screen…).
+ * La classe ll-refresh permette alla scorciatoia "refresh" di trovarlo e
+ * premerlo; il tooltip riporta la combinazione associata, se c'è.
+ */
+function makeRefreshButton() {
+  const btn = el('button', 'll-refresh');
+  btn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
+  const keys = shortcutFor('refresh');
+  btn.title = keys ? `${i18n.t('refresh')} (${formatBinding(keys)})` : i18n.t('refresh');
+  return btn;
+}
+
+/** Preme il tasto "aggiorna" del pannello aperto sulla scheda, se ne ha uno. */
+function refreshOpenPanel(tab) {
+  const btn = tab.hostEl && tab.hostEl.querySelector('.ll-overlay .ll-refresh');
+  if (btn && !btn.disabled) btn.click();
+}
+
+// ============================================================================
 // DOCKER
 // ============================================================================
 
@@ -2443,9 +2466,7 @@ async function showDocker(tab) {
   const info = el('span');
   info.innerHTML = i18n.t('docker_containers_title', { count: containers.length });
   const actions = el('span', 'll-head-actions');
-  const refreshBtn = el('button');
-  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
-  refreshBtn.title = i18n.t('refresh');
+  const refreshBtn = makeRefreshButton();
   refreshBtn.addEventListener('click', () => showDocker(tab));
   const closeBtn = el('button');
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
@@ -2643,9 +2664,7 @@ async function showDatabases(tab) {
   const info = el('span');
   info.innerHTML = i18n.t('db_databases_title', { count: total });
   const actions = el('span', 'll-head-actions');
-  const refreshBtn = el('button');
-  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
-  refreshBtn.title = i18n.t('refresh');
+  const refreshBtn = makeRefreshButton();
   refreshBtn.addEventListener('click', () => showDatabases(tab));
   const closeBtn = el('button');
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
@@ -2840,9 +2859,7 @@ async function showPgActivity(tab, d, group) {
   backBtn.innerHTML = '<i class="fa-solid fa-arrow-left"></i>';
   backBtn.title = i18n.t('db_activity_back');
   backBtn.addEventListener('click', () => showDatabases(tab));
-  const refreshBtn = el('button');
-  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
-  refreshBtn.title = i18n.t('refresh');
+  const refreshBtn = makeRefreshButton();
   const closeBtn = el('button');
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
   closeBtn.title = 'Chiudi';
@@ -3285,9 +3302,7 @@ async function showImages(tab) {
   const info = el('span');
   info.innerHTML = i18n.t('docker_images_title');
   const actions = el('span', 'll-head-actions');
-  const refreshBtn = el('button');
-  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
-  refreshBtn.title = i18n.t('refresh');
+  const refreshBtn = makeRefreshButton();
   refreshBtn.addEventListener('click', () => showImages(tab));
   const closeBtn = el('button');
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
@@ -3518,9 +3533,7 @@ async function showScreens(tab) {
     window.api.write(tab.id, '\x01d'); // Ctrl-A, poi d
     setTimeout(() => showScreens(tab), 400);
   });
-  const refreshBtn = el('button');
-  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
-  refreshBtn.title = i18n.t('refresh');
+  const refreshBtn = makeRefreshButton();
   refreshBtn.addEventListener('click', () => showScreens(tab));
   const closeBtn = el('button');
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
@@ -3849,9 +3862,7 @@ async function showCrontab(tab) {
     const form = makeCronForm(tab, lines, null);
     overlay.insertBefore(form, head.nextElementSibling);
   });
-  const refreshBtn = el('button');
-  refreshBtn.innerHTML = '<i class="fa-solid fa-rotate"></i>';
-  refreshBtn.title = i18n.t('refresh');
+  const refreshBtn = makeRefreshButton();
   refreshBtn.addEventListener('click', () => showCrontab(tab));
   const closeBtn = el('button');
   closeBtn.innerHTML = '<i class="fa-solid fa-xmark"></i>';
@@ -7687,6 +7698,8 @@ const TAB_EXTRA_ACTIONS = [
   // come il tasto "indietro" del mouse: utile su macOS, dove Logi Options+ e
   // simili non inviano il pulsante laterale ma una combinazione di tasti
   { id: 'back',      icon: 'fa-solid fa-arrow-left-long',        labelKey: 'shortcut_back',       run: () => navigateBack() },
+  // preme il tasto "aggiorna" del pannello aperto (docker, database, screen, cron…)
+  { id: 'refresh',   icon: 'fa-solid fa-rotate',                 labelKey: 'shortcut_refresh',    run: (tab) => refreshOpenPanel(tab) },
 ];
 
 /** Elenco completo delle azioni associabili a una scorciatoia. */
@@ -7713,6 +7726,8 @@ const DEFAULT_SHORTCUTS = {
   zoomReset: `${MOD}+0`,
   // ⌘[ è il "indietro" standard di macOS; altrove il tasto laterale del mouse arriva già
   back: IS_MAC ? 'Meta+[' : '',
+  // ordine canonico dei modificatori: Ctrl, Alt, Shift, Meta (vedi bindingFromEvent)
+  refresh: IS_MAC ? 'Shift+Meta+R' : 'Ctrl+Shift+R',
 };
 
 const SHORTCUTS_KEY = 'shortcuts';
@@ -7909,6 +7924,12 @@ function backShortcutAllowed(e) {
   return true;
 }
 
+/** Stesse condizioni di shortcutsAllowed, senza il blocco sui campi di testo. */
+function panelRefreshAllowed() {
+  return !recording && $('#terminal-view').classList.contains('active')
+    && !!activeTabId && tabs.has(activeTabId);
+}
+
 function runShortcut(binding) {
   const action = activeBindings.get(binding);
   const tab = tabs.get(activeTabId);
@@ -7937,7 +7958,11 @@ function setupShortcuts() {
       navigateBack();
       return;
     }
-    if (!binding || !activeBindings.has(binding) || !shortcutsAllowed(e)) return;
+    if (!binding || !activeBindings.has(binding)) return;
+    // l'aggiornamento vale anche dal campo di ricerca del pannello stesso
+    const isPanelRefresh = activeBindings.get(binding).id === 'refresh'
+      && e.target && e.target.closest && e.target.closest('.ll-overlay');
+    if (!shortcutsAllowed(e) && !(isPanelRefresh && panelRefreshAllowed())) return;
     e.preventDefault();
     e.stopPropagation();
     runShortcut(binding);

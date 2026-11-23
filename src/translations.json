@@ -3215,6 +3215,14 @@
     "de": "Zurück (wie die Zurück-Taste der Maus)",
     "pt": "Voltar (como o botão voltar do mouse)"
   },
+  "shortcut_refresh": {
+    "it": "Aggiorna il pannello aperto (Docker, database, screen…)",
+    "en": "Refresh the open panel (Docker, databases, screen…)",
+    "es": "Actualizar el panel abierto (Docker, bases de datos, screen…)",
+    "fr": "Actualiser le panneau ouvert (Docker, bases de données, screen…)",
+    "de": "Geöffnetes Panel aktualisieren (Docker, Datenbanken, Screen…)",
+    "pt": "Atualizar o painel aberto (Docker, bancos de dados, screen…)"
+  },
   "shortcut_zoom_reset": {
     "it": "Ripristina il carattere",
     "en": "Reset font size",

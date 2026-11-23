@@ -61,7 +61,12 @@ function buildAppMenu() {
       label: 'View',
       submenu: [
         { role: 'reload' },
-        { role: 'forceReload' },
+        // senza acceleratore: Cmd/Ctrl+Shift+R serve alla scorciatoia "aggiorna
+        // pannello" del renderer, e l'acceleratore di menu la scavalcherebbe
+        {
+          label: 'Force Reload',
+          click: (_item, win) => { if (win) win.webContents.reloadIgnoringCache(); },
+        },
         { role: 'toggleDevTools' },
         { type: 'separator' },
         { role: 'togglefullscreen' },
