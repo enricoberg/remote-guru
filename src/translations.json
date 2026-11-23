@@ -3942,5 +3942,45 @@
     "fr": "Tunnel",
     "de": "Tunnel",
     "pt": "Túnel"
+  },
+  "settings_termbg_aurora": {
+    "it": "Aurora boreale",
+    "en": "Aurora borealis",
+    "es": "Aurora boreal",
+    "fr": "Aurore boréale",
+    "de": "Polarlicht",
+    "pt": "Aurora boreal"
+  },
+  "settings_termbg_blackhole": {
+    "it": "Buco nero",
+    "en": "Black hole",
+    "es": "Agujero negro",
+    "fr": "Trou noir",
+    "de": "Schwarzes Loch",
+    "pt": "Buraco negro"
+  },
+  "settings_termbg_lorenz": {
+    "it": "Attrattore di Lorenz",
+    "en": "Lorenz attractor",
+    "es": "Atractor de Lorenz",
+    "fr": "Attracteur de Lorenz",
+    "de": "Lorenz-Attraktor",
+    "pt": "Atrator de Lorenz"
+  },
+  "settings_termbg_silk": {
+    "it": "Fili di seta",
+    "en": "Silk flow",
+    "es": "Hilos de seda",
+    "fr": "Fils de soie",
+    "de": "Seidenfäden",
+    "pt": "Fios de seda"
+  },
+  "settings_termbg_jellyfish": {
+    "it": "Meduse abissali",
+    "en": "Deep-sea jellyfish",
+    "es": "Medusas abisales",
+    "fr": "Méduses abyssales",
+    "de": "Tiefsee-Quallen",
+    "pt": "Águas-vivas abissais"
   }
 }
